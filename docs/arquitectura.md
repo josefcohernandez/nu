@@ -123,6 +123,14 @@ recompilación. El contrato del adaptador y el formato del registro están en
 - Extensiones oficiales embebidas con `go:embed`; sobreescribibles por el
   usuario desde su directorio de config.
 
+## Persistencia
+
+Las sesiones del agente se guardan como JSONL append-only bajo
+`data_dir()/sessions/`, reutilizando el modelo canónico de mensajes; es una
+convención pública legible por otras extensiones, no una primitiva del core.
+Contrato completo en [sesiones.md](sesiones.md). El resto de extensiones
+escriben bajo `data_dir()/plugins/<nombre>/`.
+
 ## Cuestiones abiertas
 
 1. **Spike de validación de ADR-007**: celdas/regiones + compositor + toolkit
