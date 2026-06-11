@@ -123,6 +123,7 @@ Un adaptador es un módulo Lua que devuelve:
   caps: { tools?: boolean, images?: boolean, thinking?: boolean,
           system?: boolean, usage?: boolean },
   stream: function(req: Request, provider: ProviderConfig) -> iterator<Event>,  ⏸
+  count_tokens?: function(req: Request, provider: ProviderConfig) -> integer,   ⏸ opcional
 }
 ```
 
@@ -146,6 +147,13 @@ Obligaciones del adaptador:
    reinyectarse en el wire format como el provider lo exige.
 5. **Degradación declarada**: si `caps.tools = false` y el request trae
    tools, lanza `EINVAL` — no simula silenciosamente.
+6. **Prompt caching automático e invisible**: el adaptador aplica las
+   prácticas de su proveedor sin que el modelo canónico ni el usuario
+   indiquen nada. OpenAI/Gemini cachean prefijos solos (nada que hacer);
+   en Anthropic el adaptador coloca los breakpoints `cache_control`
+   mecánicamente (tools + system + últimos mensajes). Casos exóticos
+   (p. ej. la caché explícita de Gemini para contextos reutilizados entre
+   sesiones) tienen su válvula en `meta`/`extra`.
 
 Esqueleto ilustrativo (no normativo):
 
@@ -186,13 +194,21 @@ return {
 
 ---
 
-## 5. Cuestiones abiertas
+## 5. Alcance v1: decisiones cerradas
 
-1. **Prompt caching**: ¿se expresa en el modelo canónico (marcas de
-   breakpoint) o queda enteramente en `meta`/heurística del adaptador?
-2. **Embeddings y otros endpoints no-chat**: fuera de este contrato v1;
-   ¿segundo contrato o extensión de este?
-3. **Imágenes/archivos de salida** del modelo: el vocabulario de `Event` no
-   los contempla aún.
-4. **Token counting** previo (para compactación de contexto): ¿obligación
-   opcional del adaptador (`count_tokens?`) o estimación genérica del agente?
+1. **Prompt caching**: enteramente automático en el adaptador (obligación 6
+   de §3); el modelo canónico no tiene marcas de caché. El usuario solo nota
+   la factura más baja.
+2. **Embeddings y endpoints no-chat**: fuera del contrato v1. Si una futura
+   extensión (memoria, búsqueda semántica) los necesita, se definirá un
+   mini-contrato aparte: este crece por adición, no se retuerce.
+3. **Imágenes/archivos de salida del modelo**: fuera del vocabulario de
+   `Event` en v1 (es un harness de código; mostrar imágenes en terminal es
+   un melón propio). El vocabulario crece por adición cuando toque.
+4. **Token counting y compactación**: la compactación es feature de la
+   extensión oficial del agente (política personalizable vía hooks), nunca
+   del core (ADR-003: el core no sabe lo que es un LLM). Fuente de verdad
+   del llenado de contexto: los eventos `usage` del propio proveedor
+   (exactos y gratis en cada turno). Para estimación previa:
+   `nu.text.approx_tokens()` (heurística del core) o el `count_tokens?`
+   opcional del adaptador para quien necesite exactitud.
