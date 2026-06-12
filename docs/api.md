@@ -109,9 +109,18 @@ namespace `core:` y `ui:` están reservados.
 | `nu.events.once(name, fn) -> Sub` | Una sola vez. |
 | `nu.events.emit(name, payload?)` | Despacho síncrono en el estado principal. |
 
+Semántica de despacho (G10): cada `emit` corre sobre la **foto** de
+suscriptores tomada al emitir; cancelar una suscripción surte efecto
+inmediato (si aún no te tocó, ya no corres); los suscritos durante un
+despacho solo ven eventos futuros; los `emit` anidados **se encolan** y se
+despachan al terminar el actual (anchura, no profundidad — sin recursión ni
+desbordes; un ping-pong infinito entre plugins se vuelve un bucle plano que
+el watchdog corta).
+
 Eventos que emite el core: `core:ready`, `core:shutdown`,
-`core:plugin.loaded`, `core:plugin.error`, `core:plugin.misbehaved`,
-`ui:resize`, `ui:focus`, `ui:suspend`/`ui:resume`.
+`core:plugin.loaded`, `core:plugin.unload`, `core:plugin.error`,
+`core:plugin.misbehaved`, `ui:resize`, `ui:focus`,
+`ui:suspend`/`ui:resume`.
 
 ---
 
@@ -126,7 +135,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | `nu.fs.mkdir(path)` ⏸ / `nu.fs.remove(path, opts?)` ⏸ / `nu.fs.rename(from, to)` ⏸ / `nu.fs.copy(from, to)` ⏸ | `remove` exige `opts.recursive=true` para directorios no vacíos. |
 | `nu.fs.tmpdir() -> string` ⏸ | Directorio temporal propio de la sesión. |
 | `nu.fs.cwd() -> string` [W] | Directorio de trabajo (inmutable durante la sesión; los subprocesos pueden recibir otro vía `opts.cwd`). |
-| `nu.fs.watch(path, fn) -> Watcher` | `fn({path, kind: "create"\|"modify"\|"remove"})` como handler síncrono. `Watcher:stop()`. Solo estado principal. |
+| `nu.fs.watch(path, opts?, fn) -> Watcher` | `opts`: `recursive?`, `gitignore = true` (ignora lo ignorado por git: vigilar `node_modules/` es ruido), `debounce_ms = 50`. Entrega **en lotes**: `fn(events[])` con `{path, kind: "create"\|"modify"\|"remove"}` — un `git checkout` que toca miles de ficheros llega como un solo lote (G7). Handler síncrono. `Watcher:stop()`. Solo estado principal. |
 
 ---
 
@@ -258,7 +267,7 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 
 | Firma | Semántica |
 |---|---|
-| `nu.json.encode(v, opts?) -> string` / `nu.json.decode(s) -> v` | `opts.pretty`. `null` ↔ `nu.json.NULL` (sentinel) para no perder claves. |
+| `nu.json.encode(v, opts?) -> string` / `nu.json.decode(s) -> v` | `opts.pretty`. `null` ↔ `nu.json.NULL` (sentinel) para no perder claves. **Estricto con UTF-8** (G11): `encode` lanza `EINVAL` ante bytes inválidos — sanear es decisión visible de quien tiene el contexto (la tool), nunca del codec. |
 | `nu.toml.encode(v) -> string` / `nu.toml.decode(s) -> v` | |
 | `nu.yaml.encode(v) -> string` / `nu.yaml.decode(s) -> v` | Necesario para metadatos del ecosistema existente (frontmatter de skills); YAML es demasiado traicionero para parsearlo en Lua puro. |
 
@@ -270,9 +279,14 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 |---|---|
 | `nu.worker.spawn(module: string, opts?) -> Worker` | Levanta un estado Lua nuevo en su goroutine, cargando `module` (resoluble por el loader). Las rutas de `require` del loader (módulos Lua de plugins) están disponibles dentro del worker; lo que no existe es la API `nu.plugin` (ciclo de vida). Sin `nu.ui`, `nu.events` (bus principal) ni workers anidados. `opts.caps?: string[]` restringe la API del worker a lo enumerado, con **dos granularidades** (G6): `"fs"` concede el módulo entero; `"fs.read"` concede una función concreta. Lo no concedido **no existe** dentro del estado — sandboxing por capacidades; las funciones añadidas a la API en el futuro nunca quedan concedidas por listas antiguas (deny-by-default para superficie nueva). Sin `caps`, el worker recibe toda la API [W]. Paquetes con nombre (p. ej. solo-lectura): tablas de la extensión del agente (`agent.caps.*`), no del core. |
 | `Worker:send(msg)` ⏸ / `Worker:recv() -> msg` ⏸ | Mensajes = valores JSON-ables, **copiados** (las tablas no cruzan estados). Tampoco cruzan closures, userdata ni Blocks: un worker manda datos digeridos y el estado principal renderiza. Las colas son **acotadas**: `send` suspende si está llena (backpressure, coherente con §8) — desde un handler síncrono, `task.spawn` como siempre. |
-| `Worker:on_message(fn) -> Sub` | Alternativa por callback en el estado principal. |
+| `Worker:on_message(fn) -> Sub` | Alternativa por callback en el estado principal. **Excluyente con `recv`** (G8): registrar uno con el otro pendiente (o viceversa) lanza `EINVAL` en el acto — nunca prioridad silenciosa. |
 | `Worker:terminate()` | Inmediato y seguro (estados aislados). |
 | *(dentro del worker)* `nu.worker.parent.send(msg)` ⏸ / `...recv() -> msg` ⏸ | Canal con el estado principal; mismas colas acotadas. |
+
+Interior de un worker (G15): cada worker es un **mini-runtime completo** —
+scheduler propio, múltiples tasks, timers y futures (todo `nu.task` [W]).
+**Sin watchdog**: los workers existen precisamente para quemar CPU a gusto;
+el control es `terminate()` desde el principal más las `caps`.
 
 ---
 
@@ -300,6 +314,7 @@ theme, overrides) por construcción, sin sistema de prioridades.
 |---|---|
 | `nu.plugin.current() -> {name, version, dir}` | Plugin en cuyo contexto corre el código. |
 | `nu.plugin.list() -> {name, version, source: "builtin"\|"user", enabled}[]` | |
+| `nu.plugin.reload(name)` ⏸ | Herramienta de desarrollo, **best-effort** (G2): suelta todos los handles del plugin (el core los etiqueta por dueño vía `plugin.current()`), emite `core:plugin.unload` (las extensiones limpian sus registros: tools, comandos...), vacía la caché de `require` del plugin y recarga su `init.lua`. Un plugin con efectos globales exóticos puede no descargarse limpio — para iterar, no para producción. |
 | `nu.config.dir() -> string` [W] / `nu.config.data_dir() -> string` [W] | `~/.config/nu` y `~/.local/share/nu` (o equivalentes por plataforma). |
 
 ---

@@ -221,6 +221,12 @@ Sub:cancel()
     tasks en el principal. Para tools de IO da igual (suspenden y se
     solapan); una tool con CPU pesada en Lua estorbaría al principal — el
     watchdog la señalará, y su sitio son las primitivas Go o un worker.
+- **Limitación conocida (G16)**: nada coordina a dos subagentes paralelos
+  escribiendo el mismo fichero — last-write-wins. Deliberado: un lock en
+  las tools oficiales sería seguridad falsa (bash y las tools de terceros
+  escriben sin pasar por él). El remedio que funciona es **repartir
+  territorio** entre subagentes vía prompt, como hacen los harnesses de
+  referencia.
 - Permisos: el subagente hereda los del padre **recortados** por sus
   `opts.permissions` (nunca ampliados); `caps` aplica la versión dura.
   Para no escribir listas de funciones a mano, la extensión ofrece

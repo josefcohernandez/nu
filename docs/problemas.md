@@ -8,9 +8,9 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-Orden sugerido: contratos congelables y seguridad primero (G3, G4, G5, G1,
-G14), luego alcance (G6, G9, G12, G13), luego DX y semánticas finas (G2,
-G7, G8, G10, G11, G15, G16).
+**Estado: 16/16 resueltas** (2026-06-12). La lista queda como registro del
+proceso; los problemas nuevos que surjan (spike incluido) se añaden aquí
+con el mismo método.
 
 ---
 
@@ -39,7 +39,15 @@ anclajes declarativos en `region{}` (`x = "center"`, `w = "80%"`) que el
 compositor reaplica solo en cada resize; (c) delegarlo todo al toolkit y
 que el raw `nu.ui` sea explícitamente "a tu suerte".
 
-## G2 · Hot-reload de plugins (ciclo de desarrollo) — loader / `api.md` §14 — **Pendiente**
+## G2 · Hot-reload de plugins (ciclo de desarrollo) — loader / `api.md` §14 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §14 y §4):
+`nu.plugin.reload(name)` best-effort — handles etiquetados por dueño,
+evento `core:plugin.unload` para que las extensiones limpien sus
+registros, caché de require vaciada, init.lua recargado. Herramienta de
+desarrollo, no garantía de producción. El reinicio-con-`--continue` se
+descartó como historia de DX (pierde estado de UI/plugins); posponer
+dolía justo donde se ganan los primeros autores.
 
 **Problema.** Iterar sobre un plugin exige reiniciar nu: `require` cachea,
 re-ejecutar `init.lua` duplicaría registros, y aunque todos los registros
@@ -144,7 +152,14 @@ N×funciones de superficie a congelar; (c) scoping por ruta además del
 modo (`fs:ro:/repo`): el más potente y el más caro de especificar bien;
 (d) dejar módulo-entero en v1 y anotar en pospuestos.
 
-## G7 · Semántica de `fs.watch` — `api.md` §5 — **Pendiente**
+## G7 · Semántica de `fs.watch` — `api.md` §5 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §5): `watch(path, opts?, fn)`
+con `recursive`, `gitignore = true` por defecto y entrega en lotes con
+debounce (`fn(events[])`, ~50 ms). La versión mínima se descartó: habría
+obligado a cada consumidor a reimplementar recursión+ignores+debounce en
+Lua — trabajo proporcional al repo en el estado principal, contra "Lua
+decide, Go ejecuta".
 
 **Problema.** Sin definir: ¿recursivo?, ¿respeta `.gitignore`?
 (vigilar `node_modules/` = ruido infinito), ¿coalescing de ráfagas?
@@ -158,7 +173,12 @@ gitignore = true, debounce_ms = 50 }` y entrega de eventos en lotes
 (`fn(events[])`); (b) mínimo v1: un path, sin recursión (los plugins
 componen), y a pospuestos lo demás.
 
-## G8 · `on_message` vs `recv` simultáneos — `api.md` §13 — **Pendiente**
+## G8 · `on_message` vs `recv` simultáneos — `api.md` §13 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §13): mutuamente excluyentes,
+`EINVAL` en el acto al registrar uno con el otro pendiente. Prioridad
+silenciosa descartada (esconde el bug); competencia por cola descartada
+(no determinismo de serie).
 
 **Problema.** Son "alternativas" pero nada impide usar ambas sobre el
 mismo worker: ¿quién recibe el mensaje? Indefinido.
@@ -194,7 +214,14 @@ documentado (la tool bash exige WSL o git-bash); (b) Windows de primera
 desde v1 (coste alto: shell portable, semántica kill, pruebas de
 terminal); (c) v1 sin Windows, explícitamente.
 
-## G10 · Reentrada del bus de eventos — `api.md` §4 — **Pendiente**
+## G10 · Reentrada del bus de eventos — `api.md` §4 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §4): despacho sobre snapshot
+de suscriptores; cancelación con efecto inmediato; suscritos durante el
+despacho solo ven eventos futuros; emits anidados encolados (anchura, no
+profundidad — el ping-pong infinito se vuelve bucle plano que corta el
+watchdog). Recursión en profundidad descartada (desborde de pila + orden
+sorpresa); `defer` obligatorio descartado (la UI iría un tick por detrás).
 
 **Problema.** `emit` dentro de un handler (¿recursión o cola?), suscribir
 o cancelar durante el despacho (¿el handler nuevo ve el evento en curso?
@@ -210,7 +237,14 @@ despacho recursivo en profundidad con límite anti-ciclos; (c) emits
 anidados via `task.defer` obligatorio (más simple en el core, más
 sorpresa para el autor).
 
-## G11 · Datos no-UTF-8 en las fronteras JSON — `api.md` §12 / transversal — **Pendiente**
+## G11 · Datos no-UTF-8 en las fronteras JSON — `api.md` §12 / transversal — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §12 y guía §5): el codec es
+estricto (`encode` lanza `EINVAL` ante UTF-8 inválido) y las tools sanean
+en el origen, visiblemente (`[output binario: NKB omitidos]`). Base64
+automático descartado (blob inesperado para el LLM, ambigüedad para el
+lector); `U+FFFD` silencioso en el codec descartado (esconde corrupción en
+todas las fronteras — sanear es decisión con contexto).
 
 **Problema.** Un tool result con bytes binarios (cat de un PNG) cruza
 tres fronteras que asumen JSON/UTF-8 (request al provider, transcript
@@ -296,7 +330,13 @@ recortables — los `allow` del proyecto requieren confirmación explícita);
 (c) ambas: TOFU para skills/contexto + regla dura "el repo solo recorta
 permisos, jamás amplía".
 
-## G15 · El interior de un worker: scheduler propio y watchdog — `api.md` §13 / `modelo-ejecucion.md` — **Pendiente**
+## G15 · El interior de un worker: scheduler propio y watchdog — `api.md` §13 / `modelo-ejecucion.md` — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §13): cada worker es un
+mini-runtime completo (scheduler propio, multi-task, timers, futures) y
+**sin watchdog** — los workers existen para quemar CPU a gusto; el control
+es `terminate()` + `caps`. El watchdog configurable se descartó: un mando
+sin modelo de amenaza (no hay UI dentro que proteger).
 
 **Problema.** `task` es [W] y el escenario 4 ya asumió multiplexar con
 `race` dentro del worker, pero nunca se escribió que cada worker tenga su
@@ -310,7 +350,14 @@ multi-task, timers) sin watchdog (no hay UI que proteger; `terminate()`
 es el control); (b) igual pero con watchdog configurable (protege de
 workers zombis quemando CPU).
 
-## G16 · Subagentes paralelos escribiendo los mismos ficheros — `agente.md` §9 — **Pendiente**
+## G16 · Subagentes paralelos escribiendo los mismos ficheros — `agente.md` §9 — **RESUELTO**
+
+**Resolución** (aplicada en [agente.md](agente.md) §9): limitación conocida
+documentada + remedio prescrito (repartir territorio vía prompt, como los
+harnesses de referencia). Lock en tools oficiales descartado: seguridad
+falsa — bash y tools de terceros escriben sin pasar por él, prometería una
+garantía incumplible ("casi bien es peor que no"). Detección a posteriori
+descartada por el mismo agujero de cobertura.
 
 **Problema.** Las tools de subagentes paralelos se intercalan en el
 principal, pero nada coordina dos escrituras al mismo path:

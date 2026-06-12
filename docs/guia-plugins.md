@@ -81,6 +81,11 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
   `allow` en tools mutantes: el diálogo de permisos es la confianza del
   usuario en todo el ecosistema.
 - Salida larga o lenta: emite `ctx.progress(...)` — la UI lo pinta en vivo.
+- **Sanea el binario en el origen** (G11): si tu tool puede producir bytes
+  no-UTF-8 (salida de procesos, ficheros arbitrarios), sustitúyelos
+  visiblemente (`[output binario: 48KB omitidos]`) antes de devolver. El
+  codec JSON es estricto y lanzará `EINVAL` aguas abajo — lejos de tu
+  código y de tu contexto.
 
 ## 6. UI: bloques, no celdas; y limpia al salir
 
