@@ -6,7 +6,8 @@ especificación cerrada. Las decisiones y su razonamiento viven en
 [api.md](api.md); la vista dinámica (comunicación, orquestación y
 limitaciones, con diagramas), en [modelo-ejecucion.md](modelo-ejecucion.md).
 Contratos de las extensiones oficiales: [providers.md](providers.md),
-[sesiones.md](sesiones.md), [agente.md](agente.md), [chat.md](chat.md). Lo
+[sesiones.md](sesiones.md), [agente.md](agente.md), [chat.md](chat.md).
+Convenciones prácticas para autores: [guia-plugins.md](guia-plugins.md). Lo
 aplazado, con su disparador de reapertura: [pospuesto.md](pospuesto.md).
 
 ## Vista general
