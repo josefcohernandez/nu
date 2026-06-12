@@ -470,6 +470,10 @@ Resolución en [api.md](api.md) §14: fichero de configuración del runtime
 `config.dir()/nu.toml` (`plugins.disabled`, presupuesto del watchdog) y
 orden canónico **core → plugins → init.lua del usuario → `core:ready`** —
 el usuario gana por ir último, sin sistema de prioridades.
+*Nota posterior: ADR-010 invirtió el defecto — las extensiones oficiales
+se distribuyen **inactivas** y `nu.toml` gobierna la activación, no la
+desactivación. El `plugins.disabled` de este hallazgo y del escenario 10
+refleja el estado previo a esa ADR.*
 
 **F5 — Patrón de render en streaming** (sin cambio de API): re-renderizar
 el mensaje en curso una vez por tick de pintado, no por delta. A la guía
@@ -656,8 +660,8 @@ nu.task.race(...)    -- (el escenario 4 ya lo asumió para multiplexar
 -- escrituras al mismo path — last-write-wins silencioso.            [G16]
 ```
 
-Menores anotados al pasar: rotación del fichero de `nu.log`; propiedad de
-los `Timer` (¿mueren con la task? → convención `cleanup`); restricciones
-de versión en `requires` (se pliega a [P4](pospuesto.md) cuando se
-reabra).
+Menores anotados al pasar: rotación del fichero de `nu.log`
+(→ [P20](pospuesto.md)); propiedad de los `Timer` (¿mueren con la task?
+→ convención `cleanup`); restricciones de versión en `requires` (se
+pliega a [P4](pospuesto.md) cuando se reabra).
 

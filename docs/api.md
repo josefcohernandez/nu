@@ -56,9 +56,14 @@ Las funciones del core **lanzan** (vía `error()`) tablas estructuradas:
 { code: string, message: string, detail?: any }
 ```
 
-Códigos reservados v1: `ENOENT`, `EACCES`, `EIO`, `EHTTP`, `ENET`,
+Códigos reservados v1: `ENOENT`, `EEXIST`, `EACCES`, `EIO`, `EHTTP`, `ENET`,
 `ETIMEOUT`, `ECANCELED`, `EBUDGET`, `EINVAL`, `ECLOSED`. Se capturan con
-`pcall`. Razón frente al estilo `res, err`: los errores estructurados
+`pcall` — con dos excepciones: `ECANCELED` y `EBUDGET` nombran los abortos
+no capturables de §1.3 (cancelación y watchdog, respectivamente) y solo
+sirven para *observarlos*, p. ej. en el resultado de `Task:await`. Las
+extensiones acuñan sus propios códigos con la misma forma, fuera de esta
+lista reservada (p. ej. `EPROVIDER`, [providers.md](providers.md) §3).
+Razón frente al estilo `res, err`: los errores estructurados
 componen mejor a través de capas de extensiones y nunca se ignoran en
 silencio.
 
@@ -75,7 +80,7 @@ Region, Proc...) son userdata opacos con métodos.
 | Firma | Semántica |
 |---|---|
 | `nu.version -> {major, minor, patch, api: integer}` [W] | Versión del runtime y nivel de API. |
-| `nu.has(cap: string) -> boolean` [W] | Detección de capacidades (`"ui.images"`, `"net.tcp"`, ...) para extensiones portables. |
+| `nu.has(cap: string) -> boolean` [W] | Detección de capacidades (`"ui"`, `"ui.images"`, `"net.tcp"`, ...) para extensiones portables. Cubre también módulos enteros: en headless `nu.ui` no existe (§9). |
 
 ---
 
@@ -100,7 +105,9 @@ Region, Proc...) son userdata opacos con métodos.
 
 El core no sabe lo que es un agente: este bus genérico es donde las
 extensiones definen sus propios hooks (p. ej. la extensión oficial de agente
-emite `agent:tool.pre`). Convención de nombres: `"namespace:evento"`. El
+emite `agent:tool.start`; sus hooks-middleware como `tool.pre` van por
+registro propio, no por el bus — [agente.md](agente.md) §4). Convención de
+nombres: `"namespace:evento"`. El
 namespace `core:` y `ui:` están reservados.
 
 | Firma | Semántica |
@@ -129,7 +136,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | Firma | Semántica |
 |---|---|
 | `nu.fs.read(path) -> string` ⏸ | Lee el fichero entero. |
-| `nu.fs.write(path, data)` ⏸ / `nu.fs.append(path, data)` ⏸ | Escritura atómica (write vía fichero temporal + rename). |
+| `nu.fs.write(path, data, opts?)` ⏸ / `nu.fs.append(path, data)` ⏸ | Escritura atómica (write vía fichero temporal + rename). `opts.exclusive = true` (G17): crea **solo si no existe**, en una única operación indivisible (`O_EXCL` — aquí no hay temporal+rename: rename sobreescribiría); si el fichero ya existe lanza `EEXIST`. Es la pieza para lockfiles ([sesiones.md](sesiones.md) §6). |
 | `nu.fs.stat(path) -> {size, mtime_ms, is_dir, mode}?` ⏸ | `nil` si no existe (no lanza `ENOENT`). |
 | `nu.fs.list(dir) -> {name, is_dir}[]` ⏸ | Sin recursión; para recursivo ver `nu.search.files`. |
 | `nu.fs.mkdir(path)` ⏸ / `nu.fs.remove(path, opts?)` ⏸ / `nu.fs.rename(from, to)` ⏸ / `nu.fs.copy(from, to)` ⏸ | `remove` exige `opts.recursive=true` para directorios no vacíos. |
@@ -149,6 +156,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | `Proc:read_line(which: "stdout"\|"stderr") -> string?` ⏸ | `nil` en EOF. |
 | `Proc:read(which, n?) -> string?` ⏸ | Lectura cruda. |
 | `Proc:wait() -> {code}` ⏸ / `Proc:kill(signal?)` | `signal` por defecto TERM. |
+| `nu.proc.alive(pid: integer) -> boolean` | ¿Hay un proceso vivo con ese `pid` en esta máquina? (G17). Informa de **existencia, no de identidad** — un pid reciclado da `true`. Para detectar locks huérfanos ([sesiones.md](sesiones.md) §6). |
 
 Vida del proceso: la regla es matarlo explícitamente vía `nu.task.cleanup`
 en quien lo crea; como red de seguridad, un `Proc` sin referencias acaba
@@ -163,6 +171,7 @@ matado por el GC (no determinista — no confíes en ello).
 | `nu.sys.platform() -> "linux"\|"darwin"\|"windows"` | |
 | `nu.sys.env(name) -> string?` / `nu.sys.setenv(name, value)` | `setenv` afecta solo a subprocesos futuros. |
 | `nu.sys.now_ms() -> number` / `nu.sys.mono_ms() -> number` | Reloj de pared / monotónico. |
+| `nu.sys.hostname() -> string` | Nombre de la máquina (G17; contenido de los locks de sesión, [sesiones.md](sesiones.md) §6). |
 
 ---
 
@@ -199,6 +208,11 @@ Solo estado principal (ADR-008). El compositor, el diffing y el pintado
 viven en Go; los cambios se coalescen y se pinta como mucho cada ~30 ms
 (ADR-007). No existe "flush" manual.
 
+**Headless (G20)**: sin TTY interactivo (`nu -e`, CI, salida redirigida),
+el módulo `nu.ui` directamente **no existe** — el mismo modelo que las
+`caps` de workers: la superficie no concedida no está. La detección es
+`nu.has("ui")`, nunca probar-y-capturar.
+
 ### 9.1 Superficie
 
 | Firma | Semántica |
@@ -219,7 +233,7 @@ Un **Block** es un handle opaco de líneas estilizadas, producido por
 | Firma | Semántica |
 |---|---|
 | `nu.ui.block(lines: (string\|Span[])[]) -> Block` | Construcción manual. Un `Span` es `{text, style?}`. |
-| `Style` | Tabla `{fg?, bg?, bold?, italic?, underline?, reverse?}`; colores `"#rrggbb"`, índice 0-255 o nombre semántico del theme (`"accent"`, `"error"`, ...). |
+| `Style` | Tabla `{fg?, bg?, bold?, italic?, underline?, reverse?}`; colores **literales**: `"#rrggbb"` o índice 0-255 (el render los degrada a lo que el terminal soporte, `nu.ui.caps().colors`). Los nombres semánticos (`"accent"`, `"error"`, ...) **no son del core**: son vocabulario del theme del toolkit, que los resuelve a literales al construir los Blocks (G22). |
 | `nu.ui.caps() -> {colors, kitty_keyboard, mouse, images}` | Capacidades del terminal. |
 | `nu.ui.clipboard_set(s)` / `nu.ui.clipboard_get() -> string?` ⏸ | Vía OSC 52 cuando el terminal lo soporta. |
 
@@ -303,6 +317,21 @@ desde el directorio de usuario.
 core — la activación de plugins (las extensiones oficiales embebidas están
 **inactivas por defecto**, ADR-010; el primer arranque ofrece activar el
 conjunto oficial), rutas extra de plugins, presupuesto del watchdog.
+
+**Pantalla de runtime desnudo (G21)**: con TTY interactivo y ningún plugin
+activo, el kernel pinta una pantalla fija hecha solo de sus capacidades —
+versión y nivel de API, rutas de config y plugins, extensiones embebidas
+disponibles — y sus acciones: activar el conjunto oficial (escribe
+`plugins.enabled` y continúa el arranque canónico, sin red), activar
+extensiones sueltas (p. ej. solo `repl`), o salir. No es la UI de un
+producto sino la del runtime: las extensiones embebidas y su activación
+son capacidad del loader, así que el kernel habla de lo suyo
+([filosofia.md](filosofia.md) §2) — render fijo, pre-Lua, sin widgets ni
+lógica. Es lo que se ve siempre que nu arranca sin nada activo, no un
+diálogo de primera vez. Sin TTY no hay pantalla: arranca desnudo, y los
+errores por extensión inactiva son accionables (nombran la línea de
+`nu.toml` que lo arregla, como los de permisos en
+[agente.md](agente.md) §5).
 
 **Orden de arranque canónico**: core → plugins activados (topológico por
 `requires`) → `init.lua` del usuario → evento `core:ready`. El

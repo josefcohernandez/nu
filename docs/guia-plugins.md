@@ -95,8 +95,13 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
 - Usa el toolkit oficial salvo que tengas una razón; si vas a `nu.ui` crudo,
   eres responsable de tu región: `input:pop()` y `Region:destroy()` también
   en los caminos de error (envuelve en `pcall` y limpia).
-- Solo colores semánticos del theme (`accent`, `error`, `dim`...). Un plugin
-  que hardcodea `#ff0000` rompe todos los themes menos el del autor.
+- Nada de colores hardcodeados: pide los colores al theme del toolkit
+  (`accent`, `error`, `dim`...) al construir tus Blocks — el toolkit los
+  resuelve a literales, porque el core solo acepta literales (G22). Un
+  plugin que hardcodea `#ff0000` rompe todos los themes menos el del
+  autor. Y si cacheas Blocks o usas colores del theme sobre `nu.ui`
+  crudo, re-renderiza al evento de cambio de theme del toolkit — mismo
+  trato que `ui:resize`: tu región, tu repintado.
 - Input modal: tu handler devuelve `true` (consume) mientras esté activo, y
   se desapila en cuanto terminas. No dejes handlers huérfanos en la pila.
 - **Tu región, tu `ui:resize`**: si creas regiones a pelo, suscríbete y

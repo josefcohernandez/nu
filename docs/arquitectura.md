@@ -53,7 +53,9 @@ Notas:
 - La API de **ui** es deliberadamente de bajo nivel (ADR-007): el core expone
   celdas/regiones y un compositor; el **toolkit de widgets es una extensión
   Lua oficial** (retenida por dentro: árbol + nodos sucios) que aporta slots,
-  focus y composición entre plugins, y se versiona aparte de la API sagrada.
+  focus, composición entre plugins y el sistema de themes — los nombres
+  semánticos de color se resuelven aquí, no en el core (G22) —, y se
+  versiona aparte de la API sagrada.
   Lua coloca bloques pre-rendidos por `text`, no celdas sueltas, en los
   caminos calientes. Es el patrón de ADR-003 aplicado a la UI: el core no
   sabe lo que es un widget.
@@ -129,8 +131,12 @@ recompilación. El contrato del adaptador y el formato del registro están en
   contrato POSIX se cumple íntegro sin especificación condicional. Windows
   nativo: [P18](pospuesto.md).
 - Extensiones oficiales embebidas con `go:embed` pero **inactivas por
-  defecto** (ADR-010): activación explícita (primer arranque o `nu.toml`),
-  sin red; sobreescribibles por el usuario desde su directorio de config.
+  defecto** (ADR-010): activación explícita (pantalla de runtime desnudo
+  — api.md §14 — o `nu.toml`), sin red; sobreescribibles por el usuario
+  desde su directorio de config. El conjunto incluye, además del harness
+  (agente, chat, providers, MCP, toolkit), un **`repl`**: REPL de Lua
+  sobre la API pública, activable solo — el punto de partida del autor de
+  extensiones que no quiere el harness (G21).
 
 ## Persistencia
 
@@ -147,8 +153,19 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
    completa y (b) fuzzy picker sobre ~100k ficheros. Criterio de veto
    pre-comprometido: si no es fluido, el toolkit se implementa en Go
    conservando la misma API pública.
-2. **Política fina del watchdog**: valor del presupuesto por handler, si es
-   configurable por plugin, y el flujo de deshabilitación/aviso al usuario.
+2. **Política fina del watchdog**: el presupuesto base ya está fijado
+   (100 ms, configurable en `nu.toml` — api.md §1.3); queda lo fino: si es
+   configurable por plugin y el flujo de deshabilitación/aviso al usuario
+   tras `core:plugin.misbehaved`.
 3. **Diseño de la API pública del toolkit oficial** (vocabulario de widgets,
    layout, slots, focus): no es API sagrada del core, pero el ecosistema
    heredará su calidad.
+4. **Contrato de la extensión MCP**: citada en toda la documentación
+   (ADR-003, [agente.md](agente.md) §3, capa 2) pero sin documento propio —
+   formato de configuración (qué servidores, cómo se declaran), ciclo de
+   vida de los procesos, mapeo de tools y de su confianza.
+5. **Superficie CLI**: `nu -e` y `--auto-permissions` aparecen en los
+   contratos sin especificación propia (flags, subcomandos, comportamiento
+   headless, códigos de salida). El azúcar de reanudación (un `--continue`
+   sobre `agent.session{ resume }`) se decidirá aquí: G18 lo dejó
+   deliberadamente fuera de los contratos.

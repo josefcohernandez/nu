@@ -25,6 +25,13 @@ diminuto que solo aporta primitivas (runtime, IO, red, UI de terminal) y un
 intérprete de Lua. El loop del agente, el soporte de MCP, los comandos slash,
 la UI de chat: **todo son extensiones Lua**, incluidas las oficiales.
 
+La formulación general del principio: **el kernel solo conoce sus propias
+capacidades** — primitivas, loader, sus extensiones embebidas. El agente es
+solo el ejemplo más visible de lo que no es asunto suyo. La vara para
+cualquier caso dudoso es esta: si algo se puede describir enteramente con el
+vocabulario del kernel (plugins, rutas, versiones), es del kernel; si
+necesita vocabulario de producto (agente, chat, tools), es de una extensión.
+
 Corolario: si una feature oficial no se puede construir con la API pública de
 extensiones, la API está incompleta. Dogfooding estructural, como hace pi con
 sus propias features.

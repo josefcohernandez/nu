@@ -94,7 +94,11 @@ Dos procesos haciendo append al mismo JSONL = corrupción intercalada. Regla:
 
 - `<sesión>.jsonl.lock` junto al transcript, contenido
   `{ pid, hostname, started }`. Se adquiere al abrir para escribir
-  (crear/reanudar), se libera al salir. **Leer nunca requiere lock** (un
+  (crear/reanudar) con creación **exclusiva**
+  (`nu.fs.write(..., { exclusive = true })`, atómica: dos procesos no
+  pueden ganar a la vez — [api.md](api.md) §5), se libera al salir. El
+  `pid` se verifica con `nu.proc.alive`; el `hostname`, con
+  `nu.sys.hostname` (G17). **Leer nunca requiere lock** (un
   append-only es seguro de leer a medias).
 - **Lock huérfano** (crash): si el `pid` no está vivo en esta máquina, es
   basura — se limpia en silencio. Si el lock es de otro `hostname`
@@ -114,7 +118,8 @@ Dos procesos haciendo append al mismo JSONL = corrupción intercalada. Regla:
   primera línea (`meta`) y la última relevante (título/timestamp) de cada
   fichero. Sin índice global en v1: si algún día duele, se añade un índice
   *reconstruible* (caché, nunca fuente de verdad).
-- Subagentes (workers): su transcript es una sesión propia con
+- Subagentes (corran como task o como worker): su transcript es una sesión
+  propia con
   `meta.parent` apuntando a la entrada del padre que los lanzó — misma
   mecánica que los forks, auditable con las mismas herramientas.
 
