@@ -82,6 +82,7 @@ Region, Proc...) son userdata opacos con métodos.
 | `nu.task.race(fns) -> (winner_index, result)` ⏸ | Primera en terminar gana; cancela el resto. |
 | `nu.task.every(ms, fn) -> Timer` | Timer periódico (handler síncrono). `Timer:stop()`. |
 | `nu.task.defer(fn)` | Ejecuta `fn` en el siguiente tick del loop. |
+| `nu.task.future() -> Future` | Rendez-vous de un solo uso: `Future:set(v)` (síncrono, una sola vez; llamadas posteriores lanzan `EINVAL`) y `Future:await() -> v` ⏸ (varios pueden esperar; si ya está resuelto, retorna inmediato). Es la pieza para "una task espera un valor que otro código producirá" (diálogos, pickers, proxies) sin polling. |
 | `Task:cancel()` | Cancelación cooperativa: la siguiente suspensión de la task lanza `ECANCELED`. |
 | `Task:await() -> any` ⏸ | Espera el resultado de otra task. |
 
@@ -152,7 +153,7 @@ providers viven en Lua y consumen SSE).
 | Firma | Semántica |
 |---|---|
 | `nu.http.request(opts) -> {status, headers, body}` ⏸ | `opts`: `url`, `method?`, `headers?`, `body?`, `timeout_ms?`. Respuesta buffereada. No lanza por status >= 400 (el status es dato); lanza `ENET`/`ETIMEOUT` por fallos de transporte. |
-| `nu.http.stream(opts) -> Stream` ⏸ | Devuelve al recibir cabeceras: `Stream.status`, `Stream.headers`. |
+| `nu.http.stream(opts) -> Stream` ⏸ | Devuelve al recibir cabeceras: `Stream.status`, `Stream.headers`. `opts.timeout_ms` cubre hasta las cabeceras; `opts.idle_timeout_ms?` lanza `ETIMEOUT` si pasan N ms sin recibir bytes del body (un SSE puede quedarse mudo para siempre). |
 | `Stream:chunks() -> iterator` ⏸ | Trozos crudos del body según llegan. |
 | `Stream:events() -> iterator` ⏸ | Parser SSE incorporado: itera `{event?, data, id?}`. |
 | `Stream:close()` | Aborta la conexión. |
@@ -249,7 +250,7 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 
 | Firma | Semántica |
 |---|---|
-| `nu.worker.spawn(module: string, opts?) -> Worker` | Levanta un estado Lua nuevo en su goroutine, cargando `module` (resoluble por el loader). Sin `nu.ui`, `nu.events` (bus principal), `nu.plugin` ni workers anidados. `opts.caps?: string[]` restringe la API del worker a los módulos enumerados (p. ej. `{"fs", "text"}`): los módulos no concedidos **no existen** dentro del estado — sandboxing por capacidades para subagentes y código no confiable. Sin `caps`, el worker recibe toda la API [W]. |
+| `nu.worker.spawn(module: string, opts?) -> Worker` | Levanta un estado Lua nuevo en su goroutine, cargando `module` (resoluble por el loader). Las rutas de `require` del loader (módulos Lua de plugins) están disponibles dentro del worker; lo que no existe es la API `nu.plugin` (ciclo de vida). Sin `nu.ui`, `nu.events` (bus principal) ni workers anidados. `opts.caps?: string[]` restringe la API del worker a los módulos enumerados (p. ej. `{"fs", "text"}`): los módulos no concedidos **no existen** dentro del estado — sandboxing por capacidades para subagentes y código no confiable. Sin `caps`, el worker recibe toda la API [W]. |
 | `Worker:send(msg)` / `Worker:recv() -> msg` ⏸ | Mensajes = valores JSON-ables, **copiados** (las tablas no cruzan estados). Tampoco cruzan closures, userdata ni Blocks: un worker manda datos digeridos y el estado principal renderiza. |
 | `Worker:on_message(fn) -> Sub` | Alternativa por callback en el estado principal. |
 | `Worker:terminate()` | Inmediato y seguro (estados aislados). |
