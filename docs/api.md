@@ -262,8 +262,14 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 | `nu.text.markdown(s, opts) -> Block` | Render completo de markdown a `opts.width`, themable. Acepta entrada incompleta (streaming-safe). |
 | `nu.text.highlight(code, lang, opts?) -> Block` | Syntax highlighting. |
 | `nu.text.diff(a, b, opts?) -> {hunks, block?}` | Diff estructurado; `opts.render=true` devuelve además el Block pintado. |
-| `nu.text.approx_tokens(s) -> integer` | Estimación heurística de tokens LLM (agnóstica de modelo, ~4 bytes/token). Para conteo exacto: el `usage` del proveedor o el `count_tokens` del adaptador ([providers.md](providers.md)). |
 | `nu.re.compile(pattern) -> Re` | Regex RE2. `Re:match(s) -> caps?`, `Re:find_all(s) -> ranges`, `Re:replace(s, repl) -> string`. |
+
+Nota (G23): aquí no hay estimación de tokens LLM — "token" es vocabulario
+de producto, y la heurística (~4 bytes/token) es una división en Lua puro
+que no justifica primitiva ("Lua decide, Go ejecuta"). Vive en la extensión
+de providers: `providers.approx_tokens` ([providers.md](providers.md) §4).
+Las concesiones de este módulo (markdown, highlighting) se quedan porque
+las justifica el rendimiento; esa no lo hacía.
 
 ---
 

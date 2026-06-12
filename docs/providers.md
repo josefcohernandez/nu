@@ -191,6 +191,11 @@ return {
 - API de consumo para el agente (y cualquier extensión):
   `providers.resolve("anthropic/opus") -> { adapter, config }` y
   `providers.list() -> ModelInfo[]` (alimenta el selector de modelos de la UI).
+- `providers.approx_tokens(s) -> integer`: estimación heurística de tokens
+  (agnóstica de modelo, ~4 bytes/token), en Lua puro. Vivía en el core como
+  `nu.text.approx_tokens` y salió de él (G23): "token" es vocabulario de
+  esta extensión, y una división no merece primitiva. Para exactitud, el
+  `count_tokens?` del adaptador (§3).
 
 **Suscripciones / OAuth (G13).** El camino v1 es el que no necesita
 servidor local: **device flow o pegado manual de código** (`nu.http.request`
@@ -218,5 +223,5 @@ HTTP que el core no tiene: pospuesto ([P19](pospuesto.md)).
    del core (ADR-003: el core no sabe lo que es un LLM). Fuente de verdad
    del llenado de contexto: los eventos `usage` del propio proveedor
    (exactos y gratis en cada turno). Para estimación previa:
-   `nu.text.approx_tokens()` (heurística del core) o el `count_tokens?`
-   opcional del adaptador para quien necesite exactitud.
+   `providers.approx_tokens()` (heurística de esta extensión, §4 — G23) o
+   el `count_tokens?` opcional del adaptador para quien necesite exactitud.
