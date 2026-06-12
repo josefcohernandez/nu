@@ -47,12 +47,15 @@ streaming HTTP) es una primitiva Go, paralela por dentro. Si una extensión est�
 quemando CPU en Lua, no es un problema de threading: es la señal de que esa
 operación debería ser una primitiva.
 
-### 5. Batteries included, arquitectura desnuda
+### 5. Batteries included, pero no enchufadas (ADR-010)
 
-El binario embebe las extensiones oficiales (`go:embed`): quien instala `nu`
-tiene un agente funcionando en el primer minuto. Pero arquitectónicamente esas
-extensiones no tienen ningún privilegio: el usuario puede leerlas,
-desactivarlas o sustituirlas.
+El binario distribuye las extensiones oficiales embebidas (`go:embed`),
+pero **ninguna se activa sola**: nu instalado es un runtime desnudo, y el
+harness es una elección del usuario, no un hecho consumado. El primer
+arranque ofrece activar el conjunto oficial — una tecla, sin red — y a
+partir de ahí el agente funciona. Mismo modelo mental que Neovim: el
+programa no trae plugins activados. Y como siempre: esas extensiones no
+tienen ningún privilegio — se leen, se sustituyen, se apagan.
 
 ### 6. La API del core es sagrada
 

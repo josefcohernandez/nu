@@ -38,8 +38,15 @@ congelaría el event loop.
 - Los **handlers síncronos** (input, eventos) corren en el loop y no pueden
   llamar funciones ⏸; para hacer IO, lanzan una task con `nu.task.spawn`.
 - **Watchdog**: cada *slice* de ejecución Lua continua (entre dos puntos de
-  suspensión) tiene un presupuesto, por defecto 100 ms. Excederlo aborta el
-  slice con error `EBUDGET` y emite `core:plugin.misbehaved`.
+  suspensión) tiene un presupuesto, por defecto 100 ms (configurable en
+  `nu.toml`). Excederlo aborta la task y emite `core:plugin.misbehaved`.
+- **Cancelación y abortos NO son capturables.** `Task:cancel()` y el
+  watchdog abortan la task en su siguiente punto de suspensión (o slice)
+  **desenrollando la pila sin pasar por `pcall`** — si fueran errores
+  normales, cualquier `pcall` del ecosistema los capturaría y el programa
+  seguiría como si nada. Para liberar recursos pase lo que pase, registra
+  `nu.task.cleanup(fn)`. `ECANCELED` queda reservado para *observar* la
+  cancelación (p. ej. en el resultado de `Task:await`), no para capturarla.
 
 ### 1.4 Errores
 
@@ -82,7 +89,9 @@ Region, Proc...) son userdata opacos con métodos.
 | `nu.task.race(fns) -> (winner_index, result)` ⏸ | Primera en terminar gana; cancela el resto. |
 | `nu.task.every(ms, fn) -> Timer` | Timer periódico (handler síncrono). `Timer:stop()`. |
 | `nu.task.defer(fn)` | Ejecuta `fn` en el siguiente tick del loop. |
-| `Task:cancel()` | Cancelación cooperativa: la siguiente suspensión de la task lanza `ECANCELED`. |
+| `nu.task.future() -> Future` | Rendez-vous de un solo uso: `Future:set(v)` (síncrono, una sola vez; llamadas posteriores lanzan `EINVAL`) y `Future:await() -> v` ⏸ (varios pueden esperar; si ya está resuelto, retorna inmediato). Es la pieza para "una task espera un valor que otro código producirá" (diálogos, pickers, proxies) sin polling. |
+| `Task:cancel()` | Cancelación cooperativa: aborta la task en su siguiente punto de suspensión (no capturable, §1.3); corren sus `cleanup`s. |
+| `nu.task.cleanup(fn)` [W] | Registra un liberador (síncrono) en la pila LIFO de la task actual; corren todos al terminar — éxito, error o aborto. El `defer` de esta casa: procesos, regiones, handlers de input. |
 | `Task:await() -> any` ⏸ | Espera el resultado de otra task. |
 
 ---
@@ -100,9 +109,18 @@ namespace `core:` y `ui:` están reservados.
 | `nu.events.once(name, fn) -> Sub` | Una sola vez. |
 | `nu.events.emit(name, payload?)` | Despacho síncrono en el estado principal. |
 
+Semántica de despacho (G10): cada `emit` corre sobre la **foto** de
+suscriptores tomada al emitir; cancelar una suscripción surte efecto
+inmediato (si aún no te tocó, ya no corres); los suscritos durante un
+despacho solo ven eventos futuros; los `emit` anidados **se encolan** y se
+despachan al terminar el actual (anchura, no profundidad — sin recursión ni
+desbordes; un ping-pong infinito entre plugins se vuelve un bucle plano que
+el watchdog corta).
+
 Eventos que emite el core: `core:ready`, `core:shutdown`,
-`core:plugin.loaded`, `core:plugin.error`, `core:plugin.misbehaved`,
-`ui:resize`, `ui:focus`, `ui:suspend`/`ui:resume`.
+`core:plugin.loaded`, `core:plugin.unload`, `core:plugin.error`,
+`core:plugin.misbehaved`, `ui:resize`, `ui:focus`,
+`ui:suspend`/`ui:resume`.
 
 ---
 
@@ -117,7 +135,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | `nu.fs.mkdir(path)` ⏸ / `nu.fs.remove(path, opts?)` ⏸ / `nu.fs.rename(from, to)` ⏸ / `nu.fs.copy(from, to)` ⏸ | `remove` exige `opts.recursive=true` para directorios no vacíos. |
 | `nu.fs.tmpdir() -> string` ⏸ | Directorio temporal propio de la sesión. |
 | `nu.fs.cwd() -> string` [W] | Directorio de trabajo (inmutable durante la sesión; los subprocesos pueden recibir otro vía `opts.cwd`). |
-| `nu.fs.watch(path, fn) -> Watcher` | `fn({path, kind: "create"\|"modify"\|"remove"})` como handler síncrono. `Watcher:stop()`. Solo estado principal. |
+| `nu.fs.watch(path, opts?, fn) -> Watcher` | `opts`: `recursive?`, `gitignore = true` (ignora lo ignorado por git: vigilar `node_modules/` es ruido), `debounce_ms = 50`. Entrega **en lotes**: `fn(events[])` con `{path, kind: "create"\|"modify"\|"remove"}` — un `git checkout` que toca miles de ficheros llega como un solo lote (G7). Handler síncrono. `Watcher:stop()`. Solo estado principal. |
 
 ---
 
@@ -131,6 +149,10 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | `Proc:read_line(which: "stdout"\|"stderr") -> string?` ⏸ | `nil` en EOF. |
 | `Proc:read(which, n?) -> string?` ⏸ | Lectura cruda. |
 | `Proc:wait() -> {code}` ⏸ / `Proc:kill(signal?)` | `signal` por defecto TERM. |
+
+Vida del proceso: la regla es matarlo explícitamente vía `nu.task.cleanup`
+en quien lo crea; como red de seguridad, un `Proc` sin referencias acaba
+matado por el GC (no determinista — no confíes en ello).
 
 ---
 
@@ -152,13 +174,19 @@ providers viven en Lua y consumen SSE).
 | Firma | Semántica |
 |---|---|
 | `nu.http.request(opts) -> {status, headers, body}` ⏸ | `opts`: `url`, `method?`, `headers?`, `body?`, `timeout_ms?`. Respuesta buffereada. No lanza por status >= 400 (el status es dato); lanza `ENET`/`ETIMEOUT` por fallos de transporte. |
-| `nu.http.stream(opts) -> Stream` ⏸ | Devuelve al recibir cabeceras: `Stream.status`, `Stream.headers`. |
+| `nu.http.stream(opts) -> Stream` ⏸ | Devuelve al recibir cabeceras: `Stream.status`, `Stream.headers`. `opts.timeout_ms` cubre hasta las cabeceras; `opts.idle_timeout_ms?` lanza `ETIMEOUT` si pasan N ms sin recibir bytes del body (un SSE puede quedarse mudo para siempre). |
 | `Stream:chunks() -> iterator` ⏸ | Trozos crudos del body según llegan. |
 | `Stream:events() -> iterator` ⏸ | Parser SSE incorporado: itera `{event?, data, id?}`. |
 | `Stream:close()` | Aborta la conexión. |
 
 Backpressure: los streams se bufferizan en Go mientras Lua consume a su
 ritmo; el buffer tiene límite y al excederlo el stream falla con `EIO`.
+
+TLS y proxy (G12): `request` y `stream` aceptan
+`opts.tls = { ca_file?, insecure? }` (CA corporativa por petición);
+`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` del entorno se respetan por defecto.
+Defaults globales en la sección `[net]` de `nu.toml` (`ca_file`, proxy),
+sobreescribibles por petición.
 | `nu.ws.connect(url, opts?) -> Ws` ⏸ | `Ws:send(data)` ⏸, `Ws:recv() -> string?` ⏸ (`nil` al cerrar), `Ws:close()`. |
 
 Reservado para futuro (no v1): `nu.net.tcp`.
@@ -176,7 +204,7 @@ viven en Go; los cambios se coalescen y se pinta como mucho cada ~30 ms
 | Firma | Semántica |
 |---|---|
 | `nu.ui.size() -> {w, h}` | Tamaño del terminal en celdas. Cambios → evento `ui:resize`. |
-| `nu.ui.region(opts) -> Region` | `opts`: `x, y, w, h, z?`. Las regiones son la unidad de composición: rectángulos con z-order propiedad de quien los crea. |
+| `nu.ui.region(opts) -> Region` | `opts`: `x, y, w, h, z?`. Las regiones son la unidad de composición: rectángulos con z-order propiedad de quien los crea. **Resize (G1)**: una región total o parcialmente fuera de pantalla se recorta sin error (jamás pinta fuera de límites; si no cabe nada, no se pinta); sus coordenadas no se tocan — si la pantalla vuelve a crecer, reaparece tal cual. Recolocarse es responsabilidad del dueño (convención "tu región, tu `ui:resize`"); el relayout automático es trabajo del toolkit, no del core. |
 | `Region:blit(x, y, block: Block)` | Estampa un bloque pre-renderizado (ver `nu.text`) en coordenadas locales de la región. Recorta a los límites. |
 | `Region:fill(style?)` / `Region:clear()` | |
 | `Region:move(x, y)` / `Region:resize(w, h)` / `Region:raise()` / `Region:lower()` | |
@@ -204,7 +232,7 @@ core.
 | Firma | Semántica |
 |---|---|
 | `nu.ui.on_input(fn) -> InputHandle` | Apila un handler síncrono `fn(ev) -> boolean` (true = consumido). `ev`: `{type: "key"\|"mouse"\|"paste", key?, mods?, x?, y?, text?}`. `InputHandle:pop()`. |
-| `nu.ui.keymap(seq: string, fn, opts?) -> Keymap` | Azúcar sobre la pila: `seq` en notación `"ctrl+k"`, `"alt+enter"`, secuencias `"g g"`. `Keymap:unmap()`. Resolución de secuencias con timeout en el core. |
+| `nu.ui.keymap(seq: string, fn, opts?) -> Keymap` | Azúcar sobre la pila: `seq` en notación `"ctrl+k"`, `"alt+enter"`, secuencias `"g g"`. `Keymap:unmap()`. Resolución de secuencias con timeout en el core. Conflictos: la pila manda — el registro más reciente activo gana (y el `init.lua` del usuario se carga el último, §14). |
 
 ---
 
@@ -220,6 +248,7 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 | `nu.text.markdown(s, opts) -> Block` | Render completo de markdown a `opts.width`, themable. Acepta entrada incompleta (streaming-safe). |
 | `nu.text.highlight(code, lang, opts?) -> Block` | Syntax highlighting. |
 | `nu.text.diff(a, b, opts?) -> {hunks, block?}` | Diff estructurado; `opts.render=true` devuelve además el Block pintado. |
+| `nu.text.approx_tokens(s) -> integer` | Estimación heurística de tokens LLM (agnóstica de modelo, ~4 bytes/token). Para conteo exacto: el `usage` del proveedor o el `count_tokens` del adaptador ([providers.md](providers.md)). |
 | `nu.re.compile(pattern) -> Re` | Regex RE2. `Re:match(s) -> caps?`, `Re:find_all(s) -> ranges`, `Re:replace(s, repl) -> string`. |
 
 ---
@@ -234,12 +263,13 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 
 ---
 
-## 12. `nu.json` / `nu.toml` — codecs [W]
+## 12. `nu.json` / `nu.toml` / `nu.yaml` — codecs [W]
 
 | Firma | Semántica |
 |---|---|
-| `nu.json.encode(v, opts?) -> string` / `nu.json.decode(s) -> v` | `opts.pretty`. `null` ↔ `nu.json.NULL` (sentinel) para no perder claves. |
+| `nu.json.encode(v, opts?) -> string` / `nu.json.decode(s) -> v` | `opts.pretty`. `null` ↔ `nu.json.NULL` (sentinel) para no perder claves. **Estricto con UTF-8** (G11): `encode` lanza `EINVAL` ante bytes inválidos — sanear es decisión visible de quien tiene el contexto (la tool), nunca del codec. |
 | `nu.toml.encode(v) -> string` / `nu.toml.decode(s) -> v` | |
+| `nu.yaml.encode(v) -> string` / `nu.yaml.decode(s) -> v` | Necesario para metadatos del ecosistema existente (frontmatter de skills); YAML es demasiado traicionero para parsearlo en Lua puro. |
 
 ---
 
@@ -247,11 +277,16 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 
 | Firma | Semántica |
 |---|---|
-| `nu.worker.spawn(module: string) -> Worker` | Levanta un estado Lua nuevo en su goroutine, cargando `module` (resoluble por el loader). Sin `nu.ui`, `nu.events` (bus principal), `nu.plugin` ni workers anidados. |
-| `Worker:send(msg)` / `Worker:recv() -> msg` ⏸ | Mensajes = valores JSON-ables, **copiados** (las tablas no cruzan estados). Tampoco cruzan closures, userdata ni Blocks: un worker manda datos digeridos y el estado principal renderiza. |
-| `Worker:on_message(fn) -> Sub` | Alternativa por callback en el estado principal. |
+| `nu.worker.spawn(module: string, opts?) -> Worker` | Levanta un estado Lua nuevo en su goroutine, cargando `module` (resoluble por el loader). Las rutas de `require` del loader (módulos Lua de plugins) están disponibles dentro del worker; lo que no existe es la API `nu.plugin` (ciclo de vida). Sin `nu.ui`, `nu.events` (bus principal) ni workers anidados. `opts.caps?: string[]` restringe la API del worker a lo enumerado, con **dos granularidades** (G6): `"fs"` concede el módulo entero; `"fs.read"` concede una función concreta. Lo no concedido **no existe** dentro del estado — sandboxing por capacidades; las funciones añadidas a la API en el futuro nunca quedan concedidas por listas antiguas (deny-by-default para superficie nueva). Sin `caps`, el worker recibe toda la API [W]. Paquetes con nombre (p. ej. solo-lectura): tablas de la extensión del agente (`agent.caps.*`), no del core. |
+| `Worker:send(msg)` ⏸ / `Worker:recv() -> msg` ⏸ | Mensajes = valores JSON-ables, **copiados** (las tablas no cruzan estados). Tampoco cruzan closures, userdata ni Blocks: un worker manda datos digeridos y el estado principal renderiza. Las colas son **acotadas**: `send` suspende si está llena (backpressure, coherente con §8) — desde un handler síncrono, `task.spawn` como siempre. |
+| `Worker:on_message(fn) -> Sub` | Alternativa por callback en el estado principal. **Excluyente con `recv`** (G8): registrar uno con el otro pendiente (o viceversa) lanza `EINVAL` en el acto — nunca prioridad silenciosa. |
 | `Worker:terminate()` | Inmediato y seguro (estados aislados). |
-| *(dentro del worker)* `nu.worker.parent.send(msg)` / `...recv() -> msg` ⏸ | Canal con el estado principal. |
+| *(dentro del worker)* `nu.worker.parent.send(msg)` ⏸ / `...recv() -> msg` ⏸ | Canal con el estado principal; mismas colas acotadas. |
+
+Interior de un worker (G15): cada worker es un **mini-runtime completo** —
+scheduler propio, múltiples tasks, timers y futures (todo `nu.task` [W]).
+**Sin watchdog**: los workers existen precisamente para quemar CPU a gusto;
+el control es `terminate()` desde el principal más las `caps`.
 
 ---
 
@@ -260,14 +295,26 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 Un plugin es un directorio con `plugin.toml` (`name`, `version`,
 `requires?: string[]`) e `init.lua`, que se ejecuta al cargar. El directorio
 `lua/` del plugin se añade a las rutas de `require` (así los plugins se
-requieren entre sí: composabilidad de ADR-008). Orden de carga: topológico
-por `requires`. Las extensiones oficiales embebidas (`go:embed`) se cargan
-primero y son sustituibles por nombre desde el directorio de usuario.
+requieren entre sí: composabilidad de ADR-008). Las extensiones oficiales
+embebidas (`go:embed`) se cargan primero y son sustituibles por nombre
+desde el directorio de usuario.
+
+**Configuración del runtime**: `config.dir()/nu.toml` gobierna al propio
+core — la activación de plugins (las extensiones oficiales embebidas están
+**inactivas por defecto**, ADR-010; el primer arranque ofrece activar el
+conjunto oficial), rutas extra de plugins, presupuesto del watchdog.
+
+**Orden de arranque canónico**: core → plugins activados (topológico por
+`requires`) → `init.lua` del usuario → evento `core:ready`. El
+init del usuario va **último** a propósito: como en la pila de input el
+registro más reciente gana, el usuario tiene la última palabra (keymaps,
+theme, overrides) por construcción, sin sistema de prioridades.
 
 | Firma | Semántica |
 |---|---|
 | `nu.plugin.current() -> {name, version, dir}` | Plugin en cuyo contexto corre el código. |
 | `nu.plugin.list() -> {name, version, source: "builtin"\|"user", enabled}[]` | |
+| `nu.plugin.reload(name)` ⏸ | Herramienta de desarrollo, **best-effort** (G2): suelta todos los handles del plugin (el core los etiqueta por dueño vía `plugin.current()`), emite `core:plugin.unload` (las extensiones limpian sus registros: tools, comandos...), vacía la caché de `require` del plugin y recarga su `init.lua`. Un plugin con efectos globales exóticos puede no descargarse limpio — para iterar, no para producción. |
 | `nu.config.dir() -> string` [W] / `nu.config.data_dir() -> string` [W] | `~/.config/nu` y `~/.local/share/nu` (o equivalentes por plataforma). |
 
 ---
@@ -284,7 +331,7 @@ primero y son sustituibles por nombre desde el directorio de usuario.
 
 | Disponible [W] | Solo estado principal |
 |---|---|
-| `task`, `fs` (salvo `watch`), `proc`, `sys`, `http`, `ws`, `text`, `re`, `search`, `json`, `toml`, `log`, `config.dir` | `ui`, `events`, `fs.watch`, `worker.spawn`, `plugin` |
+| `task`, `fs` (salvo `watch`), `proc`, `sys`, `http`, `ws`, `text`, `re`, `search`, `json`, `toml`, `yaml`, `log`, `config.dir` | `ui`, `events`, `fs.watch`, `worker.spawn`, `plugin` |
 
 ---
 
@@ -296,4 +343,5 @@ primero y son sustituibles por nombre desde el directorio de usuario.
 - Namespaces de eventos `core:`/`ui:` y códigos de error de §1.4 reservados.
 - Fuera de esta especificación (deliberadamente): toolkit de widgets, hooks
   del agente (`agent:*`), MCP, formato de `providers.toml`. Son contratos de
-  sus extensiones, versionados aparte.
+  sus extensiones, versionados aparte. El de providers ya tiene borrador:
+  [providers.md](providers.md).

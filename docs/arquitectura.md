@@ -5,6 +5,11 @@ especificación cerrada. Las decisiones y su razonamiento viven en
 [adr.md](adr.md); la definición formal de la API v1 del core, en
 [api.md](api.md); la vista dinámica (comunicación, orquestación y
 limitaciones, con diagramas), en [modelo-ejecucion.md](modelo-ejecucion.md).
+Contratos de las extensiones oficiales: [providers.md](providers.md),
+[sesiones.md](sesiones.md), [agente.md](agente.md), [chat.md](chat.md).
+Convenciones prácticas para autores: [guia-plugins.md](guia-plugins.md). Lo
+aplazado, con su disparador de reapertura: [pospuesto.md](pospuesto.md).
+Grietas pendientes de resolver antes de congelar: [problemas.md](problemas.md).
 
 ## Vista general
 
@@ -69,7 +74,10 @@ Tres patas (ADR-004):
    masticar datos. Los workers **no tienen acceso al módulo `ui`**: la
    pantalla solo se pinta desde el estado principal (como los Web Workers
    respecto al DOM). Los mensajes son copias — un worker devuelve resultados
-   digeridos, no datos crudos masivos.
+   digeridos, no datos crudos masivos. Opcionalmente, un worker puede nacer
+   con la API recortada (`opts.caps`): los módulos no concedidos no existen
+   dentro del estado — sandboxing por capacidades para subagentes y código
+   no confiable.
 3. **Primitivas Go paralelas por dentro.** `core.search()` y compañía saturan
    todos los cores sin que Lua se entere. El rendimiento bruto nunca depende
    de la velocidad del intérprete.
@@ -111,13 +119,26 @@ División datos/código (ADR-005):
   velocidad de lectura humana.
 
 Añadir un provider raro (vLLM, proxy corporativo) es un fichero Lua, no una
-recompilación.
+recompilación. El contrato del adaptador y el formato del registro están en
+[providers.md](providers.md).
 
 ## Distribución
 
 - Binario estático Go, `CGO_ENABLED=0`, cross-compile a todas las plataformas.
-- Extensiones oficiales embebidas con `go:embed`; sobreescribibles por el
-  usuario desde su directorio de config.
+  Soporte v1: Linux y macOS nativos; en Windows, **WSL2** (G9) — así el
+  contrato POSIX se cumple íntegro sin especificación condicional. Windows
+  nativo: [P18](pospuesto.md).
+- Extensiones oficiales embebidas con `go:embed` pero **inactivas por
+  defecto** (ADR-010): activación explícita (primer arranque o `nu.toml`),
+  sin red; sobreescribibles por el usuario desde su directorio de config.
+
+## Persistencia
+
+Las sesiones del agente se guardan como JSONL append-only bajo
+`data_dir()/sessions/`, reutilizando el modelo canónico de mensajes; es una
+convención pública legible por otras extensiones, no una primitiva del core.
+Contrato completo en [sesiones.md](sesiones.md). El resto de extensiones
+escriben bajo `data_dir()/plugins/<nombre>/`.
 
 ## Cuestiones abiertas
 
