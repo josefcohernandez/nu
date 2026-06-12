@@ -56,7 +56,7 @@ Las funciones del core **lanzan** (vía `error()`) tablas estructuradas:
 { code: string, message: string, detail?: any }
 ```
 
-Códigos reservados v1: `ENOENT`, `EACCES`, `EIO`, `EHTTP`, `ENET`,
+Códigos reservados v1: `ENOENT`, `EEXIST`, `EACCES`, `EIO`, `EHTTP`, `ENET`,
 `ETIMEOUT`, `ECANCELED`, `EBUDGET`, `EINVAL`, `ECLOSED`. Se capturan con
 `pcall` — con dos excepciones: `ECANCELED` y `EBUDGET` nombran los abortos
 no capturables de §1.3 (cancelación y watchdog, respectivamente) y solo
@@ -136,7 +136,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | Firma | Semántica |
 |---|---|
 | `nu.fs.read(path) -> string` ⏸ | Lee el fichero entero. |
-| `nu.fs.write(path, data)` ⏸ / `nu.fs.append(path, data)` ⏸ | Escritura atómica (write vía fichero temporal + rename). |
+| `nu.fs.write(path, data, opts?)` ⏸ / `nu.fs.append(path, data)` ⏸ | Escritura atómica (write vía fichero temporal + rename). `opts.exclusive = true` (G17): crea **solo si no existe**, en una única operación indivisible (`O_EXCL` — aquí no hay temporal+rename: rename sobreescribiría); si el fichero ya existe lanza `EEXIST`. Es la pieza para lockfiles ([sesiones.md](sesiones.md) §6). |
 | `nu.fs.stat(path) -> {size, mtime_ms, is_dir, mode}?` ⏸ | `nil` si no existe (no lanza `ENOENT`). |
 | `nu.fs.list(dir) -> {name, is_dir}[]` ⏸ | Sin recursión; para recursivo ver `nu.search.files`. |
 | `nu.fs.mkdir(path)` ⏸ / `nu.fs.remove(path, opts?)` ⏸ / `nu.fs.rename(from, to)` ⏸ / `nu.fs.copy(from, to)` ⏸ | `remove` exige `opts.recursive=true` para directorios no vacíos. |
@@ -156,6 +156,7 @@ Eventos que emite el core: `core:ready`, `core:shutdown`,
 | `Proc:read_line(which: "stdout"\|"stderr") -> string?` ⏸ | `nil` en EOF. |
 | `Proc:read(which, n?) -> string?` ⏸ | Lectura cruda. |
 | `Proc:wait() -> {code}` ⏸ / `Proc:kill(signal?)` | `signal` por defecto TERM. |
+| `nu.proc.alive(pid: integer) -> boolean` | ¿Hay un proceso vivo con ese `pid` en esta máquina? (G17). Informa de **existencia, no de identidad** — un pid reciclado da `true`. Para detectar locks huérfanos ([sesiones.md](sesiones.md) §6). |
 
 Vida del proceso: la regla es matarlo explícitamente vía `nu.task.cleanup`
 en quien lo crea; como red de seguridad, un `Proc` sin referencias acaba
@@ -170,6 +171,7 @@ matado por el GC (no determinista — no confíes en ello).
 | `nu.sys.platform() -> "linux"\|"darwin"\|"windows"` | |
 | `nu.sys.env(name) -> string?` / `nu.sys.setenv(name, value)` | `setenv` afecta solo a subprocesos futuros. |
 | `nu.sys.now_ms() -> number` / `nu.sys.mono_ms() -> number` | Reloj de pared / monotónico. |
+| `nu.sys.hostname() -> string` | Nombre de la máquina (G17; contenido de los locks de sesión, [sesiones.md](sesiones.md) §6). |
 
 ---
 

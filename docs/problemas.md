@@ -9,11 +9,11 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 19 resueltas · 3 abiertas (G17, G21, G22)**. Las dieciséis de
+**Estado: 20 resueltas · 2 abiertas (G21, G22)**. Las dieciséis de
 las rondas 3-4 se cerraron el 2026-06-12; ese mismo día, una revisión de
 coherencia de la documentación completa encontró seis grietas nuevas
 (G17-G22) — sobre todo contratos que presuponen API que no existe —
-añadidas aquí con el mismo método. G18-G20 se resolvieron el mismo día.
+añadidas aquí con el mismo método. G17-G20 se resolvieron el mismo día.
 
 ---
 
@@ -376,7 +376,18 @@ sesión (las tools oficiales de escritura lo respetan, aviso al chocar);
 (c) detección a posteriori (aviso si dos subagentes tocaron el mismo
 path).
 
-## G17 · El lockfile de sesiones no es implementable con la API actual — `api.md` §5-§7 / `sesiones.md` §6 — **ABIERTO**
+## G17 · El lockfile de sesiones no es implementable con la API actual — `api.md` §5-§7 / `sesiones.md` §6 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §1.4/§5/§6/§7 y
+[sesiones.md](sesiones.md) §6): tres primitivas genéricas mínimas —
+`opts.exclusive = true` en `nu.fs.write` (creación atómica
+solo-si-no-existe vía `O_EXCL`, sin temporal+rename, lanza el nuevo código
+reservado `EEXIST`), `nu.proc.alive(pid)` (existencia, no identidad: un
+pid reciclado da `true`) y `nu.sys.hostname()`. El lockfile sigue siendo
+lógica de la extensión del agente, en Lua. El `nu.fs.lockfile` dedicado se
+descartó (metería la política de sesiones — pids, huérfanos, hostnames —
+en el kernel: el core da garantías, no comodidades); el best-effort se
+descartó ("casi bien es peor que no").
 
 **Problema.** La resolución de G5 exige tres piezas que [api.md](api.md)
 no tiene: (1) creación **exclusiva** de fichero — `nu.fs.write` es atómico
