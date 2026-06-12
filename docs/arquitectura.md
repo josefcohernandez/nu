@@ -125,6 +125,9 @@ recompilación. El contrato del adaptador y el formato del registro están en
 ## Distribución
 
 - Binario estático Go, `CGO_ENABLED=0`, cross-compile a todas las plataformas.
+  Soporte v1: Linux y macOS nativos; en Windows, **WSL2** (G9) — así el
+  contrato POSIX se cumple íntegro sin especificación condicional. Windows
+  nativo: [P18](pospuesto.md).
 - Extensiones oficiales embebidas con `go:embed` pero **inactivas por
   defecto** (ADR-010): activación explícita (primer arranque o `nu.toml`),
   sin red; sobreescribibles por el usuario desde su directorio de config.

@@ -171,7 +171,15 @@ genera bugs irreproducibles.
 siempre y `recv` tras él lanza; (c) cola única y cualquier consumidor
 compite (no determinista — probablemente descartable).
 
-## G9 · Alcance Windows en v1 — transversal — **Pendiente**
+## G9 · Alcance Windows en v1 — transversal — **RESUELTO**
+
+**Resolución**: v1 soporta Linux y macOS nativos; en Windows, **nu se usa
+dentro de WSL2** (documentado como requisito, no como apología). Ventaja
+decisiva: dentro de WSL2 el contrato POSIX se cumple íntegro — cero
+especificación condicional, cero shell portable, cero semántica dual de
+señales. Windows nativo queda en pospuestos ([P18](pospuesto.md)) con su
+disparador. La promesa "cross-compile a todas las plataformas" se matiza en
+la arquitectura: el binario *compila* para Windows, el soporte v1 es WSL2.
 
 **Problema.** La tool `bash` asume `sh`, `Proc:kill` habla señales POSIX,
 y el input de terminal difiere (IME, teclas). Go cross-compila a Windows,
