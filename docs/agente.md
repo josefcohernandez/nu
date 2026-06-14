@@ -205,8 +205,9 @@ pieza es sustituible por configuración — no hay prompt mágico inaccesible.
   resumen.
 - Personalizable por completo con el hook `compact`: recibe la conversación
   y devuelve el mensaje-resumen (o deny para impedir la compactación).
-- `nu.text.approx_tokens()` disponible para estimaciones previas ("¿me cabe
-  este fichero?") antes de tener `usage`.
+- `providers.approx_tokens()` disponible para estimaciones previas ("¿me
+  cabe este fichero?") antes de tener `usage` ([providers.md](providers.md)
+  §4, G23).
 
 ## 9. Subagentes
 
