@@ -6,6 +6,53 @@ contrato (no congela API; eso es [api.md](api.md)) sino un mapa de obra: en qué
 orden se levanta el kernel, por qué ese orden y qué hace que una sesión esté
 *hecha*.
 
+## Seguimiento: dónde retomar en cada sesión
+
+Cada sesión empieza con el contexto en blanco y en un contenedor efímero, así
+que **el estado del progreso vive en el repositorio, no en la memoria de
+Claude**. El mecanismo es el mismo patrón que ya usan `problemas.md` (campo
+*estado*) y `adr.md`: un puntero visible, una bitácora append-only y la
+disciplina de actualizarlos en el commit de la propia feature. Tres fuentes,
+redundantes a propósito:
+
+1. **El puntero** (esta misma línea, la única imperativa del documento):
+
+   > **▶ Próxima sesión: `S01`** · Fase 0 · ninguna iniciada todavía.
+
+2. **El tablero por fases** (vista de pájaro; se marca al cerrar la última
+   sesión de cada fase):
+
+   - [ ] **Fase 0** — Esqueleto y banco de pruebas (S01–S03)
+   - [ ] **Fase 1** — Scheduler (S04–S09)
+   - [ ] **Fase 2** — Eventos y loader (S10–S13)
+   - [ ] **Fase 3** — IO, sistema y codecs (S14–S18)
+   - [ ] **Fase 4** — Red (S19–S21)
+   - [ ] **Fase 5** — Texto y búsqueda (S22–S27)
+   - [ ] **Fase 6** — UI + spike de veto (S28–S33)
+   - [ ] **Fase 7** — Workers (S34–S35)
+   - [ ] **Fase 8** — Extensiones oficiales (S36–S45)
+
+3. **La bitácora** (al final del documento): una fila por sesión cerrada, con
+   su commit, hallazgos y desviaciones. Es el "qué pasó y por qué" que el
+   puntero no cuenta.
+
+**Backstop en git**: como cada commit cita su sesión (`S07: ...`), el estado se
+puede reconstruir siempre con `git log --grep '^S[0-9]'` aunque el documento se
+quedara desfasado. El documento manda; git es la red de seguridad.
+
+### Protocolo de cada sesión
+
+1. **Al empezar**: lee el puntero ▶ y la última fila de la bitácora. Eso es
+   "dónde seguir" y "en qué estado quedó". No empieces otra sesión que la que
+   marca el puntero (el grafo de dependencias es estricto).
+2. **Durante**: implementa **solo** esa sesión, hasta cumplir su Definition of
+   Done. Si destapas un hallazgo, párate y resuélvelo por el flujo de diseño
+   (`problemas.md`) antes de seguir codificando.
+3. **Al terminar, en el mismo commit que la feature**: avanza el puntero ▶ a la
+   sesión siguiente, marca el tablero si cerraste una fase, y añade una fila a
+   la bitácora. Un commit que toca código pero no mueve el puntero es una
+   sesión a medias.
+
 ## Antes de empezar: un cambio de fase
 
 Hasta hoy el proyecto está en **fase de diseño** y la regla ha sido *no escribir
@@ -243,3 +290,17 @@ lo consume. Si una sesión destapa una grieta, se abre como `G##`, se resuelve e
 toma una decisión nueva (p. ej. el resultado del spike S28), se registra como un
 ADR nuevo, nunca reescribiendo uno viejo. El código es el último eslabón de la
 cadena de coherencia, no el primero.
+
+---
+
+## Bitácora
+
+Append-only: una fila por sesión cerrada, la más reciente abajo. Es la fuente de
+contexto que lee la sesión siguiente (ver "Protocolo de cada sesión"). Anota
+desviaciones del plan, hallazgos abiertos (`G##`) y cualquier decisión que la
+sesión siguiente necesite saber. Cuando esté vacía, el proyecto no ha empezado a
+construirse.
+
+| Fecha | Sesión | Commit | Notas (hallazgos, desviaciones, lo que debe saber la siguiente) |
+|---|---|---|---|
+| — | — | — | *(aún sin sesiones cerradas)* |
