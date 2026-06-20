@@ -1013,18 +1013,24 @@ cálculo. **[G29]**
 
 ## Hallazgos (ronda 6)
 
-A diferencia de las rondas previas, estas no se autoresuelven: G28 y G29 van
-a [problemas.md](problemas.md) abiertas; G30 trae resolución decidida
-(pegar = inyectar ruta) y ya aplicada a [api.md](api.md) §9.3.
+Las tres quedaron resueltas tras discutir contraindicaciones (registradas en
+[problemas.md](problemas.md)):
 
 **G28 — `Region:blit` con coordenadas locales negativas (viewport/scrollback).**
-Mecanismo central del transcript con scroll; el doc solo especifica el
-recorte por exceso. → [problemas.md](problemas.md) (abierta).
+Mecanismo central del transcript con scroll; el doc solo especificaba el
+recorte por exceso. Resuelta en [api.md](api.md) §9.1: `blit` recorta por
+**ambos extremos** (negativos recortan el borde inicial), es **copia y no
+re-render**, y la virtualización es del toolkit. Las contraindicaciones que
+afinaron la resolución: clavar la semántica del negativo, garantizar que no
+re-renderiza, y reconocer que no resuelve la virtualización (patrón "cachea
+el Block, mueve el offset" en la guía §6).
 
 **G29 — Ratón en coordenadas globales sin traducción a región (hit-testing).**
-Para clicar widgets (cabecera de un bloque de tool, botón de un modal) falta
-trasladar pantalla→local; hoy lo hace el plugin a mano. →
-[problemas.md](problemas.md) (abierta).
+La tentación era `Region:hit(x,y)`, pero solo haría la mitad trivial (restar
+el origen que el plugin ya fijó); la mitad valiosa (qué bloque/línea de un
+Block scrolleado) necesita el layout que el plugin posee, no el core.
+Resuelta como **convención del toolkit** (opción c), mismo reparto que G1
+(relayout) y G22 (theming) — guía §6.
 
 **G30 — Pegar una imagen no es expresable; el evento `paste` solo trae texto.**
 Resolución (decidida): pegar contenido no-texto **inyecta una ruta**, no los

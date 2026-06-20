@@ -224,7 +224,7 @@ el módulo `nu.ui` directamente **no existe** — el mismo modelo que las
 |---|---|
 | `nu.ui.size() -> {w, h}` | Tamaño del terminal en celdas. Cambios → evento `ui:resize`. |
 | `nu.ui.region(opts) -> Region` | `opts`: `x, y, w, h, z?`. Las regiones son la unidad de composición: rectángulos con z-order propiedad de quien los crea. **Resize (G1)**: una región total o parcialmente fuera de pantalla se recorta sin error (jamás pinta fuera de límites; si no cabe nada, no se pinta); sus coordenadas no se tocan — si la pantalla vuelve a crecer, reaparece tal cual. Recolocarse es responsabilidad del dueño (convención "tu región, tu `ui:resize`"); el relayout automático es trabajo del toolkit, no del core. |
-| `Region:blit(x, y, block: Block)` | Estampa un bloque pre-renderizado (ver `nu.text`) en coordenadas locales de la región. Recorta a los límites. |
+| `Region:blit(x, y, block: Block)` | Estampa un bloque pre-renderizado (ver `nu.text`) en coordenadas locales de la región. **Recorta por ambos extremos (G28)**: `x/y` pueden ser **negativos** y recortan el borde *inicial* del bloque (`blit(0, -3, doc)` muestra `doc` desde su cuarta fila), igual que el exceso recorta el final — un **viewport** sobre un Block más grande que la región, donde *scroll = re-blit con otro offset*. Es **copia, nunca re-render**: blittear el mismo Block con distinto offset no recalcula nada (el coste de scroll es el de una copia de la ventana visible). La virtualización (no construir el Block entero para historiales enormes) es del toolkit, no del core. |
 | `Region:fill(style?)` / `Region:clear()` | |
 | `Region:move(x, y)` / `Region:resize(w, h)` / `Region:raise()` / `Region:lower()` | |
 | `Region:show()` / `Region:hide()` / `Region:destroy()` | |

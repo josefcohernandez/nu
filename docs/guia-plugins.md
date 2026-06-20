@@ -108,6 +108,19 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
   recolócate (el core solo garantiza el recorte sin error — tu picker
   centrado para 120 columnas se verá recortado en 60 hasta que lo muevas
   tú). Con el toolkit, el relayout es automático.
+- **Scroll = cachea el Block, mueve el offset** (G28): para un transcript con
+  scroll, construye el Block una vez y `blit(0, -scroll, doc)` con distinto
+  `scroll` por tick — `blit` con offset es copia, no re-render. El antipatrón
+  es reconstruir el Block (re-render del markdown) en cada scroll: eso sí es
+  caro. Acota `scroll` con `doc.height` y el alto de la región. Para
+  historiales enormes, virtualiza (renderiza solo lo visible) — eso es
+  trabajo tuyo/del toolkit, el core no retiene tu contenido.
+- **Hit-testing del ratón es tuyo** (G29): el evento de ratón llega en
+  coordenadas de pantalla; tú fijaste `x,y,w,h` de tu región y aplicaste tu
+  `scroll`, así que el mapeo pantalla→contenido (qué bloque/línea se clicó) lo
+  resuelves tú restando origen y offset — mismo reparto que el relayout: lo
+  que depende de tu layout es tuyo, no del core. Con el toolkit, el ruteo de
+  clics a widgets es automático.
 - Contenido en streaming: re-renderiza el mensaje en curso **una vez por
   tick de pintado** (el repintado ya va coalescido a ~30 ms), no por cada
   delta — el render en Go es barato; lo que mata es hacerlo mil veces por

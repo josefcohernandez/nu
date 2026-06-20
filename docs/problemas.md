@@ -9,7 +9,7 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 28 registradas, 26 resueltas** (2026-06-17). Las dieciséis de las
+**Estado: 28 registradas, resueltas** (2026-06-17). Las dieciséis de las
 rondas 3-4, las seis de la revisión de coherencia de la documentación
 completa (G17-G22, sobre todo contratos que presuponían API inexistente) y
 las de la revisión filosófico-técnica del proyecto (G23, vocabulario de
@@ -18,11 +18,11 @@ core) están cerradas. La numeración salta de G23 a G26 porque G24-G25 son
 grietas de la misma revisión en curso, registradas en sus propias ramas;
 G27 sale de la ronda 5 de pseudocódigo (orquestación de agentes por un
 tercero). G28-G30 salen de la ronda 6 (reconstruir un harness de coding
-estilo claude-code sobre `nu.ui`): **G28 y G29 quedan abiertas** (ergonomía
-de `nu.ui` §9 — scrollback y hit-testing del ratón), **G30 resuelta** (pegar
-imágenes inyecta una ruta). La lista queda como registro del proceso; los
-problemas nuevos que surjan (spike incluido) se añaden aquí con el mismo
-método.
+estilo claude-code sobre `nu.ui`): G28 (blit recorta por ambos extremos,
+scrollback), G29 (hit-testing del ratón es del toolkit, mismo reparto que
+G1/G22) y G30 (pegar imágenes inyecta una ruta). La lista queda como
+registro del proceso; los problemas nuevos que surjan (spike incluido) se
+añaden aquí con el mismo método.
 
 ---
 
@@ -678,7 +678,21 @@ acarree el índice (fricción en cada uso, contra §1.4); (c) añadir variantes
 nuevas (`all_settled`, `map_limit`) — superficie ad hoc para lo que Lua ya
 compone.
 
-## G28 · `Region:blit` con coordenadas locales negativas (viewport/scrollback) — `api.md` §9.1 — **ABIERTA**
+## G28 · `Region:blit` con coordenadas locales negativas (viewport/scrollback) — `api.md` §9.1 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §9.1 y
+[guia-plugins.md](guia-plugins.md) §6): opción (a) con tres clavos. (1)
+`blit` recorta por **ambos extremos**: `x/y` negativos recortan el borde
+inicial del Block (`blit(0, -3, doc)` muestra `doc` desde su cuarta fila),
+simétrico al recorte por exceso — un viewport sobre un Block más grande que
+la región. (2) Garantía explícita: blittear el mismo Block con distinto
+offset es **copia, nunca re-render** (el coste de scroll es el de copiar la
+ventana visible). (3) La **virtualización** (no construir el Block entero
+para historiales enormes) es del toolkit, no del core. Descartada la
+primitiva de viewport dedicada (b): añade superficie para lo que el negativo
+ya da; descartado recortar en Lua (c) por el coste en el estado principal.
+El patrón "cachea el Block, mueve el offset" queda en la guía §6 (con su
+antipatrón: reconstruir el Block en cada scroll).
 
 **Problema.** `Region:blit(x, y, block)` "recorta a los límites", pero la
 especificación solo contempla el recorte por **exceso** (la parte del Block
@@ -701,7 +715,23 @@ sin coste en Lua; (b) primitiva de viewport dedicada en `Region`
 dejarlo en el plugin: recortar el Block en Lua antes de `blit` (rechazable
 por el coste en el estado principal).
 
-## G29 · Ratón en coordenadas globales sin traducción a región (hit-testing) — `api.md` §9.1/§9.3 — **ABIERTA**
+## G29 · Ratón en coordenadas globales sin traducción a región (hit-testing) — `api.md` §9.1/§9.3 — **RESUELTO**
+
+**Resolución** (aplicada en [guia-plugins.md](guia-plugins.md) §6): opción
+(c) — el mapeo pantalla→contenido es del **toolkit**, no del core, por el
+mismo reparto que G1 (relayout) y G22 (theming): lo que depende del layout
+que el plugin posee es del plugin. La razón decisiva es que `Region:hit` (a)
+solo podría hacer la **mitad trivial** — restar el origen `x,y` que el plugin
+mismo fijó —, mientras la mitad valiosa (qué bloque/línea de un Block
+envuelto y **scrolleado** se clicó) necesita el offset de scroll y el layout
+del contenido, que el core no retiene (el blit de G28 es efímero). Añadir
+`Region:hit` sería superficie sagrada para lo que el plugin ya tiene gratis,
+y además ignoraría z-order/oclusión (una región tapada devolvería coords
+igual). Descartada (b) entregar el ratón en coordenadas locales: rutear por
+geometría dentro del core es meter un trozo de toolkit en el kernel, contra
+el modelo de pila de §9.3. Si el toolkit demuestra que repite el mismo
+cálculo en todas partes, *entonces* se promueve una primitiva — con
+evidencia, no por adelantado.
 
 **Problema.** El evento de ratón (`ev.type == "mouse"`) trae `x, y` en
 coordenadas de **pantalla**, pero las regiones viven en coordenadas
