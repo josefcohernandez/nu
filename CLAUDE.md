@@ -1,0 +1,171 @@
+# CLAUDE.md
+
+Guía para asistentes de IA que trabajen en este repositorio.
+
+## Qué es este proyecto
+
+`nu` es **un runtime de Lua orientado a terminal cuya killer app es un coding
+harness**: un único binario Go con un kernel mínimo donde todo lo demás —
+incluido el propio agente — son extensiones Lua.
+
+**Crítico:** el proyecto está en **fase de diseño**. *No hay código todavía*:
+los documentos en `docs/` **son** el proyecto. La API se valida escribiendo
+pseudocódigo contra ella antes de congelarla. Tu trabajo aquí es casi siempre
+de **diseño y documentación** (razonar sobre la API, encontrar grietas,
+registrar decisiones), no de implementación. No crees ficheros de código Go o
+Lua salvo que se pida explícitamente; el pseudocódigo ilustrativo vive dentro
+de los `.md`.
+
+## Idioma y estilo
+
+- **Todo el repositorio está en español** (documentos, mensajes de commit).
+  Escribe en español, con el mismo registro: prosa densa pero precisa, frases
+  que justifican el *porqué* de cada decisión, no solo el *qué*.
+- Los **identificadores de la API son en inglés y `snake_case`**
+  (`nu.fs.read`, `nu.task.spawn`); la prosa que los rodea, en español.
+- Tono: afirmativo y razonado. Cada decisión se acompaña de su motivación y,
+  cuando aplica, de las alternativas descartadas. Imita la voz de los
+  documentos existentes antes de añadir nada.
+
+## Estructura del repositorio
+
+Todo vive en `docs/`. Orden de lectura sugerido (y dependencias conceptuales):
+
+| Documento | Rol |
+|---|---|
+| `docs/filosofia.md` | Principios fundacionales y "lo que nu no es". El *porqué* del proyecto. |
+| `docs/arquitectura.md` | Vista estática: las capas, el inventario de primitivas del kernel. |
+| `docs/modelo-ejecucion.md` | Vista dinámica: concurrencia, comunicación, limitaciones (con diagramas mermaid). |
+| `docs/api.md` | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
+| `docs/adr.md` | Registro de decisiones técnicas (Architecture Decision Records). |
+| `docs/providers.md` | Contrato de la extensión oficial de providers (registro TOML + adaptadores Lua). |
+| `docs/agente.md` | Contrato de la extensión oficial `agent` (motor headless: turno, tools, permisos, subagentes). |
+| `docs/sesiones.md` | Contrato de persistencia: JSONL append-only. |
+| `docs/chat.md` | Contrato de la extensión oficial `chat` (la UI). |
+| `docs/guia-plugins.md` | Sabiduría práctica para autores de plugins + checklist. |
+| `docs/pseudocodigo.md` | **El ejercicio de validación**: rondas de pseudocódigo que torturan la API. |
+| `docs/problemas.md` | Grietas que la v1 *necesita* cerradas (hallazgos G##, con estado). |
+| `docs/pospuesto.md` | Lo que se decidió no decidir todavía (P##), cada uno con su *disparador* de reapertura. |
+
+`README.md` es el índice de entrada con el mismo orden de lectura.
+
+## Las ideas centrales que NUNCA debes contradecir
+
+Antes de proponer cualquier cosa, interiorízalas (detalle en `docs/filosofia.md`
+y `docs/adr.md`):
+
+1. **El core no sabe lo que es un agente.** Modelo Emacs/Textadept, no Neovim:
+   kernel diminuto de primitivas + intérprete Lua. Agente, MCP, chat, comandos
+   slash, providers: **todo son extensiones Lua**, incluidas las oficiales, sin
+   privilegio arquitectónico. Vara para casos dudosos: si algo se describe con
+   el vocabulario del kernel (plugins, rutas, versiones), es del kernel; si
+   necesita vocabulario de producto (agente, chat, tools, token), es de una
+   extensión.
+2. **Corolario de completitud:** si una feature oficial no se puede construir
+   con la API pública, **la API está incompleta** — el arreglo va en la API, no
+   en un atajo privilegiado. Este es el motor de las rondas de pseudocódigo.
+3. **Lua decide, Go ejecuta.** Todo trabajo pesado (búsqueda, diff, markdown,
+   highlighting, streaming HTTP) es primitiva Go, paralela por dentro. CPU
+   ardiendo en Lua = señal de que falta una primitiva o de que el trabajo va a
+   un worker.
+4. **La API del core es sagrada** (`docs/api.md`): pequeña, aburrida, **crece
+   solo por adición**; `nu.version.api` se incrementa con cada adición. Romper
+   una firma rompe el mundo.
+5. **Modelo de concurrencia "del navegador"** (ADR-004): estado Lua principal
+   single-threaded con event loop (async por corrutinas, await implícito) +
+   workers explícitos opt-in (sin memoria compartida, sin `ui`, paso de
+   mensajes JSON-ables) + primitivas Go paralelas. Aislamiento **por tarea, no
+   por plugin** (ADR-008); robustez por watchdog + `pcall` en cada frontera de
+   hook.
+6. **Cero dependency hell:** un binario estático Go (`CGO_ENABLED=0`),
+   extensiones oficiales embebidas con `go:embed` pero **inactivas por defecto**
+   (ADR-010).
+
+## Convenciones de la API (al editar `docs/api.md` o contratos)
+
+- Namespace global `nu` con submódulos; `require` reservado para módulos de
+  plugins. Identificadores en inglés, `snake_case`.
+- Notación de firmas: `nu.mod.fn(arg: tipo, opts?: tabla) -> tipo`.
+- Marcadores: **⏸ suspende** (solo dentro de una task) y **[W]** (disponible en
+  workers). Úsalos consistentemente.
+- Async por funciones suspendientes (estilo secuencial), no callbacks ni
+  promesas explícitas.
+- Errores **estructurados y lanzados**: `error({ code, message, detail? })`,
+  capturables con `pcall`. Códigos reservados v1: `ENOENT`, `EEXIST`, `EACCES`,
+  `EIO`, `EHTTP`, `ENET`, `ETIMEOUT`, `ECANCELED`, `EBUDGET`, `EINVAL`,
+  `ECLOSED`. Las extensiones acuñan los suyos con la misma forma (p. ej.
+  `EPROVIDER`).
+- Tiempos en milisegundos; rutas UTF-8.
+- Namespaces de eventos reservados al core: solo `core:` y `ui:`. Todo lo demás
+  (incluido `agent:`) es de un plugin por convención (namespace = nombre del
+  plugin); el loader garantiza unicidad de nombre.
+
+## El flujo de trabajo de diseño (cómo se decide aquí)
+
+Este es el corazón del proyecto y debes respetarlo:
+
+1. **Validación por pseudocódigo** (`docs/pseudocodigo.md`). Se escriben
+   escenarios reales usando **solo** lo especificado en los contratos. Cada
+   punto donde el código no se puede escribir es un **hallazgo**. Las rondas
+   acumuladas hasta hoy: Ronda 1 (H1-H3), Ronda 2 "caminos feos" (F1-F5),
+   Rondas 3-4 "zonas sin torturar" (G1-G16), Ronda 5 "orquestación por un
+   tercero" (G27). Revisiones de coherencia añadieron G17-G23, G26.
+
+2. **Registro de problemas** (`docs/problemas.md`). Las grietas que la v1 *sí*
+   necesita cerradas se numeran `G##` y se resuelven **una a una**: se discuten
+   opciones, se decide, se aplica la resolución a *todos* los documentos
+   afectados, y la entrada pasa a **RESUELTO** con descripción de la
+   resolución. Estado actual: **25/25 resueltas** (+ G27).
+
+3. **Decisiones pospuestas** (`docs/pospuesto.md`). Lo que se decide *no*
+   decidir todavía se numera `P##` y **siempre lleva un disparador**: la señal
+   concreta que indica que toca reabrirlo. Nada está rechazado; está esperando.
+   Cuando un `P##` se reabre y se decide, sale de aquí y entra en el ADR.
+
+4. **ADR** (`docs/adr.md`). Formato ligero: contexto → decisión →
+   consecuencias. **Las entradas nunca se reescriben**: si una decisión cambia,
+   se añade una nueva que la *reemplaza* (supersede), y la vieja se marca
+   "Reemplazada por ADR-NNN". Estados: Aceptada · Propuesta · Abierta ·
+   Reemplazada. Hay diez ADRs (ADR-001…ADR-010).
+
+**Reglas de oro del flujo:**
+
+- Una resolución no está hecha hasta que es **coherente en todos los
+  documentos**. Si tocas una semántica en `api.md`, busca y actualiza cada
+  contrato que la presuponía (`agente.md`, `providers.md`, `sesiones.md`,
+  `chat.md`, `guia-plugins.md`). La mayoría de hallazgos G17-G23 nacieron
+  justo de contratos que presuponían API inexistente.
+- **Respeta los enlaces cruzados.** Los documentos se referencian entre sí con
+  rutas relativas (`[api.md](api.md) §3`) y por número de hallazgo/ADR. Al
+  resolver algo, deja el rastro: enlaza el cambio desde `problemas.md` y cita
+  el `G##`/`F##`/`P##`/`ADR-NNN` que lo motiva.
+- No inventes API para tapar un hallazgo sin antes comprobar que el patrón se
+  repite y que no se compone con lo existente. Varios "hallazgos" se cierran
+  demostrando que ya eran expresables (semáforo con `nu.task.future`, etc.).
+- Antes de añadir una primitiva al core, pregúntate si es **vocabulario de
+  producto** (entonces va a una extensión) o si la división "Lua decide, Go
+  ejecuta" la justifica por rendimiento.
+
+## Convenciones de Git
+
+- **Rama de trabajo:** desarrolla en la rama indicada por la tarea (p. ej.
+  `claude/...`); créala localmente si no existe. Nunca empujes a otra rama sin
+  permiso explícito.
+- **Mensajes de commit en español**, descriptivos y referenciando el hallazgo
+  cuando aplique. Estilo observado en el historial:
+  - `Resuelve G27: nu.task.all alinea resultados con inputs (Promise.all)`
+  - `Ronda 5 de pseudocódigo: orquestación de agentes (loops deterministas + paralelo)`
+  - `Resolve G6 (per-function caps) and add ADR-010 (official extensions opt-in)`
+- `git push -u origin <rama>`; reintenta solo ante fallos de red (backoff
+  exponencial 2s/4s/8s/16s).
+- **No abras un Pull Request salvo que se pida explícitamente.**
+
+## Glosario de prefijos de seguimiento
+
+- **ADR-NNN** — decisión técnica registrada (en `adr.md`).
+- **G##** — grieta/hallazgo que la v1 necesita cerrar (en `problemas.md`).
+- **H##, F##** — hallazgos de las rondas 1 y 2 de pseudocódigo (ya resueltos e
+  integrados en la API).
+- **P##** — discusión pospuesta con su disparador (en `pospuesto.md`).
+- **§N** — referencia a una sección numerada dentro de un documento.
+- **⏸** — función suspendiente (solo en task). **[W]** — disponible en workers.
