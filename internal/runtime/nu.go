@@ -40,6 +40,9 @@ func registerNu(rt *Runtime) {
 
 	nu.RawSetString("has", L.NewFunction(nuHas))
 
+	// `nu.task` (§3): scheduler, `spawn` y `Task:await`. La quilla async.
+	rt.sched.register(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 

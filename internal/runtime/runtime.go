@@ -16,6 +16,11 @@ import (
 type Runtime struct {
 	L *lua.LState
 
+	// sched es el event loop y el scheduler de tasks (§1.3, §3). Es la quilla:
+	// `nu.task`, los puntos de suspensión ⏸ y, en adelante, todo lo async cuelga
+	// de él. Una sola goroutine (la del loop) lo toca.
+	sched *scheduler
+
 	// log respalda `nu.log` (§15): un fichero append-only en data_dir.
 	log *logger
 	// owner es el plugin de origen que se anota en cada línea de log. Por
@@ -63,6 +68,7 @@ func New(opts ...Option) *Runtime {
 		log:   newLogger(filepath.Join(cfg.dataDir, logFileName)),
 		owner: "user",
 	}
+	rt.sched = newScheduler(rt)
 	applySandbox(L)
 	registerNu(rt)
 	return rt

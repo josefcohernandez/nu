@@ -36,7 +36,7 @@ puro no puede hacer TLS ni pintar un terminal, así que el kernel se lo da.
 
 | Módulo | Responsabilidad |
 |---|---|
-| **scheduler** | Event loop, timers, puente coroutines-Lua ↔ goroutines, workers |
+| **scheduler** | Event loop, timers, puente ⏸ task-Lua ↔ goroutines (realizado como goroutine-por-task + token Lua, ADR-011), workers |
 | **io** | Filesystem, spawn de procesos con streams, entorno |
 | **net** | Cliente HTTP/HTTPS con respuesta en streaming (SSE), TCP/websocket |
 | **ui** | Celdas + regiones + compositor (z-order, blit de bloques, damage tracking, coalescing ~30 ms), eventos de input, keymaps |
