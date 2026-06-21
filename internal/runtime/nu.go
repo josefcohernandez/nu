@@ -50,6 +50,12 @@ func registerNu(rt *Runtime) {
 	// baselib esté abierto y ANTES de que corra código de usuario (cancel.go).
 	rt.sched.installCancelPcall()
 
+	// `nu.events` (§4, S10): bus de eventos `on`/`once`/`emit`. Despacho síncrono
+	// sobre foto de suscriptores, emits anidados encolados por anchura (G10). Solo
+	// estado principal (no [W]). Es donde el watchdog (S09) emite ya de verdad
+	// `core:plugin.misbehaved` (rt.emitMisbehaved, cableado en runtime.go).
+	rt.sched.registerEvents(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 

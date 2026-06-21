@@ -95,14 +95,41 @@ func New(opts ...Option) *Runtime {
 }
 
 // emitMisbehaved es el **gancho interno** de `core:plugin.misbehaved` (api.md
-// §1.3, §4, S09). El watchdog (`runTask`) lo invoca cuando una task se abortó por
-// exceder el presupuesto de un slice. El bus de eventos `nu.events` llega en S10:
-// hasta entonces, esto solo deja constancia en el log (best-effort, como el resto
-// de fallos de task). **S10 lo cableará** a
-// `nu.events.emit("core:plugin.misbehaved", { plugin = owner, reason = ... })`,
-// sin cambiar la superficie pública —el watchdog ya llama a este punto único—.
+// §1.3, §4). El watchdog (`runTask`) lo invoca cuando una task se abortó por
+// exceder el presupuesto de un slice. S10 lo **cabló al bus real**: además de
+// dejar constancia en el log (best-effort, como el resto de fallos de task),
+// emite `core:plugin.misbehaved` por `nu.events` con el payload
+// `{ plugin = owner, reason = reason }` (`core:` es el namespace que el kernel
+// reserva, §4). El watchdog sigue llamando a este punto único, sin tocar su
+// superficie.
+//
+// SEGURIDAD DEL HILO (la decisión delicada de S10, ver claude_decisions.md). El
+// que llama es `runTask`, que corre en la goroutine de la task —sobre el thread
+// `co`, NO sobre `host`— pero **con el token tomado** (la emisión ocurre antes de
+// `release`). Que estemos en el thread de la task no importa: el bus es del estado
+// principal y toca `host` (la tabla del payload, los threads efímeros de los
+// handlers), no `co`; lo que protege esos accesos es el **token**, no qué thread
+// corre. Por eso se emite **directamente** (síncrono) en vez de re-encolarlo a
+// otra goroutine: ya tenemos el invariante que el bus necesita (token + estado
+// principal). Si un handler de `core:plugin.misbehaved` re-emitiera, la cola de
+// emits de `nu.events` (events.go) lo aplana por anchura, sin recursión.
 func (rt *Runtime) emitMisbehaved(owner, reason string) {
 	_ = rt.log.write(levelError, owner, "core:plugin.misbehaved: "+reason)
+
+	// Construye el payload sobre `host` (seguro: tenemos el token). El bus puede no
+	// estar inicializado en escenarios de test que construyen un scheduler a pelo;
+	// en el runtime real `registerEvents` siempre corre antes de cualquier task.
+	if rt.sched == nil || rt.sched.events == nil {
+		return
+	}
+	payload := rt.L.NewTable()
+	payload.RawSetString("plugin", lua.LString(owner))
+	payload.RawSetString("reason", lua.LString(reason))
+	// Pasamos `host` (rt.L) como thread llamante: la emisión de misbehaved es un
+	// solo evento desde `runTask` (no un drenado de task que deba vigilar su propio
+	// watchdog —la task que lo motivó ya está abortada—), así que no se ata al
+	// borde cooperativo del watchdog de `emit`.
+	rt.sched.emit(rt.L, "core:plugin.misbehaved", payload)
 }
 
 // Close libera el estado Lua subyacente, corta los timers periódicos activos

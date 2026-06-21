@@ -183,6 +183,12 @@ type scheduler struct {
 	// cablearán a `nu.toml`). Inmutable tras construir el runtime, así que se lee
 	// sin candado desde las goroutines de las tasks.
 	budget time.Duration
+
+	// events es el bus `nu.events` (S10, §4): suscripciones y cola de emisiones
+	// anidadas. Vive aquí porque comparte el token y `host` con el resto del
+	// scheduler —todo el bus corre en el estado principal bajo el token, sin
+	// candado propio (events.go)—. Lo inicializa `registerEvents`.
+	events *eventBus
 }
 
 // newScheduler prepara el scheduler con el token libre (sembrado en el canal) y
