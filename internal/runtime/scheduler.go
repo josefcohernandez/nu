@@ -54,7 +54,37 @@ type task struct {
 
 	results  []lua.LValue // valores de retorno si terminó bien
 	errValue lua.LValue   // objeto lanzado si terminó con error; nil si no
+	canceled bool         // se canceló (substrato S07): no se entrega su resultado
+
+	// cancelCh es el **substrato de cancelación interno** que S07 necesita para
+	// que `all`/`race` aborten a las tasks perdedoras (ver cancelTask y suspend).
+	// Se cierra una sola vez —`cancelOnce` lo protege— y los puntos de suspensión
+	// lo observan por `select` para abortar la task en su siguiente ⏸.
+	//
+	// FRONTERA S07/S08 (ver claude_decisions.md): esto es el SUBSTRATO mínimo. La
+	// cancelación PÚBLICA —`Task:cancel()`, `nu.task.cleanup` con su pila LIFO,
+	// `ECANCELED` observable en `await`, y la garantía formal de que el
+	// desenrollado NO es capturable por un `pcall` de usuario— es S08, que
+	// reutilizará y extenderá este canal, no lo reescribirá. Aquí solo se exige lo
+	// justo para S07: que una perdedora deje de ejecutar Lua y no entregue su
+	// resultado.
+	cancelCh   chan struct{}
+	cancelOnce sync.Once
 }
+
+// abortSignal es el valor del **pánico centinela** con que una task cancelada
+// desenrolla su pila Go en el siguiente punto de suspensión (lo lanza `suspend`
+// al detectar `cancelCh` cerrado). `runTask` lo recupera y NO lo confunde con un
+// error Lua: la task queda marcada `canceled`, sin `results` ni `errValue`.
+//
+// FRONTERA S07/S08: este centinela es el embrión del **desenrollado no
+// capturable** de §1.3. En S07 desenrolla la pila Go de la goroutine de la task
+// —que un `pcall` de Lua, al ser una llamada Go anidada en esa misma pila, no
+// puede atrapar porque es un panic de Go, no un `error()` de Lua—. S08 lo
+// formaliza: correrá la pila LIFO de `nu.task.cleanup` durante el desenrollado y
+// hará `ECANCELED` observable en `await`. La forma del centinela está pensada
+// para que S08 la reutilice (un tipo distinguible), no para reescribirla.
+type abortSignal struct{ t *task }
 
 // deliverFn construye, **ya con el token recuperado** (es seguro tocar Lua), los
 // valores que una primitiva ⏸ devuelve a su task tras completar el trabajo de
@@ -79,6 +109,13 @@ type scheduler struct {
 	// ticker colgada tras el fin del proceso. `defer` no se rastrea: es de un
 	// solo disparo y se autolimpia.
 	timers map[*luaTimer]struct{}
+
+	// coToTask mapea el thread Lua de cada task viva (su `co`) a su `*task`. Lo
+	// usa `suspend` para observar el `cancelCh` de la task que se suspende (S07):
+	// quien suspende es la goroutine de esa task, que corre sobre `co == L`. Se
+	// puebla en `runTask` y se limpia al terminar. `sync.Map` porque se escribe
+	// desde la goroutine de cada task y se lee desde `suspend` sin el token.
+	coToTask sync.Map // *lua.LState -> *task
 }
 
 // newScheduler prepara el scheduler con el token libre (sembrado en el canal).
@@ -122,6 +159,10 @@ func (s *scheduler) register(nu *lua.LTable) {
 	// Futures (S06): `nu.task.future` + el tipo `Future` con `set`/`await`,
 	// colgados de la misma tabla `nu.task` (future.go).
 	s.registerFuture(taskTbl)
+
+	// Combinadores (S07): `nu.task.all` y `nu.task.race`, colgados de la misma
+	// tabla `nu.task` (allrace.go).
+	s.registerAllRace(taskTbl)
 }
 
 // waitIdle bloquea hasta que no quede **trabajo de primer plano**: ninguna task
@@ -198,7 +239,7 @@ func (s *scheduler) stopAllTimers() {
 // llama desde el chunk principal como desde dentro de otra task.
 func (s *scheduler) spawn(fn *lua.LFunction, args []lua.LValue) *task {
 	co, _ := s.host.NewThread()
-	t := &task{co: co, fn: fn, args: args, doneCh: make(chan struct{})}
+	t := &task{co: co, fn: fn, args: args, doneCh: make(chan struct{}), cancelCh: make(chan struct{})}
 	s.mu.Lock()
 	s.live++
 	s.mu.Unlock()
@@ -213,15 +254,28 @@ func (s *scheduler) spawn(fn *lua.LFunction, args []lua.LValue) *task {
 func (s *scheduler) runTask(t *task) {
 	s.acquire()
 
+	s.coToTask.Store(t.co, t) // para que `suspend` halle el `cancelCh` de esta task
+
 	err := t.co.CallByParam(lua.P{Fn: t.fn, NRet: lua.MultRet, Protect: true}, t.args...)
-	if err == nil {
+
+	s.coToTask.Delete(t.co)
+
+	switch {
+	case t.canceled:
+		// La task fue abortada por `cancelTask` (substrato S07): `suspend` lanzó el
+		// pánico centinela en su último ⏸ y `CallByParam` lo devolvió como error.
+		// No es un desenlace observable —ni `results` ni `errValue`—: una task
+		// cancelada simplemente no entrega resultado (S08 hará `ECANCELED`
+		// observable en `await`). Tampoco se loguea: la cancelación es deliberada,
+		// no un fallo. `err` se ignora a propósito.
+	case err == nil:
 		if n := t.co.GetTop(); n > 0 {
 			t.results = make([]lua.LValue, n)
 			for i := 1; i <= n; i++ {
 				t.results[i-1] = t.co.Get(i)
 			}
 		}
-	} else {
+	default:
 		t.errValue = raisedValue(err)
 	}
 	t.co.SetTop(0)
@@ -259,12 +313,95 @@ func (s *scheduler) runTask(t *task) {
 // trabaja, la goroutine de la task está bloqueada en `<-ch` sin el token, así que
 // otras tasks progresan —el loop no se congela.
 func (s *scheduler) suspend(L *lua.LState, work func() deliverFn) []lua.LValue {
+	// Substrato de cancelación (S07): si esta task ya está cancelada al llegar al
+	// punto de suspensión, aborta sin siquiera lanzar el trabajo de fondo. Si se
+	// cancela *mientras* está suspendida, el `select` de abajo la despierta por
+	// `cancelCh` en vez de por el resultado.
+	t, hasTask := s.taskOf(L)
+	if hasTask && isClosed(t.cancelCh) {
+		s.abort(t)
+	}
+
 	ch := make(chan deliverFn, 1)
 	go func() { ch <- work() }()
 	s.release()
-	d := <-ch
+
+	var d deliverFn
+	if hasTask {
+		select {
+		case d = <-ch:
+		case <-t.cancelCh:
+			// Cancelada mientras esperaba: recupera el token y desenrolla. El
+			// trabajo de fondo seguirá hasta su fin (su `deliverFn` se descarta);
+			// para `sleep` es solo un `time.After`. S08 podrá propagar la
+			// cancelación al trabajo en curso vía `context`.
+			s.acquire()
+			s.abort(t)
+		}
+	} else {
+		d = <-ch // sin task (no debería ocurrir en ⏸ reales): comportamiento de S04
+	}
+
 	s.acquire()
 	return d(L)
+}
+
+// taskOf devuelve la task cuya goroutine corre sobre el thread `L`, si la hay.
+// El chunk principal y los handlers síncronos corren sobre `host` (sin task).
+func (s *scheduler) taskOf(L *lua.LState) (*task, bool) {
+	v, ok := s.coToTask.Load(L)
+	if !ok {
+		return nil, false
+	}
+	return v.(*task), true
+}
+
+// cancelTask es el **punto de entrada del substrato de cancelación** (S07). Lo
+// llaman `all`/`race` para abortar a las tasks perdedoras. Marca la task como
+// cancelada y cierra su `cancelCh` (una sola vez, `cancelOnce`); la task abortará
+// en su siguiente punto de suspensión (`suspend`). Si la task ya terminó, es un
+// no-op inocuo. Puede llamarse con el token tomado (lo está siempre `all`/`race`,
+// que son ⏸ y corren bajo token entre suspensiones).
+//
+// FRONTERA S07/S08: S08 expondrá esto como `Task:cancel()` público, correrá la
+// pila LIFO de `nu.task.cleanup` durante el aborto y dejará `ECANCELED`
+// observable en `await`. Aquí solo cierra el canal: lo mínimo para que la
+// perdedora deje de ejecutar Lua.
+func (s *scheduler) cancelTask(t *task) {
+	t.cancelOnce.Do(func() {
+		t.canceled = true
+		close(t.cancelCh)
+	})
+}
+
+// abort desenrolla la pila Go de la task lanzando el pánico centinela. Lo llama
+// `suspend` cuando detecta `cancelCh` cerrado. El pánico sube por la pila Go de
+// la goroutine de la task hasta el `CallByParam` de `runTask`, que lo recupera
+// (gopher-lua convierte cualquier pánico Go en error al cruzar `PCall`); `runTask`
+// ve `t.canceled` y descarta el desenlace.
+//
+// FRONTERA S07/S08: en S07 este desenrollado SÍ podría ser atrapado por un
+// `pcall` de Lua que envuelva el punto de suspensión (gopher-lua recupera todo
+// pánico Go en su `PCall` interno —el mismo motivo de ADR-011—). Para S07 basta
+// porque las perdedoras de `all`/`race` no envuelven su ⏸ en `pcall`. La garantía
+// formal de "**no capturable** por `pcall`" es S08: requerirá su propio mecanismo
+// (re-lanzar el centinela tras cada frontera `pcall`, o marcar el thread como
+// "abortando" para que el `pcall` de usuario no lo trague). El tipo `abortSignal`
+// está pensado para que S08 lo reconozca y reinyecte, no para reescribirlo.
+func (s *scheduler) abort(t *task) {
+	panic(abortSignal{t: t})
+}
+
+// isClosed comprueba sin bloquear si un canal-señal (cerrado para difundir) ya
+// fue cerrado. Solo válido para canales que únicamente se cierran (nunca se les
+// envía), como `cancelCh`.
+func isClosed(ch chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
 }
 
 // taskSpawn implementa `nu.task.spawn(fn, ...) -> Task` (§3): lanza una task con
@@ -311,10 +448,26 @@ func (s *scheduler) taskAwait(L *lua.LState) int {
 	}
 
 	t.awaited = true
+	// Substrato de cancelación (S07): si la task que espera (`self`) es cancelada
+	// mientras está bloqueada en este `await`, debe abortar igual que en `suspend`.
+	self, hasSelf := s.taskOf(L)
+	if hasSelf && isClosed(self.cancelCh) {
+		s.abort(self)
+	}
 	if !t.done {
 		s.release()
-		<-t.doneCh
-		s.acquire()
+		if hasSelf {
+			select {
+			case <-t.doneCh:
+				s.acquire()
+			case <-self.cancelCh:
+				s.acquire()
+				s.abort(self)
+			}
+		} else {
+			<-t.doneCh
+			s.acquire()
+		}
 	}
 
 	if t.errValue != nil {
