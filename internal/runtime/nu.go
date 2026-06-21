@@ -40,8 +40,15 @@ func registerNu(rt *Runtime) {
 
 	nu.RawSetString("has", L.NewFunction(nuHas))
 
-	// `nu.task` (§3): scheduler, `spawn` y `Task:await`. La quilla async.
+	// `nu.task` (§3): scheduler, `spawn`, `Task:await`, `Task:cancel`,
+	// `nu.task.cleanup`... La quilla async.
 	rt.sched.register(nu)
+
+	// Desenrollado no capturable por `pcall` (§1.3, S08): envuelve los globales
+	// `pcall`/`xpcall` (que `applySandbox` abrió nativos) para que un aborto de
+	// task atraviese cualquier `pcall` de usuario. Debe ir DESPUÉS de que el
+	// baselib esté abierto y ANTES de que corra código de usuario (cancel.go).
+	rt.sched.installCancelPcall()
 
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
