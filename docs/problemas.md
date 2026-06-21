@@ -9,7 +9,8 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 28 registradas, resueltas** (2026-06-17). Las dieciséis de las
+**Estado: 29 registradas, resueltas** (G31 añadida 2026-06-21 desde la
+construcción). Las dieciséis de las
 rondas 3-4, las seis de la revisión de coherencia de la documentación
 completa (G17-G22, sobre todo contratos que presuponían API inexistente) y
 las de la revisión filosófico-técnica del proyecto (G23, vocabulario de
@@ -20,9 +21,12 @@ G27 sale de la ronda 5 de pseudocódigo (orquestación de agentes por un
 tercero). G28-G30 salen de la ronda 6 (reconstruir un harness de coding
 estilo claude-code sobre `nu.ui`): G28 (blit recorta por ambos extremos,
 scrollback), G29 (hit-testing del ratón es del toolkit, mismo reparto que
-G1/G22) y G30 (pegar imágenes inyecta una ruta). La lista queda como
-registro del proceso; los problemas nuevos que surjan (spike incluido) se
-añaden aquí con el mismo método.
+G1/G22) y G30 (pegar imágenes inyecta una ruta). G31 es la primera grieta
+que sale de la **construcción** y no de una ronda de pseudocódigo: gopher-lua
+no deja ceder una corrutina a través de `pcall`/tail call, lo que obligó a
+realizar el scheduler sin yields (ADR-011). La lista queda como registro del
+proceso; los problemas nuevos que surjan (spike incluido) se añaden aquí con
+el mismo método.
 
 ---
 
@@ -780,3 +784,38 @@ ahora sobre la superficie que se congela.
 (fichero temporal volcado), insertable como `@` — la elegida; (b)
 `nu.ui.clipboard_get_image() -> path?` aparte (superficie extra para lo
 mismo); (c) dejarlo fuera de v1, plegado a P6 (descartado: P6 es salida).
+
+---
+
+## G31 · El puente ⏸ no puede ceder a través de `pcall`/tail call en gopher-lua — `api.md` §1.3/§1.4 — **RESUELTO**
+
+**Resolución** (decisión en [adr.md](adr.md) ADR-011; sin cambios en
+[api.md](api.md): la API era correcta, fallaba la técnica de realización).
+El scheduler se realiza **sin yields de corrutina**: una goroutine por task
++ un único token de ejecución Lua. Una primitiva ⏸ suelta el token, hace el
+trabajo bloqueante en una goroutine de fondo y al volver lo recupera; como no
+hay yield, `pcall`, las tail calls y el desenrollado de errores son los
+nativos de gopher-lua y sobreviven a la suspensión. Implementado en S04
+(`internal/runtime/scheduler.go`), validado con `-race`.
+
+**Problema.** Surgió **construyendo** la quilla (S04), no en una ronda de
+pseudocódigo. gopher-lua (semántica Lua 5.1) no deja que una corrutina ceda a
+través de una frontera de llamada Go. Verificado contra v1.1.2: (1)
+`pcall(fn)` con `fn` que suspende **aborta** la corrutina en el `pcall` en vez
+de ceder — pero §1.4 promete capturar los errores estructurados con `pcall`,
+y el pseudocódigo lo hace alrededor de operaciones que hacen IO (⏸); (2)
+`return ⏸fn()` en cola pierde la continuación (el `OP_TAILCALL` elide el frame
+antes del yield). Misma raíz: el yield no cruza fronteras Go.
+
+**Impacto.** Fundacional: sin esto el modelo de errores de §1.4 (pcall sobre
+código que suspende) no se sostiene, y toda la API ⏸ tiene footguns en
+posición de cola. Es la quilla — barato de cerrar aquí, carísimo después.
+
+**Opciones.** (a) **Goroutine-por-task + token Lua** (sin yield):
+pcall/tail call/errores nativos — la elegida (ADR-011); (b) seguir con el
+puente de corrutinas y construir un `pcall` *yieldable* (pcall como
+sub-corrutina) + trampolines Lua para las tail calls: más invasivo, defería un
+`pcall` roto-por-defecto y aún así frágil; (c) cambiar de runtime Lua —
+desproporcionado (ADR-002 ya está decidido). El desenrollado **no capturable**
+de S08 (cancelación/watchdog) se diseñará sobre (a) con un panic centinela
+propio, no con el yield aquí descartado.
