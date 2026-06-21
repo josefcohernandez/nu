@@ -69,17 +69,25 @@ type scheduler struct {
 
 	gil chan struct{} // token de ejecución Lua (cap 1); el que lo tiene, corre Lua
 
-	mu   sync.Mutex // protege `live` y respalda `cond`
-	cond *sync.Cond // señala "live llegó a 0"
-	live int        // tasks vivas (lanzadas y no terminadas)
+	mu      sync.Mutex // protege `live`/`pending`/`timers` y respalda `cond`
+	cond    *sync.Cond // señala "no queda trabajo de primer plano" (live+pending == 0)
+	live    int        // tasks vivas (lanzadas y no terminadas)
+	pending int        // handlers `defer` encolados y aún no ejecutados (S05)
+
+	// timers son los `every` activos. Se rastrean para poder cortarlos todos al
+	// cerrar el runtime (`Close`), de modo que no quede ninguna goroutine de
+	// ticker colgada tras el fin del proceso. `defer` no se rastrea: es de un
+	// solo disparo y se autolimpia.
+	timers map[*luaTimer]struct{}
 }
 
 // newScheduler prepara el scheduler con el token libre (sembrado en el canal).
 func newScheduler(rt *Runtime) *scheduler {
 	s := &scheduler{
-		rt:   rt,
-		host: rt.L,
-		gil:  make(chan struct{}, 1),
+		rt:     rt,
+		host:   rt.L,
+		gil:    make(chan struct{}, 1),
+		timers: make(map[*luaTimer]struct{}),
 	}
 	s.cond = sync.NewCond(&s.mu)
 	s.gil <- struct{}{} // token disponible: el primero que lo pida corre Lua
@@ -106,16 +114,76 @@ func (s *scheduler) register(nu *lua.LTable) {
 	taskTbl := L.NewTable()
 	taskTbl.RawSetString("spawn", L.NewFunction(s.taskSpawn))
 	nu.RawSetString("task", taskTbl)
+
+	// Timers y diferidos (S05): `sleep`/`defer`/`every` + el tipo `Timer`,
+	// colgados de la misma tabla `nu.task` (timers.go).
+	s.registerTimers(nu, taskTbl)
 }
 
-// waitIdle bloquea hasta que no quede ninguna task viva. Lo usa `EvalString`
-// tras correr el chunk: las tasks que el chunk lanzó corren mientras el hilo
-// principal espera (con el token soltado). El patrón mutex+cond evita el
-// wakeup perdido: el chequeo de `live` y la espera son atómicos.
+// waitIdle bloquea hasta que no quede **trabajo de primer plano**: ninguna task
+// viva (`live`) ni ningún `defer` encolado sin ejecutar (`pending`, S05). Lo usa
+// `EvalString` tras correr el chunk: las tasks que el chunk lanzó —y los `defer`
+// que encoló— corren mientras el hilo principal espera (con el token soltado). El
+// patrón mutex+cond evita el wakeup perdido: el chequeo y la espera son atómicos.
+//
+// Los timers periódicos (`every`) **no** entran en esta cuenta a propósito: un
+// timer nunca termina, así que esperar a que pare colgaría `nu -e` para siempre.
+// Son facilidad de fondo; `Close` los apaga (ver claude_decisions.md, S05).
 func (s *scheduler) waitIdle() {
 	s.mu.Lock()
-	for s.live > 0 {
+	for s.live > 0 || s.pending > 0 {
 		s.cond.Wait()
+	}
+	s.mu.Unlock()
+}
+
+// addPending/donePending contabilizan los `defer` encolados para la quiescencia:
+// un `defer` pendiente mantiene el runtime no-quiescente hasta que su handler
+// corre (es "el siguiente tick", no trabajo de fondo). Al llegar a cero se
+// despierta a `waitIdle`, igual que al terminar la última task.
+func (s *scheduler) addPending() {
+	s.mu.Lock()
+	s.pending++
+	s.mu.Unlock()
+}
+
+func (s *scheduler) donePending() {
+	s.mu.Lock()
+	s.pending--
+	if s.live == 0 && s.pending == 0 {
+		s.cond.Broadcast()
+	}
+	s.mu.Unlock()
+}
+
+// trackTimer registra un `every` activo para poder cortarlo al cerrar el runtime.
+func (s *scheduler) trackTimer(t *luaTimer) {
+	s.mu.Lock()
+	s.timers[t] = struct{}{}
+	s.mu.Unlock()
+}
+
+// stopTimer corta un `every` (vía `Timer:stop` o el cierre del runtime) y lo
+// deja de rastrear. Es **idempotente**: cerrar `stopCh` dos veces entraría en
+// pánico, así que el cierre solo ocurre la primera vez (cuando el timer sigue en
+// el mapa). Tras esto, la goroutine del ticker ve `stopCh` cerrado y retorna.
+func (s *scheduler) stopTimer(t *luaTimer) {
+	s.mu.Lock()
+	_, live := s.timers[t]
+	if live {
+		delete(s.timers, t)
+		close(t.stopCh)
+	}
+	s.mu.Unlock()
+}
+
+// stopAllTimers corta todos los `every` activos. Lo llama `Runtime.Close` para no
+// dejar goroutines de ticker colgadas al terminar el proceso.
+func (s *scheduler) stopAllTimers() {
+	s.mu.Lock()
+	for t := range s.timers {
+		close(t.stopCh)
+		delete(s.timers, t)
 	}
 	s.mu.Unlock()
 }

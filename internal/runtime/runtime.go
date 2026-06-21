@@ -74,9 +74,13 @@ func New(opts ...Option) *Runtime {
 	return rt
 }
 
-// Close libera el estado Lua subyacente y cierra el fichero de log si llegó a
-// abrirse.
+// Close libera el estado Lua subyacente, corta los timers periódicos activos
+// (sus goroutines de ticker, para no dejarlas colgadas) y cierra el fichero de
+// log si llegó a abrirse.
 func (rt *Runtime) Close() {
+	if rt.sched != nil {
+		rt.sched.stopAllTimers()
+	}
 	if rt.log != nil {
 		_ = rt.log.close()
 	}
