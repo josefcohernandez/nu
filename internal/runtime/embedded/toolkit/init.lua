@@ -1,0 +1,34 @@
+-- Extensión oficial `toolkit` (S42): el **toolkit de widgets** del harness.
+--
+-- Implementa la nota de [arquitectura.md](../../../../docs/arquitectura.md)
+-- §"kernel" sobre `ui`: «La API de **ui** es deliberadamente de bajo nivel
+-- (ADR-007): el core expone celdas/regiones y un compositor; el **toolkit de
+-- widgets es una extensión Lua oficial** (retenida por dentro: árbol + nodos
+-- sucios) que aporta slots, focus, composición entre plugins y el sistema de
+-- themes — los nombres semánticos de color se resuelven aquí, no en el core
+-- (G22) —, y se versiona aparte de la API sagrada». Cierra (junto a S43, que la
+-- consume) la cuestión abierta nº3 de arquitectura.md (la API pública del
+-- toolkit).
+--
+-- ADR-003 / ADR-012: el core NO sabe lo que es un widget; todo esto es Lua puro
+-- sobre la API pública congelada ([api.md](../../../../docs/api.md) §9 `nu.ui` +
+-- §10 `nu.text`), sin privilegio de kernel. El spike de S28 (ADR-012) midió que
+-- orquestar la UI desde Lua es despreciable (el trabajo pesado —medir texto,
+-- componer markdown, recortar el viewport, pintar— es primitiva Go), así que el
+-- veto de ADR-007 NO se ejecutó y el toolkit se construye en Lua, como aquí.
+--
+-- El toolkit NO existe sin `nu.ui`: en headless (G20, sin TTY) `nu.ui` no está y
+-- las funciones que pintan no se pueden usar. Igual que `chat` (chat.md §8), el
+-- consumidor comprueba `nu.has("ui")` antes de montar una app. Cargar la
+-- extensión solo expone la maquinaria (funciones puras de árbol/layout/theme); no
+-- toca `nu.ui` hasta que se monta una app de verdad. Por eso este `init.lua` solo
+-- CABLEA: deja el módulo público accesible por `require("toolkit")`.
+--
+-- Lo que reusará S43 (chat): `toolkit.app` (la raíz que vincula el árbol a una
+-- región y enruta el input), los contenedores (`vbox`/`hbox`/`stack` para la
+-- columna transcript/input/statusline + las capas modales), los widgets hoja
+-- (`label`/`text` para el transcript y la statusline, `input` para el editor
+-- multilínea) y `toolkit.theme` (los nombres semánticos `accent`/`error`/`dim`…
+-- que chat.md §7 exige y que el theme resuelve a literales, G22).
+
+require("toolkit")
