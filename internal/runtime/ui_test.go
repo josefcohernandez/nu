@@ -109,6 +109,78 @@ func TestUIRegionFillBadStyle(t *testing.T) {
 	}
 }
 
+// S30: snippet que ejercita TODO el ciclo de vida de la región desde el lado del
+// autor de extensiones (Definition of Done §2): move/resize/raise/lower/show/hide/
+// cursor/destroy. No inspecciona la rejilla (la región es opaca a Lua); comprueba que
+// la superficie no lanza en el camino feliz. La lógica fina la blindan los tests Go.
+func TestUIRegionLifecycleSnippet(t *testing.T) {
+	h := newHarnessUI(t, 20, 10)
+	h.expectEval(`
+		local a = nu.ui.region({ x = 0, y = 0, w = 5, h = 3 })
+		local b = nu.ui.region({ x = 2, y = 1, w = 5, h = 3 })
+		a:blit(0, 0, nu.ui.block({ "hola" }))
+		a:move(1, 1)            -- recolocar
+		a:resize(8, 4)          -- cambiar tamaño lógico (conserva lo que cabe)
+		a:raise()               -- al frente
+		b:lower()               -- al fondo
+		a:hide(); a:show()      -- ocultar y volver
+		a:cursor(2, 1)          -- reclama el cursor
+		b:cursor(0, 0)          -- la última gana: el cursor pasa a b
+		b:cursor(nil)           -- ocultar el cursor
+		a:destroy()             -- elimina del compositor
+		a:destroy()             -- idempotente: no peta
+		return "ok"
+	`, "ok")
+}
+
+// S30: tras destroy, los métodos de la región fallan limpio (EINVAL "ya destruida"
+// vía checkRegion), no petan ni son no-op silenciosos para los métodos que mutan.
+func TestUIRegionMethodsAfterDestroy(t *testing.T) {
+	h := newHarnessUI(t, 20, 5)
+	se := h.evalErr(`
+		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		r:destroy()
+		return r:move(1, 1)   -- región muerta: EINVAL accionable
+	`)
+	if se.Code != CodeEINVAL {
+		t.Fatalf("move tras destroy: code = %q, want EINVAL", se.Code)
+	}
+}
+
+// S30: resize con tamaño negativo → EINVAL (coherente con nu.ui.region).
+func TestUIRegionResizeNegative(t *testing.T) {
+	h := newHarnessUI(t, 20, 5)
+	se := h.evalErr(`
+		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		return r:resize(-1, 2)
+	`)
+	if se.Code != CodeEINVAL {
+		t.Fatalf("resize negativo: code = %q, want EINVAL", se.Code)
+	}
+}
+
+// S30: destroy desregistra la región del registro de handles por dueño (S13): tras
+// destruirla a mano, un `reload` (releaseOwnerHandles) no debe encontrar un handle
+// muerto que liberar (no fuga). Caja blanca, como TestUIRegionOwnedHandleG2.
+func TestUIRegionDestroyUntracks(t *testing.T) {
+	rt := New(WithDataDir(t.TempDir()), WithUISize(20, 5))
+	defer rt.Close()
+
+	rt.ownerStack = append(rt.ownerStack, &pluginInfo{Name: "P"})
+	reg := rt.ui.comp.addRegion(0, 0, 5, 2, 0, rt.currentOwner())
+	rt.sched.track(reg)
+	rt.ownerStack = rt.ownerStack[:0]
+
+	// destroy a mano: descuelga del compositor Y desregistra del registro de handles.
+	rt.sched.untrack(reg)
+	reg.release()
+	if _, ok := rt.sched.ownerHandles["P"]; ok {
+		t.Fatal("destroy: el handle debería haberse desregistrado (no fuga)")
+	}
+	// reload posterior del mismo dueño no encuentra nada que liberar (no peta).
+	rt.sched.releaseOwnerHandles("P")
+}
+
 // Integración con el registro de handles por dueño (S13, G2): una región creada
 // bajo un dueño se etiqueta con él y se trackea; al liberarla (lo que `reload`
 // hace) se descuelga del compositor y queda muerta. Test de caja blanca: crea la

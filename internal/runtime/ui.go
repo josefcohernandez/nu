@@ -25,11 +25,11 @@ import (
 // la condición de TTY por encima sin tocar estas firmas. Es deuda explícita
 // (NOTA DE FRONTERA del plan), no una contradicción de G20.
 
-// regionTypeName identifica la metatabla del handle opaco `Region` (§9.1, S29).
-// De ella cuelgan los métodos de S29 (`blit`/`fill`/`clear`); el resto del ciclo
-// de vida (`move`/`resize`/`raise`/`lower`/`show`/`hide`/`destroy`/`cursor`) es
-// S30, el input es S31. Userdata opaco, como el Block: Lua lo pasa de vuelta, no
-// inspecciona su interior.
+// regionTypeName identifica la metatabla del handle opaco `Region` (§9.1). De ella
+// cuelgan los métodos de S29 (`blit`/`fill`/`clear`) y el ciclo de vida de S30
+// (`move`/`resize`/`raise`/`lower`/`show`/`hide`/`destroy`/`cursor`); el input es
+// S31. Userdata opaco, como el Block: Lua lo pasa de vuelta, no inspecciona su
+// interior.
 const regionTypeName = "nu.ui.Region"
 
 // coalesceInterval es el periodo de pintado del compositor (§9.1, ADR-007): se
@@ -149,9 +149,9 @@ func (rt *Runtime) registerUI(nu *lua.LTable) {
 }
 
 // registerRegionType instala la metatabla del tipo `Region` con un `__index` que
-// resuelve sus métodos de S29: `blit`/`fill`/`clear`. La Region es opaca (§9.1):
-// no se expone su interior a Lua, solo sus métodos. El resto de métodos (S30) se
-// añadirán a este `__index` sin tocar el tipo.
+// resuelve sus métodos: los de S29 (`blit`/`fill`/`clear`) y el ciclo de vida de S30
+// (`move`/`resize`/`raise`/`lower`/`show`/`hide`/`destroy`/`cursor`). La Region es
+// opaca (§9.1): no se expone su interior a Lua, solo sus métodos.
 func (rt *Runtime) registerRegionType() {
 	L := rt.L
 	mt := L.NewTypeMetatable(regionTypeName)
@@ -159,6 +159,15 @@ func (rt *Runtime) registerRegionType() {
 	index.RawSetString("blit", L.NewFunction(rt.regionBlit))
 	index.RawSetString("fill", L.NewFunction(rt.regionFill))
 	index.RawSetString("clear", L.NewFunction(rt.regionClear))
+	// Ciclo de vida de la región (S30, §9.1).
+	index.RawSetString("move", L.NewFunction(rt.regionMove))
+	index.RawSetString("resize", L.NewFunction(rt.regionResize))
+	index.RawSetString("raise", L.NewFunction(rt.regionRaise))
+	index.RawSetString("lower", L.NewFunction(rt.regionLower))
+	index.RawSetString("show", L.NewFunction(rt.regionShow))
+	index.RawSetString("hide", L.NewFunction(rt.regionHide))
+	index.RawSetString("destroy", L.NewFunction(rt.regionDestroy))
+	index.RawSetString("cursor", L.NewFunction(rt.regionCursor))
 	L.SetField(mt, "__index", index)
 }
 
@@ -305,6 +314,139 @@ func (rt *Runtime) regionClear(L *lua.LState) int {
 	}
 	r.content.fill(nil)
 	r.comp.markDirty()
+	return 0
+}
+
+// regionMove implementa `Region:move(x, y)` (§9.1, S30): recoloca la región a las
+// coordenadas de pantalla (x,y). No mueve el contenido (su lienzo) ni cambia su
+// tamaño; el siguiente `composite` la pinta en el nuevo sitio, recortada si se sale
+// (G1). Síncrono, solo estado principal.
+func (rt *Runtime) regionMove(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	r.move(L.CheckInt(2), L.CheckInt(3))
+	return 0
+}
+
+// regionResize implementa `Region:resize(w, h)` (§9.1, S30): cambia el tamaño lógico
+// de la región (reasigna su lienzo a w×h). El contenido se **conserva donde quepa**
+// (la esquina superior izquierda; lo que excede se descarta, lo nuevo es fondo),
+// coherente con el modelo "la región es una ventana" de S29. `w`/`h` deben ser >= 0
+// (un tamaño negativo es EINVAL, igual que en `nu.ui.region`). Síncrono.
+func (rt *Runtime) regionResize(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	w := L.CheckInt(2)
+	h := L.CheckInt(3)
+	if w < 0 || h < 0 {
+		raiseError(L, CodeEINVAL, "Region:resize: `w` y `h` no pueden ser negativos", lua.LNil)
+		return 0
+	}
+	r.resizeRegion(w, h)
+	return 0
+}
+
+// regionRaise implementa `Region:raise()` (§9.1, S30): sube la región al frente del
+// z-order (gana en toda zona de solape). Conserva el orden relativo del resto.
+func (rt *Runtime) regionRaise(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	r.raise()
+	return 0
+}
+
+// regionLower implementa `Region:lower()` (§9.1, S30): baja la región al fondo del
+// z-order. Simétrico de `raise`.
+func (rt *Runtime) regionLower(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	r.lower()
+	return 0
+}
+
+// regionShow implementa `Region:show()` (§9.1, S30): vuelve a componer una región
+// oculta por `hide`. Idempotente.
+func (rt *Runtime) regionShow(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	r.show()
+	return 0
+}
+
+// regionHide implementa `Region:hide()` (§9.1, S30): oculta la región (deja de
+// componerse) conservando su lienzo y coordenadas. Si llevaba el cursor real, lo
+// suelta. Idempotente.
+func (rt *Runtime) regionHide(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	r.hide()
+	return 0
+}
+
+// regionDestroy implementa `Region:destroy()` (§9.1, S30): elimina la región del
+// compositor, suelta el cursor si era suyo, y la **desregistra** del registro de
+// handles por dueño (S13) para no dejar un handle muerto que un `reload` posterior
+// intente liberar (fuga). Es **idempotente**: destruir dos veces es inocuo (la
+// segunda es no-op). Tras destruir, los demás métodos de la región fallan limpio
+// (`EINVAL` "ya destruida", vía `checkRegion`), no petan: una región muerta es un
+// error de uso accionable, no un crash.
+//
+// Por qué un handle inválido (no-Region) SÍ lanza pero una Region ya muerta NO: una
+// Region muerta es el caso esperado de la idempotencia (el dueño la destruye y el
+// reload también podría); pasar algo que no es una Region es un error de tipo del
+// llamante. Por eso `destroy` valida el tipo a mano en vez de `checkRegion` (que
+// lanzaría sobre la muerta).
+func (rt *Runtime) regionDestroy(L *lua.LState) int {
+	ud := L.CheckUserData(1)
+	r, ok := ud.Value.(*uiRegion)
+	if !ok {
+		raiseError(L, CodeEINVAL, "Region:destroy: se esperaba un handle de Region", lua.LNil)
+		return 0
+	}
+	if !r.alive {
+		return 0 // idempotente: ya destruida (o liberada por reload)
+	}
+	rt.sched.untrack(r) // quita del registro de handles por dueño (no fuga, S13)
+	r.release()         // descuelga del compositor, suelta el cursor, marca muerta
+	return 0
+}
+
+// regionCursor implementa `Region:cursor(x, y | nil)` (§9.1, S30): coloca el cursor
+// real del terminal en coordenadas LOCALES de la región, o lo oculta si el primer
+// argumento es `nil`. **SOLO UNA región puede tener el cursor; la ÚLTIMA llamada
+// gana**: reclamar el cursor desbanca a la dueña anterior (su `cursor()` previo se
+// pierde). El compositor emite la secuencia de posicionar/ocultar en el frame; si la
+// posición cae fuera de pantalla, el cursor se oculta (G1). Síncrono.
+//
+// Forma del argumento: `cursor(nil)` (o sin argumentos) oculta; `cursor(x, y)` con
+// dos enteros posiciona. Un solo entero sin el segundo es EINVAL accionable (la
+// firma es `(x, y)` o `(nil)`, no `(x)`).
+func (rt *Runtime) regionCursor(L *lua.LState) int {
+	r := checkRegion(L, 1)
+	if r == nil {
+		return 0
+	}
+	// `cursor(nil)` o `cursor()` → ocultar: esta región sigue siendo la "dueña" pero
+	// con el cursor apagado (la última llamada gana, también para apagarlo).
+	if L.GetTop() < 2 || L.Get(2) == lua.LNil {
+		r.comp.setCursor(r, 0, 0, true)
+		return 0
+	}
+	x := L.CheckInt(2)
+	y := L.CheckInt(3) // exige el segundo entero: la firma es (x, y)
+	r.comp.setCursor(r, x, y, false)
 	return 0
 }
 

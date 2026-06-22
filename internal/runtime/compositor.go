@@ -205,6 +205,93 @@ type uiRegion struct {
 	ownerName string // dueño con que se creó (para reload, G2)
 	seq       uint64 // orden de creación: desempata z iguales (estable)
 	alive     bool   // false tras release/destroy: deja de componerse
+	visible   bool   // false tras hide(): conserva contenido/coords, no se compone (S30)
+}
+
+// move recoloca la región (S30, §9.1): cambia solo sus coordenadas de pantalla; el
+// siguiente `composite` la pinta en el nuevo sitio, recortada si se sale (G1). El
+// lienzo (contenido) no se toca. Marca sucio.
+func (r *uiRegion) move(x, y int) {
+	r.x, r.y = x, y
+	r.comp.markDirty()
+}
+
+// resizeRegion cambia el tamaño lógico de la región (S30, §9.1): reasigna su lienzo
+// al nuevo w×h **conservando el contenido donde quepa** (la esquina superior
+// izquierda se preserva; lo que cae fuera del nuevo tamaño se descarta, lo que crece
+// aparece como fondo). Es coherente con el modelo "la región es una ventana": un
+// resize no borra lo que sigue siendo visible, igual que agrandar una ventana real
+// conserva su contenido. Marca sucio.
+func (r *uiRegion) resizeRegion(w, h int) {
+	old := r.content
+	ng := newGrid(w, h)
+	// Copia la intersección de ambas rejillas (esquina (0,0) común). Lo que excede el
+	// nuevo tamaño se pierde; lo nuevo queda como fondo (newGrid ya lo dejó así).
+	cw := min2(old.w, ng.w)
+	ch := min2(old.h, ng.h)
+	for y := 0; y < ch; y++ {
+		for x := 0; x < cw; x++ {
+			ng.cells[y*ng.w+x] = old.cells[y*old.w+x]
+		}
+	}
+	r.content = ng
+	r.comp.markDirty()
+}
+
+// raise sube la región al frente del z-order (S30, §9.1): le asigna un z mayor que
+// el de cualquier otra región viva, de modo que gana en toda zona de solape. El
+// orden relativo del resto no cambia (solo esta se mueve al tope). Modelar raise/
+// lower como reasignación de z (en vez de reordenar una lista) deja el criterio de
+// apilado en un solo sitio —`regionLess` ordena por (z, seq)— y hace que un blit o
+// un composite posteriores respeten el cambio sin estado extra. Marca sucio.
+func (r *uiRegion) raise() {
+	max := r.z
+	for _, x := range r.comp.regions {
+		if x != r && x.z > max {
+			max = x.z
+		}
+	}
+	// +1 garantiza que queda estrictamente por encima de todas; si ya era la mayor,
+	// igualmente sube (idempotente en efecto visible, pero coherente).
+	r.z = max + 1
+	r.comp.markDirty()
+}
+
+// lower baja la región al fondo del z-order (S30, §9.1): le asigna un z menor que el
+// de cualquier otra región viva. Simétrico de `raise`; conserva el orden relativo
+// del resto. Marca sucio.
+func (r *uiRegion) lower() {
+	min := r.z
+	for _, x := range r.comp.regions {
+		if x != r && x.z < min {
+			min = x.z
+		}
+	}
+	r.z = min - 1
+	r.comp.markDirty()
+}
+
+// show vuelve a componer la región tras un `hide` (S30, §9.1). Idempotente. Marca
+// sucio para que el próximo frame la repinte.
+func (r *uiRegion) show() {
+	if r.visible {
+		return
+	}
+	r.visible = true
+	r.comp.markDirty()
+}
+
+// hide oculta la región (S30, §9.1): deja de componerse, pero su lienzo y sus
+// coordenadas se conservan —`show` la devuelve tal cual—. Si era la dueña del cursor
+// real, lo suelta (oculta): una región que no se ve no puede llevar el cursor.
+// Idempotente. Marca sucio.
+func (r *uiRegion) hide() {
+	if !r.visible {
+		return
+	}
+	r.visible = false
+	r.comp.dropCursorIf(r)
+	r.comp.markDirty()
 }
 
 // release destruye la región: la descuelga del compositor y la marca muerta.
@@ -216,8 +303,17 @@ func (r *uiRegion) release() {
 		return
 	}
 	r.alive = false
+	r.comp.dropCursorIf(r) // si llevaba el cursor real, soltarlo (S30)
 	r.comp.removeRegion(r)
 	r.comp.markDirty()
+}
+
+// min2 devuelve el menor de dos enteros (helper local de `resizeRegion`).
+func min2(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // owner devuelve el dueño con que se etiquetó la región al crearse (lo usa
@@ -238,6 +334,18 @@ type compositor struct {
 	nextSeq uint64          // secuencia de creación de regiones (desempate de z)
 	frames  int             // pintados con diff no vacío (diagnóstico/tests)
 	skipped int             // pintados coalescidos a vacío (diff vacío, nada que emitir)
+
+	// Propiedad del cursor real del terminal (§9.1, S30). SOLO UNA región puede tener
+	// el cursor; la ÚLTIMA llamada a `Region:cursor` gana (sustituye a la anterior).
+	// `cursorOwner` es la región dueña (nil = nadie lo reclama → cursor oculto en el
+	// frame); `cursorX/Y` son sus coordenadas LOCALES (relativas a la región), que el
+	// frame traduce a coordenadas de pantalla al emitir. `cursorOff` lo fuerza oculto
+	// aunque haya dueño (la última llamada fue `cursor(nil)`).
+	cursorOwner *uiRegion
+	cursorX     int
+	cursorY     int
+	cursorOff   bool   // la última cursor() fue nil (ocultar), aunque exista dueño
+	lastCursor  string // última secuencia de cursor emitida (damage tracking: no reemitir igual)
 }
 
 // newCompositor crea un compositor de tamaño w×h con ambas rejillas en blanco y
@@ -267,6 +375,7 @@ func (c *compositor) addRegion(x, y, w, h, z int, owner string) *uiRegion {
 		ownerName: owner,
 		seq:       c.nextSeq,
 		alive:     true,
+		visible:   true, // una región nace visible; `hide`/`show` la conmutan (S30)
 	}
 	c.nextSeq++
 	c.regions = append(c.regions, r)
@@ -287,13 +396,38 @@ func (c *compositor) removeRegion(r *uiRegion) {
 	}
 }
 
-// composite recompone el back buffer apilando TODAS las regiones vivas por
+// setCursor coloca el cursor real del terminal (§9.1, S30). Si `off` es true se
+// pide ocultarlo (`Region:cursor(nil)`); si no, `r` pasa a ser la dueña con el
+// cursor en sus coordenadas LOCALES (x,y). SOLO UNA región puede tenerlo: la última
+// llamada gana y desbanca a la dueña anterior (su `cursor()` previo se pierde, como
+// pide §9.1). El frame emite la secuencia de posicionar/ocultar en `paint`. Marca
+// sucio (el cambio de cursor debe reflejarse en el próximo frame).
+func (c *compositor) setCursor(r *uiRegion, x, y int, off bool) {
+	c.cursorOwner = r
+	c.cursorX, c.cursorY = x, y
+	c.cursorOff = off
+	c.markDirty()
+}
+
+// dropCursorIf suelta el cursor si `r` era su dueña (al `hide`/`destroy`/reload de la
+// dueña): una región que deja de verse no puede llevar el cursor real. Lo deja
+// oculto (sin dueño). Si `r` no era la dueña, no hace nada —destruir otra región no
+// toca el cursor de la actual—. Idempotente.
+func (c *compositor) dropCursorIf(r *uiRegion) {
+	if c.cursorOwner == r {
+		c.cursorOwner = nil
+		c.cursorOff = false
+	}
+}
+
+// composite recompone el back buffer apilando las regiones vivas y VISIBLES por
 // z-order sobre la pantalla. Recorta cada región al rectángulo visible (G1: lo
 // que cae fuera no se pinta, las coordenadas no se tocan). Es el corazón del
 // z-order: se ordena por (z asc, seq asc) y se pintan de menor a mayor, así la de
 // mayor z queda encima en la zona común; con z iguales gana la creada después
-// (orden de llegada estable). Una celda de continuación (w=0) se copia con su
-// fondo para no pintar media celda ancha al recortar.
+// (orden de llegada estable). Una región oculta (`hide`, S30) se salta: su lienzo
+// y coordenadas persisten, pero no aporta celdas al frame. Una celda de continuación
+// (w=0) se copia con su fondo para no pintar media celda ancha al recortar.
 func (c *compositor) composite() {
 	c.back.clear()
 
@@ -312,6 +446,9 @@ func (c *compositor) composite() {
 	}
 
 	for _, r := range order {
+		if !r.visible {
+			continue // oculta (hide, S30): conserva su lienzo, no aporta al frame
+		}
 		c.blitRegion(r)
 	}
 }
@@ -380,7 +517,42 @@ func (c *compositor) resize(w, h int) {
 func (c *compositor) paint() int {
 	c.composite()
 	c.dirty = false
-	return c.diffEncode()
+	changed := c.diffEncode()
+	c.encodeCursor()
+	return changed
+}
+
+// encodeCursor anexa al buffer del frame la secuencia que coloca u oculta el cursor
+// real del terminal (§9.1, S30), SOLO si cambió respecto al frame anterior (damage
+// tracking, como las celdas): así un frame sin cambios de cursor no emite bytes de
+// cursor —y un frame totalmente sin cambios sigue siendo vacío (coalescing de S29)—.
+// Una región dueña con cursor visible y en pantalla → mover el cursor a su posición
+// de PANTALLA (la local de la región + su origen) y mostrarlo (`ESC[?25h`). Sin
+// dueño, o `cursor(nil)`, o el cursor cae fuera de pantalla (o de una región oculta/
+// recortada) → ocultarlo (`ESC[?25l`). Nunca se posiciona fuera de límites (G1).
+func (c *compositor) encodeCursor() {
+	seq := c.cursorSeq()
+	if seq == c.lastCursor {
+		return // sin cambio de cursor: no reemitir (damage tracking)
+	}
+	c.lastCursor = seq
+	c.enc.WriteString(seq)
+}
+
+// cursorSeq calcula la secuencia ANSI del estado actual del cursor (sin emitirla):
+// ocultar (`ESC[?25l`) si no hay dueño, está apagado o cae fuera de pantalla; o
+// posicionar + mostrar (`ESC[y;xH` + `ESC[?25h`) en otro caso. Coordenadas 1-based.
+func (c *compositor) cursorSeq() string {
+	r := c.cursorOwner
+	if r == nil || c.cursorOff || !r.alive || !r.visible {
+		return "\x1b[?25l"
+	}
+	sx := r.x + c.cursorX
+	sy := r.y + c.cursorY
+	if sx < 0 || sy < 0 || sx >= c.w || sy >= c.h {
+		return "\x1b[?25l" // fuera de pantalla: ocultar (G1)
+	}
+	return "\x1b[" + strconv.Itoa(sy+1) + ";" + strconv.Itoa(sx+1) + "H\x1b[?25h"
 }
 
 // diffEncode recorre la rejilla por filas; arranca un "run" allí donde una celda
