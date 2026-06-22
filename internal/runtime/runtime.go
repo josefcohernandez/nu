@@ -282,6 +282,10 @@ func (rt *Runtime) Close() {
 		// y sus conexiones no deben sobrevivir al proceso (red de seguridad, tras el
 		// `cleanup` de quien abrió el stream).
 		rt.sched.stopAllStreams()
+		// Cierra los `nu.ws.connect` vivos (S21): sus conexiones y goroutines de IO no
+		// deben sobrevivir al proceso (red de seguridad, tras el `cleanup` de quien abrió
+		// el websocket).
+		rt.sched.stopAllWs()
 	}
 	// Borra el directorio temporal de la sesión (`nu.fs.tmpdir`, §5) si llegó a
 	// crearse: el scratch no debe sobrevivir al proceso.
