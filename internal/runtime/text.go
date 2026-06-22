@@ -51,6 +51,10 @@ func (rt *Runtime) registerText(nu *lua.LTable) {
 	// desconocido/vacío degrada a texto plano). Reusa el armazón "una línea → N
 	// spans" que S23 dejó preparado en renderCodeBlock.
 	rt.registerHighlight(textT)
+	// `nu.text.diff` (§10, S25): diff estructurado de dos strings línea a línea
+	// (`{hunks, block?}`; `opts.render=true` añade el Block pintado). Vive en
+	// diff.go (LCS line-based puro-Go); reusa los helpers de Block de S22.
+	rt.registerDiff(textT)
 	nu.RawSetString("text", textT)
 }
 
