@@ -69,3 +69,14 @@ Proceso y registro de trabajo:
 - [Problemas abiertos](docs/problemas.md) — grietas que la v1 necesita cerradas
 - [Pospuesto](docs/pospuesto.md) — lo que decidimos no decidir todavía, con su disparador
 - [Plan de implementación](docs/implementacion.md) — la secuencia de construcción, una feature por sesión
+
+## Licencia y contribuciones
+
+`nu` es software libre bajo la [Apache License 2.0](LICENSE) (permisiva, con
+concesión de patentes). Eres libre de usarlo, estudiarlo, modificarlo y
+distribuirlo, incluso comercialmente.
+
+Las aportaciones son bienvenidas; lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de
+enviar un Pull Request. El autor conserva la titularidad del proyecto, por lo que
+al incorporar código de terceros puede pedir una cesión de derechos o un acuerdo
+de contribución (CLA).
