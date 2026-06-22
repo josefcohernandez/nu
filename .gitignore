@@ -3,3 +3,6 @@
 
 # binario compilado
 /nu
+
+# artefactos del build de release a mano (release.yml usa dist/ de salida)
+/dist/

@@ -1,0 +1,157 @@
+# Publicación de releases de `nu`. Se dispara al pushear un tag `vX.Y.Z` y produce
+# una GitHub Release con el binario estático cross-compilado a las plataformas
+# objetivo v1, más sus checksums. Es DevOps del operador (ADR-013); el operador
+# decide cuándo `main` está listo y crea el tag a mano:
+#
+#     git tag v0.1.0 && git push origin v0.1.0
+#
+# Versionado (estrategia A de ADR-013): la fuente de verdad de la versión son las
+# constantes de internal/runtime/nu.go (expuestas como `nu.version`). Este workflow
+# NO inyecta la versión por -ldflags; la VERIFICA contra el tag (job verificar-version)
+# y aborta si divergen. Así lo publicado es bit-a-bit lo que está en el repo.
+#
+# Comentarios y `name:` en español; claves YAML en inglés (igual que ci.yml).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Solo el job de publicación necesita escribir (crear la release / subir assets);
+# se concede ahí, no a nivel de workflow, por mínimo privilegio.
+permissions:
+  contents: read
+
+jobs:
+  # GATE de coherencia tag ↔ constantes. Si el tag no coincide con la versión que
+  # el runtime expone, nada se compila ni se publica.
+  verificar-version:
+    name: Verificar versión (tag ↔ constantes)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Versión del tag
+        id: tag
+        # refs/tags/v0.1.0 -> 0.1.0 (sin la 'v'). El tag puede llevar sufijo de
+        # pre-release (v0.1.0-rc1); lo conservamos tal cual para nombrar los assets,
+        # pero comparamos la parte X.Y.Z contra las constantes (ver más abajo).
+        run: |
+          ref="${GITHUB_REF#refs/tags/}"        # v0.1.0  o  v0.1.0-rc1
+          version="${ref#v}"                     # 0.1.0   o  0.1.0-rc1
+          echo "ref=$ref"           >> "$GITHUB_OUTPUT"
+          echo "version=$version"   >> "$GITHUB_OUTPUT"
+          echo "Tag: $ref (versión $version)"
+
+      - name: Comparar con las constantes del runtime
+        # Leemos la versión EJECUTANDO el propio runtime (go run . -e), no con grep:
+        # usa la misma lógica de composición que el binario real (registerNu
+        # construye nu.version), así que validamos exactamente lo que verá el usuario,
+        # sin fragilidad ante el orden de las constantes en nu.go.
+        run: |
+          constantes=$(go run . -e 'return string.format("%d.%d.%d", nu.version.major, nu.version.minor, nu.version.patch)')
+          # De la versión del tag tomamos solo X.Y.Z (descartando un posible -rcN),
+          # porque las constantes son siempre X.Y.Z.
+          tag_xyz="${{ steps.tag.outputs.version }}"
+          tag_xyz="${tag_xyz%%-*}"
+          echo "Constantes (nu.go): $constantes"
+          echo "Tag (X.Y.Z):        $tag_xyz"
+          if [ "$constantes" != "$tag_xyz" ]; then
+            echo "::error::El tag v$tag_xyz no coincide con nu.version=$constantes en internal/runtime/nu.go. Ajusta las constantes (VersionMajor/Minor/Patch) o el tag antes de publicar." >&2
+            exit 1
+          fi
+
+  # Cross-compilación. TODA la matriz corre en ubuntu-latest: el cross-compile de Go
+  # puro no necesita el OS destino (CGO_ENABLED=0, sin toolchain de C). El runner
+  # macOS solo haría falta para EJECUTAR binarios darwin nativamente, lo que ya cubre
+  # el CI; aquí solo los compilamos.
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: verificar-version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        # Plataformas objetivo v1 (arquitectura.md). NO se publica Windows nativo:
+        # está pospuesto (P18) y Windows va por WSL2, que usa el binario linux/amd64.
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compilar y empaquetar
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ needs.verificar-version.outputs.version }}
+        # Binario estático (CGO_ENABLED=0, ADR-001), reproducible (-trimpath),
+        # pequeño (-ldflags "-s -w"). Se empaqueta en tar.gz para preservar el bit
+        # de ejecución en la descarga y seguir la convención de los instaladores
+        # (eget, asdf, Homebrew...). Nombre: nu-vX.Y.Z-<goos>-<goarch>.tar.gz.
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/nu .
+          nombre="nu-v${VERSION}-${GOOS}-${GOARCH}"
+          tar -C dist -czf "dist/${nombre}.tar.gz" nu
+          rm dist/nu
+          echo "Empaquetado: ${nombre}.tar.gz"
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: nu-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  # Publicación. Junta los cuatro tar.gz, genera checksums.txt y crea la GitHub
+  # Release. Único job con permiso de escritura.
+  release:
+    name: Publicar GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Descargar artefactos
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true   # vuelca todos los tar.gz en dist/ (sin subcarpetas)
+
+      - name: Generar checksums
+        # Un SHA256 por archivo, en el formato estándar `sha256  nombre` que
+        # `sha256sum -c` entiende. Permite a quien descarga verificar integridad.
+        working-directory: dist
+        run: |
+          sha256sum *.tar.gz > checksums.txt
+          echo "checksums.txt:"
+          cat checksums.txt
+
+      - name: Crear release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Notas autogeneradas desde los PRs mergeados desde el tag anterior (los
+          # títulos en español ya existentes). Para el PRIMER release (sin tag previo)
+          # conviene editar la release y añadir un párrafo de cabecera a mano.
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt

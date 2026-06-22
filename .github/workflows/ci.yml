@@ -1,0 +1,147 @@
+# Integración continua de `nu`. Formaliza la disciplina que CLAUDE.md ya exige a
+# mano —"toda sesión deja `go build ./...` verde", más el inventario 🔒 de tests
+# unitarios obligatorios— y la corre en cada PR y en cada push a `main`. No hay
+# nada específico de producto aquí: es DevOps del operador (ADR-013), no parte de
+# la API sagrada ni de los contratos de extensión.
+#
+# Los comentarios y los `name:` van en español por coherencia con el repo; las
+# claves YAML y los nombres de acciones, en inglés (sintaxis de la herramienta).
+# Mismo patrón que el código Go: identificadores en inglés, prosa en español.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# El PR cubre la validación pre-merge (lo importante); el push a `main` cubre el
+# commit de merge y mantiene el badge verde. No se dispara en las ramas `claude/*`
+# de trabajo: el PR ya las valida, así no se gastan minutos por duplicado.
+
+# Permisos mínimos: solo lectura del repo. Ningún job de CI publica nada.
+permissions:
+  contents: read
+
+# Cancela ejecuciones obsoletas de la misma rama/PR cuando llega un push nuevo:
+# no tiene sentido seguir testeando un commit que acaba de ser sustituido.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Comprobaciones estáticas, independientes del sistema operativo: se corren una
+  # sola vez en Linux (duplicarlas en macOS sería desperdicio de minutos).
+  calidad:
+    name: Calidad (formato, vet, módulos, lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          # Una sola fuente de verdad para la versión de Go: la directiva de go.mod
+          # (hoy 1.24.7). No hay matriz multi-versión: `nu` se distribuye como
+          # binario, no como librería que terceros compilan con su toolchain.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Formato (gofmt)
+        # Falla si algún fichero no está formateado. `gofmt -l` lista los ficheros
+        # con diferencias; si la lista no está vacía, la mostramos y salimos en error.
+        run: |
+          sin_formato=$(gofmt -l .)
+          if [ -n "$sin_formato" ]; then
+            echo "Ficheros sin formatear (corrige con 'gofmt -w'):"
+            echo "$sin_formato"
+            exit 1
+          fi
+
+      - name: Análisis estático (go vet)
+        run: go vet ./...
+
+      - name: Módulos limpios (verify + tidy)
+        # Materializa "cero dependency hell" (filosofía §6): `go mod verify` valida
+        # las sumas, y `go mod tidy` + `git diff --exit-code` falla si alguien añadió
+        # un import sin reflejarlo en go.mod/go.sum (o dejó dependencias muertas).
+        run: |
+          go mod verify
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Lint (golangci-lint)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          # `only-new-issues` marca solo los hallazgos en líneas tocadas por el PR:
+          # no bloquea por deuda preexistente en las ~33k líneas ya escritas. La
+          # configuración (conjunto mínimo de linters) vive en .golangci.yml.
+          only-new-issues: true
+
+  # Garantiza el requisito literal de CLAUDE.md ("go build ./... verde") y, además,
+  # que el binario distribuible —estático, CGO_ENABLED=0— compila en los DOS sistemas
+  # objetivo v1 (Linux y macOS, arquitectura.md). Un verde en Linux no garantiza
+  # macOS: paths, señales y fsnotify difieren.
+  build:
+    name: Build estático y smoke test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compilar todo
+        run: go build ./...
+
+      - name: Binario estático (flags de release)
+        # Mismas flags que el release (ADR-013): estático (CGO_ENABLED=0),
+        # reproducible (-trimpath), pequeño (-ldflags "-s -w"). Validar aquí que el
+        # artefacto distribuible compila en cada OS evita sorpresas en el tag.
+        run: CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o nu .
+
+      - name: Smoke test headless
+        # Arranca el binario de verdad sin secretos: `nu -e` evalúa Lua headless y
+        # sale 0 en éxito (códigos de salida de S45). Detecta regresiones de arranque
+        # que `go build` no ve (un embed.FS roto, un panic en runtime.New()). No se
+        # prueba `nu -p` (turno de agente): requeriría un provider/API key.
+        run: |
+          salida=$(./nu -e 'return nu.version.api')
+          echo "nu.version.api = $salida"
+          if [ -z "$salida" ]; then
+            echo "El smoke test no imprimió nada (¿arranque roto?)" >&2
+            exit 1
+          fi
+
+  # La suite de tests, con el detector de carrera SIEMPRE activo. El inventario 🔒
+  # incluye tests de concurrencia (event loop S10, task.all/race S07, watchdog S09,
+  # cancelación S08) que solo destapan data races bajo -race; correr sin él dejaría
+  # ciega justo la parte del runtime que más lo necesita (el puente goroutine↔task,
+  # ADR-011). Coste medido: ~30 s. En ambos OS objetivo, por la misma razón que build.
+  test:
+    name: Tests (-race)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go test -race
+        # -shuffle=on baraja el orden de los tests: caza dependencias de orden
+        # ocultas a coste cero.
+        run: go test -race -shuffle=on ./...

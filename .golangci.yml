@@ -1,0 +1,23 @@
+# Configuración de golangci-lint (esquema v2). Conjunto DELIBERADAMENTE pequeño:
+# el repo ya pasa `gofmt` y `go vet` limpios, así que aquí solo añadimos linters de
+# alta relación señal/ruido. Quedan fuera a propósito los opinables/ruidosos
+# (gocyclo, lll, funlen, wsl, nlreturn) y, en especial, los que castigarían
+# decisiones de diseño conscientes —p. ej. gochecknoglobals: el proyecto USA
+# globals a propósito (las constantes de versión en nu.go, el embeddedFS de
+# embed.go)—. Crece solo por adición y con justificación, igual que la API (§4).
+#
+# El workflow corre esto con `only-new-issues: true`, así que no bloquea por deuda
+# preexistente en las ~33k líneas ya escritas: solo marca hallazgos en código que
+# un PR toca.
+version: "2"
+
+linters:
+  # Partimos de cero y habilitamos solo lo que queremos (en vez de heredar el set
+  # por defecto y desactivar): el conjunto se mantiene explícito y mínimo.
+  default: none
+  enable:
+    - govet       # el vet de siempre, aquí dentro para unificar el reporte
+    - staticcheck # el de mayor señal/ruido (incluye gosimple y stylecheck en v2)
+    - errcheck    # errores ignorados: crítico en un runtime con mucho IO
+    - ineffassign # asignaciones que nunca se leen
+    - unused      # código muerto (símbolos sin usar)
