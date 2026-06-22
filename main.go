@@ -31,11 +31,13 @@ func run() int {
 	rt := runtime.New()
 	defer rt.Close()
 
-	// Arranque canónico (§14, S11): carga los plugins activados en orden
-	// topológico, ejecuta el `init.lua` del usuario el último y emite `core:ready`.
-	// Sin directorios de plugins configurados (el caso de `nu -e` desnudo de S11)
-	// solo corre el `init.lua` del usuario si existe. Un grafo de plugins roto
-	// (colisión, ciclo, dependencia ausente) es un error de arranque accionable.
+	// Arranque canónico (§14, S11/S12): lee `config.dir()/nu.toml` (activación de
+	// plugins, rutas extra, presupuesto del watchdog), carga los plugins activados
+	// en orden topológico —las extensiones embebidas solo si `plugins.enabled` las
+	// nombra, ADR-010—, ejecuta el `init.lua` del usuario el último y emite
+	// `core:ready`. Un grafo roto (colisión, ciclo, dependencia ausente), un
+	// `nu.toml` mal formado o un `plugins.enabled` que nombra algo inexistente es un
+	// error de arranque accionable que apunta a la línea de `nu.toml` que lo arregla.
 	if err := rt.Boot(); err != nil {
 		fmt.Fprintln(os.Stderr, "error de arranque:", err)
 		return 1

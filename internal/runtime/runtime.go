@@ -55,6 +55,11 @@ type config struct {
 	// **desactiva** el watchdog —útil para tests que no lo quieren—; el default de
 	// producción es `defaultSliceBudget` (100 ms).
 	sliceBudget time.Duration
+	// sliceBudgetSet marca que `WithSliceBudget` se pasó explícitamente. Da
+	// precedencia a la Option sobre `nu.toml` `watchdog.slice_budget_ms` (S12): un
+	// test que fija un presupuesto pequeño no lo pisa la config de disco. Sin la
+	// Option, manda `nu.toml`; sin `nu.toml`, el default (100 ms).
+	sliceBudgetSet bool
 
 	// configDir respalda `nu.config.dir()` (§14): `~/.config/nu` por defecto. De
 	// ahí cuelga el `init.lua` del usuario (el último del arranque canónico) y, en
@@ -85,7 +90,7 @@ func WithDataDir(dir string) Option {
 // desactivar el watchdog (`<= 0`). En producción, sin opción, rige
 // `defaultSliceBudget` (100 ms).
 func WithSliceBudget(d time.Duration) Option {
-	return func(c *config) { c.sliceBudget = d }
+	return func(c *config) { c.sliceBudget = d; c.sliceBudgetSet = true }
 }
 
 // WithConfigDir fija el directorio de configuración (`nu.config.dir()`, §14): de
@@ -118,6 +123,32 @@ func New(opts ...Option) *Runtime {
 		o(&cfg)
 	}
 
+	// `nu.toml` gobierna al core (§14, ADR-010, S12): activación de plugins, rutas
+	// extra y presupuesto del watchdog. Se lee de `config.dir()/nu.toml` ya en la
+	// construcción porque sus valores deben estar disponibles antes de `Boot`
+	// (presupuesto del watchdog → scheduler) y antes de descubrir plugins (rutas
+	// extra, lista de activación). Un `nu.toml` ausente es lo normal (runtime
+	// desnudo): no activa nada y no es error. Un `nu.toml` MAL FORMADO sí es un
+	// error de arranque accionable, pero `New` no devuelve error (su firma es
+	// sagrada): se aplaza al `Boot`, que sí lo devuelve a `main`/tests —el arranque
+	// no debe quedar a medias por una config rota—.
+	nuCfg, _, tomlErr := loadNuToml(cfg.configDir)
+
+	// El presupuesto del watchdog: precedencia `WithSliceBudget` (Option explícita,
+	// p. ej. tests) > `nu.toml` `watchdog.slice_budget_ms` > default (100 ms). Un
+	// valor de `nu.toml` solo se aplica si la Option no lo fijó.
+	if !cfg.sliceBudgetSet && tomlErr == nil && nuCfg.Watchdog.SliceBudgetMs != nil {
+		cfg.sliceBudget = time.Duration(*nuCfg.Watchdog.SliceBudgetMs) * time.Millisecond
+	}
+
+	// Las rutas extra de `plugins.dirs` se suman a las de `WithPluginDir` (S12). El
+	// loader las trata por igual; el orden de descubrimiento no fija el de carga
+	// (eso es el orden topológico, S11).
+	pluginDirs := append([]string(nil), cfg.pluginDirs...)
+	if tomlErr == nil {
+		pluginDirs = append(pluginDirs, nuCfg.Plugins.Dirs...)
+	}
+
 	// SkipOpenLibs: abrimos a mano solo lo que el baseline permite, en vez de
 	// abrir todo y desactivar después; así una librería peligrosa nueva de
 	// gopher-lua no entra por defecto (deny-by-default, coherente con las caps
@@ -128,7 +159,11 @@ func New(opts ...Option) *Runtime {
 		L:   L,
 		log: newLogger(filepath.Join(cfg.dataDir, logFileName)),
 	}
-	rt.ldr = newLoader(rt, cfg.dataDir, cfg.configDir, cfg.pluginDirs)
+	rt.ldr = newLoader(rt, cfg.dataDir, cfg.configDir, pluginDirs)
+	// El gating por `nu.toml` (qué se activa) y el error de config aplazado viven en
+	// el loader, que es quien descubre y carga (S12). `Boot` consultará ambos.
+	rt.ldr.enabled = nuCfg.Plugins.Enabled
+	rt.ldr.configErr = tomlErr
 	rt.sched = newScheduler(rt, cfg.sliceBudget)
 	applySandbox(L)
 	registerNu(rt)

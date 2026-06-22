@@ -16,13 +16,20 @@ package runtime
 // reciente gana, el usuario tiene la última palabra (keymaps, theme, overrides)
 // por construcción, sin sistema de prioridades.
 //
-// FRONTERA con S12/S13. S11 carga los plugins de los directorios pasados por
-// Option (`WithPluginDir`); todos quedan `enabled = true` y `source = "user"`. La
-// activación gobernada por `nu.toml` y las **extensiones embebidas** (`go:embed`,
-// inactivas por defecto, ADR-010) son **S12** —el campo `source` y el gancho de
-// activación están ya previstos aquí, sin adelantar su lógica—. `nu.plugin.reload`
-// es **S13**: el etiquetado de handles por dueño se apoya en el `ownerStack` que
-// este loader empuja, pero la recarga en sí no se implementa todavía.
+// Activación (S12, ADR-010). Los plugins de DISCO (directorios pasados por
+// `WithPluginDir` o `plugins.dirs` de `nu.toml`) se cargan tal cual —son del
+// usuario, explícitos—. Las **extensiones oficiales embebidas** (`go:embed`,
+// embed.go) están **INACTIVAS por defecto**: solo se materializan y cargan si
+// `config.dir()/nu.toml` `plugins.enabled` las nombra (config_toml.go). El
+// directorio de usuario **sustituye** a la embebida del mismo nombre (§14); un
+// `enabled` que no resuelve a nada es un error accionable que nombra la línea de
+// `nu.toml`. Una embebida activada queda con `source = "builtin"`.
+//
+// FRONTERA con S13/S33. `nu.plugin.reload` es **S13**: el etiquetado de handles
+// por dueño se apoya en el `ownerStack` que este loader empuja, pero la recarga en
+// sí no se implementa todavía. La **pantalla de runtime desnudo** (G21: render TTY
+// del catálogo de embebidas + activar/salir) es UI y llega en **S30/S33**; S12 no
+// pinta nada (puede no haber UI), solo gobierna el arranque por config.
 
 import (
 	"errors"
@@ -81,6 +88,16 @@ type loader struct {
 	configDir  string
 	pluginDirs []string
 
+	// enabled es `plugins.enabled` de `nu.toml` (S12): los nombres a activar. Da
+	// vida a las extensiones embebidas, INACTIVAS por defecto (ADR-010): una
+	// embebida solo se carga si su nombre está aquí. Vacío/nil = nada que activar de
+	// las embebidas (runtime desnudo).
+	enabled []string
+	// configErr es el error de parseo de `nu.toml` aplazado desde `New` (cuya firma
+	// no devuelve error, §17). `Boot` lo devuelve antes de cargar nada: una config
+	// rota no debe dejar el arranque a medias.
+	configErr error
+
 	// ordered es el resultado de `Boot`: los plugins efectivamente cargados, en el
 	// orden topológico en que corrieron. Lo lee `nu.plugin.list`.
 	ordered []*pluginInfo
@@ -116,6 +133,12 @@ func (l *loader) Boot() error {
 		return nil
 	}
 	l.booted = true
+
+	// Una config de runtime rota (`nu.toml` mal formado) aborta el arranque con su
+	// error accionable, antes de tocar plugin alguno (S12): no se carga a medias.
+	if l.configErr != nil {
+		return l.configErr
+	}
 
 	s := l.rt.sched
 	s.acquire()
@@ -155,10 +178,19 @@ func (l *loader) Boot() error {
 }
 
 // discover recorre los directorios de plugins configurados y devuelve un
-// `*pluginInfo` por cada subdirectorio que tenga `plugin.toml`. Valida el
-// manifiesto (nombre no vacío) y la **unicidad de nombre** (§14): dos plugins con
-// el mismo nombre —en el mismo directorio o en distintos— son un error de carga
-// accionable que nombra el conflicto y ambas rutas.
+// `*pluginInfo` por cada subdirectorio que tenga `plugin.toml`, más las extensiones
+// **embebidas activadas** por `nu.toml` (S12). Valida el manifiesto (nombre no
+// vacío), la **unicidad de nombre** (§14) —dos plugins de DISCO con el mismo
+// nombre son un error accionable que nombra ambas rutas— y, para las embebidas
+// (ADR-010):
+//
+//   - una embebida solo se materializa/carga si `plugins.enabled` la nombra
+//     (INACTIVA por defecto);
+//   - un directorio de usuario del mismo nombre **sustituye** a la embebida (no
+//     coexisten, §14): gana el de disco, la embebida se descarta sin error;
+//   - un nombre de `plugins.enabled` que no corresponde a ninguna extensión —ni de
+//     disco ni embebida— es un error de arranque accionable que **nombra la línea
+//     de `nu.toml`** que lo arregla (§14).
 func (l *loader) discover() ([]*pluginInfo, error) {
 	byName := make(map[string]*pluginInfo)
 	var found []*pluginInfo
@@ -198,6 +230,57 @@ func (l *loader) discover() ([]*pluginInfo, error) {
 			found = append(found, p)
 		}
 	}
+
+	// Extensiones embebidas (ADR-010): inactivas salvo que `nu.toml`
+	// `plugins.enabled` las nombre. Las añade aquí, tras los plugins de disco, para
+	// que la sustitución por nombre sea trivial (un nombre ya presente en `byName`
+	// es un plugin de usuario que gana). El catálogo de embebidas se enumera del
+	// `embed.FS` (embed.go).
+	embedded, err := embeddedNames()
+	if err != nil {
+		return nil, err
+	}
+	embeddedSet := make(map[string]bool, len(embedded))
+	for _, name := range embedded {
+		embeddedSet[name] = true
+	}
+
+	for _, name := range l.enabled {
+		if _, onDisk := byName[name]; onDisk {
+			// El directorio de usuario SUSTITUYE a la embebida del mismo nombre (§14):
+			// ya está en `found` como "user"; no se materializa la embebida.
+			continue
+		}
+		if !embeddedSet[name] {
+			// `plugins.enabled` nombra algo que no existe ni en disco ni embebido:
+			// error de arranque accionable que apunta a la línea de `nu.toml` (§14).
+			return nil, &StructuredError{Code: CodeEINVAL,
+				Message: fmt.Sprintf("la extensión %q activada en %s no existe (ni embebida ni en un directorio de plugins); revisa la línea `plugins.enabled` de %s",
+					name, nuTomlName, nuTomlName)}
+		}
+		// Embebida activada: materialízala a disco y cárgala como un plugin más, con
+		// `source="builtin"`. La extracción no usa red (ADR-010): sale del binario.
+		dir, err := extractEmbedded(name, filepath.Join(l.dataDir, "embedded"))
+		if err != nil {
+			return nil, err
+		}
+		p, err := l.loadManifest(dir, filepath.Join(dir, pluginManifestName))
+		if err != nil {
+			return nil, err
+		}
+		p.Source = sourceBuiltin // se materializó de una embebida, no de un dir de usuario
+		if prev, dup := byName[p.Name]; dup {
+			// El `name` del manifiesto de la embebida choca con un plugin ya cargado
+			// cuyo nombre de directorio era distinto: sigue siendo colisión de
+			// identidad (§14).
+			return nil, &StructuredError{Code: CodeEINVAL,
+				Message: fmt.Sprintf("colisión de nombre de plugin %q: extensión embebida y %q (el nombre es la identidad del plugin, §14)",
+					p.Name, prev.Dir)}
+		}
+		byName[p.Name] = p
+		found = append(found, p)
+	}
+
 	return found, nil
 }
 
