@@ -97,6 +97,12 @@ func registerNu(rt *Runtime) {
 	// principal (los workers son S34). `stream` (S20) y `ws` (S21) llegan después.
 	rt.registerHTTP(nu)
 
+	// `nu.ws` (§8, S21): websockets. `connect`/`send`/`recv` son ⏸ (sobre el puente
+	// `suspend` de S04, como `nu.http`): sueltan el token y hacen el handshake/IO
+	// **bloqueante** en la goroutine de fondo, que jamás toca Lua. `recv` da `nil` al
+	// cerrarse la conexión; un fallo de transporte lanza `ENET`. Cierra la Fase 4.
+	rt.registerWs(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 

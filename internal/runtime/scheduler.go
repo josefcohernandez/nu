@@ -197,6 +197,14 @@ type scheduler struct {
 	// `trackStream` (al recibir cabeceras) y `untrackStream` (`Stream:close`).
 	streams map[*httpStream]struct{}
 
+	// ws son los `nu.ws.connect` vivos (S21). Se rastrean por la misma razón que
+	// `streams`/`procs`/`watchers`: cerrarlos todos en `Close` (`stopAllWs`) para no
+	// dejar conexiones ni goroutines de IO colgadas tras el fin del proceso. Como un
+	// stream, un websocket vivo **no** cuenta para la quiescencia: su fin de vida es
+	// `close`/`cleanup`, no esperar a que la otra punta cierre (puede no cerrar
+	// nunca). El mapa lo tocan `trackWs` (al conectar) y `untrackWs` (`Ws:close`).
+	ws map[*luaWs]struct{}
+
 	// coToTask mapea el thread Lua de cada task viva (su `co`) a su `*task`. Lo
 	// usa `suspend` para observar el `cancelCh` de la task que se suspende (S07):
 	// quien suspende es la goroutine de esa task, que corre sobre `co == L`. Se
@@ -240,6 +248,7 @@ func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 		watchers: make(map[*luaWatcher]struct{}),
 		procs:    make(map[*luaProc]struct{}),
 		streams:  make(map[*httpStream]struct{}),
+		ws:       make(map[*luaWs]struct{}),
 		budget:   budget,
 	}
 	s.cond = sync.NewCond(&s.mu)
@@ -459,6 +468,42 @@ func (s *scheduler) stopAllStreams() {
 	s.mu.Unlock()
 	for _, st := range sts {
 		st.close()
+	}
+}
+
+// trackWs registra un `nu.ws.connect` vivo (S21) para poder cerrarlo al cerrar el
+// runtime. Mismo patrón que `trackStream`. Se llama al conectar (en la `deliverFn`
+// de `nu.ws.connect`, bajo el token).
+func (s *scheduler) trackWs(w *luaWs) {
+	s.mu.Lock()
+	s.ws[w] = struct{}{}
+	s.mu.Unlock()
+}
+
+// untrackWs deja de rastrear un websocket cerrado (`Ws:close`). Idempotente: quitar
+// uno que ya no está es inocuo. Lo llama `luaWs.close`, que ya es idempotente por su
+// `closeOnce`.
+func (s *scheduler) untrackWs(w *luaWs) {
+	s.mu.Lock()
+	delete(s.ws, w)
+	s.mu.Unlock()
+}
+
+// stopAllWs cierra todos los websockets vivos. Lo llama `Runtime.Close`: ninguna
+// conexión ni goroutine de IO debe sobrevivir al proceso de `nu`. `luaWs.close` es
+// idempotente (`closeOnce`), así que cerrar uno ya cerrado es inocuo. Se copia el
+// conjunto antes de iterar porque `close` llama a `untrackWs`, que toca el mapa bajo
+// el mismo candado.
+func (s *scheduler) stopAllWs() {
+	s.mu.Lock()
+	ws := make([]*luaWs, 0, len(s.ws))
+	for w := range s.ws {
+		ws = append(ws, w)
+	}
+	s.ws = make(map[*luaWs]struct{})
+	s.mu.Unlock()
+	for _, w := range ws {
+		w.close()
 	}
 }
 
