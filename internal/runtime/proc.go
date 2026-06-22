@@ -173,10 +173,18 @@ func (rt *Runtime) registerProc(nu *lua.LTable) {
 // bajo el token; luego cruzan a la goroutine de fondo como datos Go puros.
 type procOpts struct {
 	cwd      string
-	env      []string // "K=V" como exige exec.Cmd; nil = hereda el del proceso
+	env      []string // "K=V" como exige exec.Cmd; nil = hereda el del proceso, no-nil (aun vacío) = control total (§6)
 	stdin    []byte   // datos para alimentar stdin (solo `run`); nil = sin stdin
 	hasStdin bool
 	timeout  time.Duration // 0 = sin límite
+
+	// envOver es la **foto del overlay de `setenv`** (`nu.sys.setenv`, S17),
+	// tomada en el estado principal bajo el token al entrar en `run`/`spawn`. Son
+	// las variables que afectan a los subprocesos FUTUROS (§7): se aplican al
+	// construir el entorno del hijo (`mergedEnv`). Tomarla aquí —no en la
+	// goroutine de fondo— fija de forma determinista qué `setenv` ve este lanzado:
+	// los que ocurrieron ANTES de la llamada, no los de después. nil = sin overlay.
+	envOver map[string]string
 }
 
 // parseProcArgs valida y extrae `argv` (1.er arg, array no vacío de strings) y las
@@ -207,7 +215,9 @@ func parseProcArgs(L *lua.LState) ([]string, procOpts, bool) {
 		}
 		// `env`: una tabla `{ K = V }` se traduce a `["K=V", ...]`. Presente (aunque
 		// vacía) REEMPLAZA el entorno heredado —env explícito = control total—; ausente
-		// lo hereda (env nil → exec.Cmd usa `os.Environ`).
+		// lo hereda (env nil → exec.Cmd usa `os.Environ`). El overlay de `nu.sys.setenv`
+		// (S17) queda POR DEBAJO de un `env` explícito (ver `mergedEnv`): con `env`
+		// presente, el overlay no se aplica; sin él, el overlay pisa lo heredado.
 		if envTbl, ok := o.RawGetString("env").(*lua.LTable); ok {
 			opts.env = []string{}
 			envTbl.ForEach(func(k, val lua.LValue) {
@@ -243,10 +253,87 @@ func newCmd(argv []string, opts procOpts) *exec.Cmd {
 	if opts.cwd != "" {
 		cmd.Dir = opts.cwd
 	}
-	if opts.env != nil {
-		cmd.Env = opts.env
+	if env := mergedEnv(opts); env != nil {
+		cmd.Env = env
 	}
 	return cmd
+}
+
+// mergedEnv construye el entorno del subproceso combinando, **por precedencia de
+// menor a mayor** (la integración S16↔S17, §6/§7): entorno heredado del SO <
+// overlay de `nu.sys.setenv` (`opts.envOver`) < `opts.env` explícito de la
+// llamada. La regla cumple las dos semánticas a la vez:
+//
+//   - `setenv` afecta a los subprocesos futuros (§7): el overlay PISA lo heredado
+//     —si `setenv("X","42")` y el SO no tenía `X`, el hijo ve `X=42`; si lo tenía,
+//     gana el overlay—.
+//   - `opts.env` explícito es **control total por llamada** (§6): lo más local
+//     manda. Quien pasa `env` en ESA invocación decide esas claves por encima del
+//     overlay (p. ej. para AISLAR un subproceso de un `setenv` previo).
+//
+// Devuelve nil (= heredar `os.Environ` tal cual) **solo** cuando no hay ni
+// overlay ni `opts.env` —el caso común, sin coste—. Si hay overlay pero no
+// `opts.env`, parte de `os.Environ()` y le superpone el overlay. Si hay
+// `opts.env` (aunque vacío), parte de él (NO de `os.Environ`: `env` explícito
+// reemplaza el heredado) y le superpone... nada por encima salvo el propio
+// `opts.env`: el overlay queda DEBAJO, así que `opts.env` gana clave a clave.
+func mergedEnv(opts procOpts) []string {
+	envSet := opts.env != nil // no-nil (aun vacío) = `opts.env` pasado explícitamente (§6)
+	if !envSet && len(opts.envOver) == 0 {
+		return nil // ni overlay ni env explícito: hereda os.Environ() sin cambios
+	}
+
+	// Base por la que empezar (la capa más baja presente): `opts.env` si es
+	// explícito (reemplaza lo heredado, §6), si no el entorno real del proceso.
+	var base []string
+	if envSet {
+		base = opts.env
+	} else {
+		base = os.Environ()
+	}
+
+	// Índice clave→posición para superponer sin duplicar claves. exec.Cmd usa la
+	// ÚLTIMA aparición de una clave repetida, pero mantenemos una sola entrada por
+	// clave para un entorno limpio y determinista.
+	out := make([]string, 0, len(base)+len(opts.envOver))
+	idx := make(map[string]int, len(base)+len(opts.envOver))
+	put := func(k, v string) {
+		entry := k + "=" + v
+		if i, ok := idx[k]; ok {
+			out[i] = entry
+			return
+		}
+		idx[k] = len(out)
+		out = append(out, entry)
+	}
+	for _, kv := range base {
+		k, v, _ := splitEnv(kv)
+		put(k, v)
+	}
+
+	// El overlay de `setenv` se superpone SOBRE el entorno heredado del SO, pero
+	// **por debajo** de un `opts.env` explícito: si la llamada pasó `env`, ese es
+	// la capa más alta y el overlay no debe pisarlo. Por eso el overlay solo se
+	// aplica encima del entorno heredado (`!envSet`); con `opts.env` explícito,
+	// `base` ya es la capa ganadora y el overlay se ignora (lo más local manda).
+	if !envSet {
+		for k, v := range opts.envOver {
+			put(k, v)
+		}
+	}
+	return out
+}
+
+// splitEnv parte una entrada "K=V" del entorno en clave y valor por el PRIMER
+// `=` (un valor puede contener `=`). Una entrada sin `=` (rara, pero posible en
+// algunos SO) se trata como clave con valor vacío.
+func splitEnv(kv string) (string, string, bool) {
+	for i := 0; i < len(kv); i++ {
+		if kv[i] == '=' {
+			return kv[:i], kv[i+1:], true
+		}
+	}
+	return kv, "", false
 }
 
 // mapProcStartError traduce el error de arrancar un proceso (`cmd.Start`) a un
@@ -303,6 +390,10 @@ func (rt *Runtime) procRun(L *lua.LState) int {
 	if !ok {
 		return 0
 	}
+	// Foto del overlay de `nu.sys.setenv` (S17), tomada AQUÍ —estado principal, bajo
+	// el token— para fijar de forma determinista qué `setenv` ve este subproceso:
+	// los anteriores a la llamada (§7, "afecta solo a subprocesos futuros").
+	opts.envOver = rt.sys.envOverlay()
 
 	vals := rt.sched.suspend(L, func() deliverFn {
 		code, stdout, stderr, rerr := runBuffered(argv, opts)
@@ -393,6 +484,10 @@ func (rt *Runtime) procSpawn(L *lua.LState) int {
 	if !ok {
 		return 0
 	}
+	// Foto del overlay de `nu.sys.setenv` (S17): el subproceso ve los `setenv`
+	// previos a este `spawn` (§7). `spawn` corre en el estado principal bajo el
+	// token, así que esta lectura no compite con un `setenv` concurrente.
+	opts.envOver = rt.sys.envOverlay()
 
 	cmd := newCmd(argv, opts)
 

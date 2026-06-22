@@ -37,6 +37,13 @@ type Runtime struct {
 	// tmpdir de sesión).
 	fs *fsState
 
+	// sys es el estado de sesión de `nu.sys` (§7, S17): hoy solo el **overlay de
+	// `setenv`** (variables que `nu.sys.setenv` registra y que `nu.proc` aplica al
+	// lanzar un subproceso futuro, sin mutar el entorno del proceso `nu` actual).
+	// El candado del overlay protege la carrera entre `setenv` (estado principal,
+	// bajo el token) y las goroutines de fondo de `nu.proc` que lo leen sin él.
+	sys *sysState
+
 	// ldr es el loader de plugins (§14, S11): descubre los directorios con
 	// `plugin.toml`, los ordena topológicamente por `requires` y ejecuta su
 	// arranque canónico. También respalda `nu.plugin.current/list` y
@@ -165,6 +172,7 @@ func New(opts ...Option) *Runtime {
 		L:   L,
 		log: newLogger(filepath.Join(cfg.dataDir, logFileName)),
 		fs:  &fsState{},
+		sys: &sysState{},
 	}
 	rt.ldr = newLoader(rt, cfg.dataDir, cfg.configDir, pluginDirs)
 	// El gating por `nu.toml` (qué se activa) y el error de config aplazado viven en

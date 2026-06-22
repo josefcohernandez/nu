@@ -72,6 +72,14 @@ func registerNu(rt *Runtime) {
 	// principal (los workers son S34).
 	rt.registerProc(nu)
 
+	// `nu.sys` (§7, S17): entorno y reloj. Wrappers finos sobre la stdlib
+	// (`platform`/`now_ms`/`mono_ms`/`hostname`), **ninguno ⏸**. La única lógica
+	// propia es el **overlay de `setenv`** (variables que afectan solo a
+	// subprocesos futuros, sin mutar el entorno del proceso `nu`): `nu.proc`
+	// (S16) lo aplica al construir el entorno del hijo. `sys` es [W] (§16): hoy
+	// en el estado principal (los workers son S34).
+	rt.registerSys(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 
