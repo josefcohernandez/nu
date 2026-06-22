@@ -148,11 +148,15 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
 
 ## Cuestiones abiertas
 
-1. **Spike de validación de ADR-007**: celdas/regiones + compositor + toolkit
+1. ~~**Spike de validación de ADR-007**: celdas/regiones + compositor + toolkit
    Lua mínimo, torturado con (a) streaming de tokens con markdown a pantalla
    completa y (b) fuzzy picker sobre ~100k ficheros. Criterio de veto
    pre-comprometido: si no es fluido, el toolkit se implementa en Go
-   conservando la misma API pública.
+   conservando la misma API pública.~~ **RESUELTA** por el spike de S28
+   ([ADR-012](adr.md#adr-012--resultado-del-spike-de-adr-007-el-toolkit-se-construye-en-lua)):
+   el overhead de orquestar desde Lua resultó despreciable (el trabajo pesado es
+   primitiva Go), así que **el veto NO se ejecutó** y el toolkit se construye en
+   Lua. ADR-007 ascendió a Aceptada.
 2. **Política fina del watchdog**: el presupuesto base ya está fijado
    (100 ms, configurable en `nu.toml` — api.md §1.3); queda lo fino: si es
    configurable por plugin y el flujo de deshabilitación/aviso al usuario
