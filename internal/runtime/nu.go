@@ -164,6 +164,16 @@ func registerNu(rt *Runtime) {
 	// `main` invoca; aquí solo se cuelga la superficie de consulta.
 	rt.registerPlugin(nu)
 
+	// `nu.worker` (§13, S34): paralelismo opt-in. `nu.worker.spawn` levanta un estado
+	// Lua NUEVO y aislado en su goroutine (mini-runtime SIN watchdog, G15), con la
+	// superficie [W] recortada por `caps` (G6, deny-by-default, dos granularidades) y
+	// comunicación por colas acotadas (backpressure). Es **solo estado principal**
+	// (§16: sin workers anidados); dentro de un worker no existe `nu.worker.spawn`,
+	// solo `nu.worker.parent` (lo cuelga `registerWorkerParent`, worker.go). Por eso
+	// se registra aquí, en `registerNu` (el camino del estado principal), y NO en
+	// `registerWorkerNu`.
+	rt.registerWorker(nu)
+
 	L.SetGlobal("nu", nu)
 }
 

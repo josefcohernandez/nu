@@ -82,6 +82,14 @@ type Runtime struct {
 	// TTY interactivo (`detectTTY`). Inmutable tras `New`.
 	uiActive bool
 
+	// isWorker marca que este Runtime es el de un **worker** (§13, S34), no el
+	// estado principal. Un worker es un mini-runtime completo (scheduler propio,
+	// tasks/timers/futures) pero SIN watchdog (G15), SIN `nu.ui`/`nu.events`/
+	// `nu.fs.watch`/`nu.worker.spawn`/`nu.plugin` (§16) y con la superficie [W]
+	// recortada por `caps` (G6). Lo construye `newWorkerRuntime` (worker_registry.go);
+	// el estado principal lo deja en false. Inmutable tras la construcción.
+	isWorker bool
+
 	// ownerStack es la pila de contextos de plugin activos (§14). El tope es el
 	// plugin "en cuyo contexto corre el código" que devuelve `nu.plugin.current`;
 	// vacía = código del usuario/core (`init.lua` del usuario, chunk de `-e`),
@@ -375,6 +383,11 @@ func (rt *Runtime) Close() {
 		// (recorrido del árbol + casado del patrón) no deben sobrevivir al proceso (red
 		// de seguridad, tras el `cleanup` de la task que consume el iterador).
 		rt.sched.stopAllGreps()
+		// Corta los `nu.worker.spawn` vivos (S34): cierra su `done`, lo que despierta
+		// cualquier `send`/`recv` colgado y lleva la goroutine de cada worker a soltar su
+		// propio estado Lua (la goroutine del worker es la dueña de su Lua: el padre
+		// nunca lo toca). Red de seguridad tras el `terminate` de quien lo creó.
+		rt.sched.stopAllWorkers()
 	}
 	// Corta el timer de coalescing de `nu.ui` (S29): su goroutine de pintado no debe
 	// sobrevivir al proceso.
@@ -389,7 +402,10 @@ func (rt *Runtime) Close() {
 	if rt.http != nil {
 		rt.http.close()
 	}
-	if rt.log != nil {
+	// El log de un worker es el del PADRE (compartido, append-only con owner anotado,
+	// newWorkerRuntime): cerrarlo aquí cerraría el fichero del padre. Solo el estado
+	// principal cierra su log; el worker lo deja intacto al apagarse.
+	if rt.log != nil && !rt.isWorker {
 		_ = rt.log.close()
 	}
 	rt.L.Close()

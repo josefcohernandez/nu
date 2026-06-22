@@ -425,6 +425,35 @@ func (l *loader) setupRequirePaths(plugins []*pluginInfo) {
 	pkg.RawSetString("cpath", lua.LString(""))
 }
 
+// workerRequirePatterns calcula los patrones de `package.path` para el `require`
+// DE UN WORKER (§13, S34): los `lua/` de los plugins que el padre conoce, de modo
+// que un `require("mi_modulo")` dentro del worker resuelva el mismo módulo que en
+// el principal. Si el padre ya hizo `Boot` se usan los plugins cargados
+// (`ordered`); si aún no (un worker spawneado antes del arranque canónico, o en
+// tests que spawnean directamente), se **descubren** los plugins en el acto
+// —ignorando errores de grafo: el worker solo necesita las RUTAS, no validar el
+// grafo, que es competencia del `Boot` del principal—. Espeja el formato de
+// `setupRequirePaths`. Se llama bajo el token del padre (toca el loader).
+func (l *loader) workerRequirePatterns() []string {
+	plugins := l.ordered
+	if !l.booted {
+		// Aún sin Boot: descubre para tener las rutas. Un error de descubrimiento
+		// (dir ilegible) o de manifiesto no debe impedir spawnear un worker; se cae a
+		// "sin patrones" (el require del worker fallará accionable si pide un módulo).
+		if discovered, err := l.discover(); err == nil {
+			plugins = discovered
+		}
+	}
+	var patterns []string
+	for _, p := range plugins {
+		luaDir := filepath.Join(p.Dir, "lua")
+		patterns = append(patterns,
+			filepath.Join(luaDir, "?.lua"),
+			filepath.Join(luaDir, "?", "init.lua"))
+	}
+	return patterns
+}
+
 const (
 	pluginManifestName = "plugin.toml"
 	pluginInitName     = "init.lua"

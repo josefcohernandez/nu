@@ -214,6 +214,17 @@ type scheduler struct {
 	// crear el iterador) y `untrackGrep` (`grepIter.close`).
 	greps map[*grepIter]struct{}
 
+	// workers son los `nu.worker.spawn` vivos (S34). Se rastrean por la misma razón
+	// que `streams`/`procs`/`ws`: cortarlos todos en `Close` (`stopAllWorkers`) para
+	// que ningún estado Lua de worker ni su goroutine sobrevivan al proceso del padre
+	// (red de seguridad, tras el `terminate` de quien lo creó). Como un stream, un
+	// worker vivo **no** cuenta para la quiescencia del PADRE: su fin de vida es
+	// `terminate` o el fin de su módulo, no esperar a que el worker acabe (un worker
+	// puede correr un bucle infinito de `parent.recv`). Solo se rastrean en el
+	// scheduler del PADRE (`worker.spawn` no es [W]). El mapa lo tocan `trackWorker`
+	// (al spawnear) y `stopAllWorkers` (en `Close`).
+	workers map[*luaWorker]struct{}
+
 	// coToTask mapea el thread Lua de cada task viva (su `co`) a su `*task`. Lo
 	// usa `suspend` para observar el `cancelCh` de la task que se suspende (S07):
 	// quien suspende es la goroutine de esa task, que corre sobre `co == L`. Se
@@ -234,6 +245,21 @@ type scheduler struct {
 	// candado propio (events.go)—. Lo inicializa `registerEvents`.
 	events *eventBus
 
+	// cancelAll es el **canal de cancelación a nivel de scheduler** (S34): se cierra
+	// para abortar a la vez TODAS las tasks vivas de este estado en su siguiente
+	// punto de suspensión, igual que `cancelTask` aborta una sola por su `cancelCh`.
+	// En el estado PRINCIPAL nunca se cierra (su fin de vida es `Close`, que corta
+	// los recursos de fondo, no las tasks Lua). En un WORKER lo cierra `terminate`
+	// (worker.go): así un `terminate()` despierta de inmediato a las tasks del worker
+	// suspendidas en `sleep`/`http`/`recv`/... —no solo a las bloqueadas en las colas
+	// del transporte—, de modo que `waitIdle` alcanza la quiescencia al acto en vez
+	// de esperar a que un `sleep(60000)` venza (api.md §13: `terminate` inmediato).
+	// Lo observan `suspend` y `taskAwait` por `select`, en paralelo al `cancelCh` de
+	// cada task; el aborto resultante corre por el mismo camino (`abort`, `cleanup`).
+	// Solo se cierra (nunca se le envía), así que `isClosed` lo consulta sin bloquear.
+	cancelAll     chan struct{}
+	cancelAllOnce sync.Once // cierra `cancelAll` una sola vez (idempotente, S34)
+
 	// ownerHandles es el **registro de handles por dueño** (S13, §14, inventario
 	// 🔒): asocia cada plugin (por nombre de owner) a los handles persistentes que
 	// registró —suscripciones de eventos (`on`/`once`), timers (`every`)—. Es lo
@@ -250,16 +276,18 @@ type scheduler struct {
 // el presupuesto de slice del watchdog (S09).
 func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 	s := &scheduler{
-		rt:       rt,
-		host:     rt.L,
-		gil:      make(chan struct{}, 1),
-		timers:   make(map[*luaTimer]struct{}),
-		watchers: make(map[*luaWatcher]struct{}),
-		procs:    make(map[*luaProc]struct{}),
-		streams:  make(map[*httpStream]struct{}),
-		ws:       make(map[*luaWs]struct{}),
-		greps:    make(map[*grepIter]struct{}),
-		budget:   budget,
+		rt:        rt,
+		host:      rt.L,
+		gil:       make(chan struct{}, 1),
+		timers:    make(map[*luaTimer]struct{}),
+		watchers:  make(map[*luaWatcher]struct{}),
+		procs:     make(map[*luaProc]struct{}),
+		streams:   make(map[*httpStream]struct{}),
+		ws:        make(map[*luaWs]struct{}),
+		greps:     make(map[*grepIter]struct{}),
+		workers:   make(map[*luaWorker]struct{}),
+		cancelAll: make(chan struct{}),
+		budget:    budget,
 	}
 	s.cond = sync.NewCond(&s.mu)
 	s.gil <- struct{}{} // token disponible: el primero que lo pida corre Lua
@@ -553,6 +581,42 @@ func (s *scheduler) stopAllGreps() {
 	}
 }
 
+// trackWorker registra un `nu.worker.spawn` vivo (S34) para poder cortarlo al
+// cerrar el runtime. Mismo patrón que `trackProc`/`trackStream`/`trackWs`. Solo lo
+// llama el scheduler del PADRE (`worker.spawn` no es [W]).
+func (s *scheduler) trackWorker(w *luaWorker) {
+	s.mu.Lock()
+	s.workers[w] = struct{}{}
+	s.mu.Unlock()
+}
+
+// stopAllWorkers corta todos los workers vivos y **espera** a que sus goroutines
+// terminen. Lo llama `Runtime.Close`: ningún estado Lua de worker ni su goroutine
+// debe sobrevivir al proceso del padre. `terminate` es idempotente (`terminateOnce`):
+// cancela todas las tasks vivas del worker (despierta a las suspendidas, rompe los
+// slices de CPU) y cierra `done`, llevando la goroutine del worker a soltar su estado
+// de inmediato. El `wait()` posterior **bloquea hasta que esa goroutine cerró su
+// `*lua.LState`**: sin él, la goroutine del worker —que comparte el `log`/`data_dir`
+// del padre— podría seguir viva tocando el dataDir mientras el padre lo borra (la
+// fuga/carrera de cleanup que destapó el review de S34). Se copia el conjunto antes
+// de iterar (coherente con `stopAllStreams`); se dispara `terminate` a TODOS primero
+// y se espera después, para que se apaguen en paralelo en vez de en serie.
+func (s *scheduler) stopAllWorkers() {
+	s.mu.Lock()
+	ws := make([]*luaWorker, 0, len(s.workers))
+	for w := range s.workers {
+		ws = append(ws, w)
+	}
+	s.workers = make(map[*luaWorker]struct{})
+	s.mu.Unlock()
+	for _, w := range ws {
+		w.terminate()
+	}
+	for _, w := range ws {
+		w.wait()
+	}
+}
+
 // spawn crea una task y lanza su goroutine. El arranque no es síncrono: la nueva
 // goroutine compite por el token, así que solo corre cuando quien llamó a
 // `spawn` lo suelta (al suspenderse o al terminar). Uniforme tanto si `spawn` se
@@ -713,7 +777,11 @@ func (s *scheduler) suspend(L *lua.LState, work func() deliverFn) []lua.LValue {
 		if s.claimBudgetAbort(t) {
 			s.abort(t)
 		}
-		if isClosed(t.cancelCh) {
+		// Cancelación de la task (S07/S08) o del scheduler entero (S34, `cancelAll`):
+		// si cualquiera ya disparó al llegar al ⏸, aborta sin lanzar el trabajo de
+		// fondo. `cancelAll` es la vía por la que `terminate()` de un worker corta de
+		// inmediato a TODAS sus tasks vivas (worker.go).
+		if isClosed(t.cancelCh) || isClosed(s.cancelAll) {
 			s.abort(t)
 		}
 	}
@@ -731,6 +799,14 @@ func (s *scheduler) suspend(L *lua.LState, work func() deliverFn) []lua.LValue {
 			// trabajo de fondo seguirá hasta su fin (su `deliverFn` se descarta);
 			// para `sleep` es solo un `time.After`. S08 podrá propagar la
 			// cancelación al trabajo en curso vía `context`.
+			s.acquire()
+			s.abort(t)
+		case <-s.cancelAll:
+			// Cancelación del scheduler entero (S34): `terminate()` de un worker cerró
+			// `cancelAll`, así que esta task suspendida (sleep/http/recv/...) despierta
+			// AQUÍ —no cuando venza el trabajo de fondo— y aborta por el mismo camino que
+			// una cancelación individual. Es lo que hace `terminate` inmediato: sin esto
+			// un `sleep(60000)` colgaría al worker ~60 s tras `terminate`.
 			s.acquire()
 			s.abort(t)
 		}
@@ -772,6 +848,37 @@ func (s *scheduler) taskOf(L *lua.LState) (*task, bool) {
 // entregando—. Por eso, si `t.done`, no se toca `canceled`. Todas las llamadas
 // (`Task:cancel`, `all`/`race`) corren **bajo el token**, igual que el `t.done`
 // de `runTask`, así que leerlo aquí es seguro sin candado.
+// cancelAllTasks aborta a la vez TODAS las tasks vivas de este scheduler (S34): la
+// usa `terminate()` de un worker para cortarlo de inmediato. Cierra `cancelAll`
+// (idempotente, `cancelAllOnce`), lo que despierta a cualquier task suspendida en
+// un ⏸ (sleep/http/recv/...) por el `select` de `suspend`/`taskAwait`, que la
+// aborta en el acto en vez de esperar a que su trabajo de fondo venza. Además
+// **cancela el contexto** de cada task viva (`ctxCancel`): es lo único que rompe un
+// slice de CPU puro que nunca suspende (un worker no tiene watchdog, G15), de modo
+// que tampoco un bucle `while true do end` deje la goroutine del worker colgada.
+//
+// SEGURIDAD DEL HILO. La llama `terminate()`, que corre en la goroutine del PADRE
+// (sin el token del worker). Cerrar un canal y llamar a `context.CancelFunc` son
+// seguros desde cualquier goroutine; no toca Lua ni los campos de aborto de las
+// tasks (`aborting`/`reason`/`canceled`), que siguen escribiéndolos SOLO las
+// goroutines de las propias tasks bajo su token, al despertar —invariante de S08
+// intacto—. `coToTask` es un `sync.Map`, iterable sin el token.
+func (s *scheduler) cancelAllTasks() {
+	s.cancelAllOnce.Do(func() {
+		close(s.cancelAll)
+	})
+	// Rompe los slices de CPU puro (sin punto de suspensión cooperativo): cancela el
+	// contexto que el intérprete vigila en cada instrucción. Inocuo para las tasks
+	// suspendidas (ya despiertan por `cancelAll`); idempotente si el contexto ya
+	// estaba cancelado.
+	s.coToTask.Range(func(_, v interface{}) bool {
+		if t, ok := v.(*task); ok && t.ctxCancel != nil {
+			t.ctxCancel()
+		}
+		return true
+	})
+}
+
 func (s *scheduler) cancelTask(t *task) {
 	if t.done {
 		return // ya resolvió: la cancelación no reescribe su desenlace
@@ -940,7 +1047,7 @@ func (s *scheduler) taskAwait(L *lua.LState) int {
 	if hasSelf && s.claimBudgetAbort(self) {
 		s.abort(self)
 	}
-	if hasSelf && isClosed(self.cancelCh) {
+	if hasSelf && (isClosed(self.cancelCh) || isClosed(s.cancelAll)) {
 		s.abort(self)
 	}
 	if !t.done {
@@ -956,6 +1063,11 @@ func (s *scheduler) taskAwait(L *lua.LState) int {
 				s.acquire()
 				s.armWatchdog(self)
 			case <-self.cancelCh:
+				s.acquire()
+				s.abort(self)
+			case <-s.cancelAll:
+				// Cancelación del scheduler entero (S34, `terminate()` del worker):
+				// el awaiter despierta y aborta, igual que por su `cancelCh`.
 				s.acquire()
 				s.abort(self)
 			}
