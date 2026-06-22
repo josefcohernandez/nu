@@ -148,6 +148,9 @@ jobs:
       - name: Crear release
         uses: softprops/action-gh-release@v2
         with:
+          # Un tag con sufijo (v0.1.0-rc1, v0.2.0-beta...) es una PRE-RELEASE: no
+          # debe figurar como "latest". Un tag X.Y.Z limpio es un release normal.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           # Notas autogeneradas desde los PRs mergeados desde el tag anterior (los
           # títulos en español ya existentes). Para el PRIMER release (sin tag previo)
           # conviene editar la release y añadir un párrafo de cabecera a mano.
