@@ -189,6 +189,17 @@ type scheduler struct {
 	// scheduler —todo el bus corre en el estado principal bajo el token, sin
 	// candado propio (events.go)—. Lo inicializa `registerEvents`.
 	events *eventBus
+
+	// ownerHandles es el **registro de handles por dueño** (S13, §14, inventario
+	// 🔒): asocia cada plugin (por nombre de owner) a los handles persistentes que
+	// registró —suscripciones de eventos (`on`/`once`), timers (`every`)—. Es lo
+	// que permite a `nu.plugin.reload` soltarlos todos sin dejar huérfanos (G2).
+	// Lo alimentan `on`/`once`/`every` (al crear) y `Sub:cancel`/`Timer:stop` (al
+	// soltar a mano); `reload` lo recorre. Vive bajo el token, como `events`, sin
+	// candado. Diseñado para que futuras primitivas con handle persistente (S15
+	// watchers, S16 procs, S29+ input/regiones) se enchufen implementando
+	// `ownedHandle` (handles.go).
+	ownerHandles map[string][]ownedHandle
 }
 
 // newScheduler prepara el scheduler con el token libre (sembrado en el canal) y

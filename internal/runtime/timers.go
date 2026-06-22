@@ -47,7 +47,26 @@ type luaTimer struct {
 	s      *scheduler
 	fn     *lua.LFunction
 	stopCh chan struct{}
+
+	// ownerName es el dueño con que se etiquetó el timer al crearse
+	// (`currentOwner()` vigente en `every`, S11). Es lo que hace que
+	// `nu.plugin.reload` (S13, G2) pare exactamente los timers de ESE plugin: un
+	// `every` que un plugin arrancó en su `init.lua` no debe seguir tickeando tras
+	// recargarlo —"reload no deja handlers huérfanos", inventario 🔒—.
+	ownerName string
 }
+
+// luaTimer implementa ownedHandle (S13): el registro de handles por dueño
+// (handles.go) lo para al recargar su plugin sin conocer su tipo concreto.
+
+// release corta el timer (su goroutine de ticker), igual que `Timer:stop`.
+// `stopTimer` es idempotente (no vuelve a cerrar `stopCh` si ya se cerró), así que
+// liberar un timer ya parado es inocuo. NO toca el registro de handles (eso lo
+// orquesta `releaseOwnerHandles`, que ya vació la lista del dueño).
+func (t *luaTimer) release() { t.s.stopTimer(t) }
+
+// owner devuelve el dueño con que se etiquetó el timer al crearse.
+func (t *luaTimer) owner() string { return t.ownerName }
 
 // registerTimers cuelga `sleep`, `defer` y `every` de la tabla `nu.task` ya
 // creada por `scheduler.register`, e instala la metatabla del tipo `Timer`. Lo
@@ -130,10 +149,11 @@ func (s *scheduler) taskEvery(L *lua.LState) int {
 		return 0
 	}
 
-	t := &luaTimer{s: s, fn: fn, stopCh: make(chan struct{})}
+	t := &luaTimer{s: s, fn: fn, stopCh: make(chan struct{}), ownerName: s.rt.currentOwner()}
 	d := time.Duration(ms) * time.Millisecond
 
 	s.trackTimer(t)
+	s.track(t) // registro de handles por dueño (S13): que `reload` lo encuentre y pare
 	go func() {
 		ticker := time.NewTicker(d)
 		defer ticker.Stop()
@@ -169,6 +189,12 @@ func (s *scheduler) timerStop(L *lua.LState) int {
 		return 0
 	}
 	s.stopTimer(t)
+	// Desregistra del registro de handles por dueño (S13): un `stop` a mano no debe
+	// dejar el timer parado colgando en `ownerHandles` (fuga; un `reload` posterior
+	// intentaría re-pararlo). `untrack` es idempotente. Va aquí —en el camino
+	// manual—, no en `stopTimer`, porque `release()` (vía `reload`) ya vacía la
+	// lista del dueño y no debe tocarla a media iteración.
+	s.untrack(t)
 	return 0
 }
 

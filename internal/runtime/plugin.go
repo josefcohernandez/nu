@@ -22,6 +22,7 @@ func (rt *Runtime) registerPlugin(nu *lua.LTable) {
 	plugin := L.NewTable()
 	plugin.RawSetString("current", L.NewFunction(rt.pluginCurrent))
 	plugin.RawSetString("list", L.NewFunction(rt.pluginList))
+	plugin.RawSetString("reload", L.NewFunction(rt.pluginReload))
 	nu.RawSetString("plugin", plugin)
 
 	config := L.NewTable()
@@ -70,6 +71,52 @@ func (rt *Runtime) pluginList(L *lua.LState) int {
 	}
 	L.Push(arr)
 	return 1
+}
+
+// pluginReload implementa `nu.plugin.reload(name)` ⏸ (§14): herramienta de
+// desarrollo **best-effort** (G2). Recarga un plugin ya cargado para iterar sin
+// reiniciar el proceso. Los pasos, en orden (api.md §14):
+//
+//  1. Emite `core:plugin.unload {name}` —las extensiones enganchadas a ese evento
+//     limpian SUS registros (tools, comandos slash, lo que el core no conoce)—.
+//  2. **Suelta TODOS los handles del plugin** que el core etiquetó por dueño
+//     (S13, handles.go): cancela sus suscripciones de eventos (`on`/`once`) y para
+//     sus timers (`every`). Es la pieza 🔒 —"reload no deja handlers huérfanos"—:
+//     tras esto, las suscripciones VIEJAS ya no disparan y los timers VIEJOS no
+//     tickean; solo correrá lo que el `init.lua` re-ejecutado vuelva a registrar.
+//  3. **Vacía la caché de `require`** del plugin (sus módulos `lua/` en
+//     `package.loaded`): así un módulo que cambió en disco se re-ejecuta, no queda
+//     servido de la versión cacheada.
+//  4. **Recarga su `init.lua`** con su contexto empujado al `ownerStack` (como en
+//     el arranque): lo que registre allí queda de nuevo etiquetado por dueño.
+//
+// **Por qué ⏸** (§14): aunque hoy todos los pasos son trabajo del estado principal
+// bajo el token (emit síncrono, liberar handles, re-correr el init), `reload` se
+// declara suspendiente en api.md —reservando que pueda hacer IO (leer el init de
+// disco puede volverse ⏸ en el futuro) y para que solo se invoque desde una task,
+// como el resto de herramientas async—. Aquí la detección es la misma de §1.3:
+// fuera de una task → `EINVAL`.
+//
+// **Best-effort (G2):** solo deshace lo que el core sabe deshacer —los handles que
+// entregó y la caché de `require`—. Un plugin con efectos globales exóticos (una
+// variable global que ensucia, un metatable monkeypatcheado) puede no descargarse
+// limpio; por eso es para iterar, no para producción. Un plugin desconocido (no
+// cargado) es `EINVAL` accionable.
+func (rt *Runtime) pluginReload(L *lua.LState) int {
+	if L == rt.L {
+		raiseError(L, CodeEINVAL, "nu.plugin.reload solo puede llamarse dentro de una task", lua.LNil)
+		return 0
+	}
+	name := L.CheckString(1)
+	if err := rt.ldr.reload(L, name); err != nil {
+		if se, ok := err.(*StructuredError); ok {
+			raiseError(L, se.Code, se.Message, lua.LNil)
+			return 0
+		}
+		raiseError(L, CodeEINVAL, err.Error(), lua.LNil)
+		return 0
+	}
+	return 0
 }
 
 // configDir implementa `nu.config.dir() -> string` [W] (§14): `~/.config/nu` (o el

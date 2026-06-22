@@ -85,7 +85,28 @@ type subscriber struct {
 	fn   *lua.LFunction
 	once bool
 	live bool
+
+	// name es el nombre del evento al que está suscrita; lo necesita `release`
+	// para no tener que buscar la suscripción por todo el bus al recargar su dueño.
+	name string
+	// ownerName es el dueño con que se etiquetó al crearse (`currentOwner()`
+	// vigente en `on`/`once`, S11). Es lo que hace que `nu.plugin.reload` (S13, G2)
+	// suelte exactamente las suscripciones de ESE plugin y no las de otro —el
+	// etiquetado por dueño del inventario 🔒—.
+	ownerName string
 }
+
+// subscriber implementa ownedHandle (S13): así el registro de handles por dueño
+// (handles.go) puede soltarlo al recargar su plugin sin conocer su tipo concreto.
+
+// release marca la suscripción muerta (G10, invariante 2: surte efecto inmediato,
+// incluso a media foto de un despacho) y deja la purga real para el final del
+// drenado, igual que `Sub:cancel`. Idempotente: re-liberar una `Sub` ya muerta es
+// inocuo. NO toca el registro de handles (eso lo orquesta `releaseOwnerHandles`).
+func (sub *subscriber) release() { sub.live = false }
+
+// owner devuelve el dueño con que se etiquetó la suscripción al crearse.
+func (sub *subscriber) owner() string { return sub.ownerName }
 
 // pendingEmit es un trabajo de emisión encolado: el nombre del evento y su
 // payload (un `LValue` ya capturado en el estado principal, no copiado —no cruza
@@ -157,8 +178,14 @@ func (s *scheduler) subscribe(L *lua.LState, once bool) int {
 	name := L.CheckString(1)
 	fn := L.CheckFunction(2)
 
-	sub := &subscriber{fn: fn, once: once, live: true}
+	// Etiqueta la suscripción con el dueño vigente (S13, G2): el plugin en cuyo
+	// `init.lua` (o código) corre este `on` es quien la "posee", y `reload` la
+	// soltará al recargarlo. Fuera de todo plugin (chunk de `-e`, `init.lua` del
+	// usuario) el dueño es "user", que también puede recargarse —aunque en la
+	// práctica `reload` se usa sobre plugins—.
+	sub := &subscriber{fn: fn, once: once, live: true, name: name, ownerName: s.rt.currentOwner()}
 	s.events.subs[name] = append(s.events.subs[name], sub)
+	s.track(sub) // registro de handles por dueño (handles.go): que `reload` lo encuentre
 
 	ud := L.NewUserData()
 	ud.Value = sub
@@ -180,6 +207,12 @@ func (s *scheduler) subCancel(L *lua.LState) int {
 		return 0
 	}
 	sub.live = false
+	// Desregistra del registro de handles por dueño (S13): un `cancel` a mano no
+	// debe dejar la suscripción muerta colgando en `ownerHandles` —sería una fuga
+	// que haría a un `reload` posterior intentar re-liberar algo ya cancelado—.
+	// `untrack` es idempotente (cancelar dos veces, o cancelar algo que `reload` ya
+	// soltó, es inocuo).
+	s.untrack(sub)
 	return 0
 }
 
@@ -272,6 +305,15 @@ func (s *scheduler) dispatch(name string, payload lua.LValue) {
 		// no se re-ejecuta a sí mismo.
 		if sub.once {
 			sub.live = false
+			// Desregistra del registro de handles por dueño (S13): la
+			// auto-cancelación de un `once` debe sacarlo de `ownerHandles` igual
+			// que lo hace `subCancel` en el camino manual. Sin esto, un dueño de
+			// vida larga (p. ej. "user") que use `once` repetidamente acumularía
+			// handles muertos —fuga del registro que viola el invariante 🔒 de
+			// S13—. Corremos bajo el token (este es el despacho del estado
+			// principal) y `untrack` es idempotente: un `reload` posterior que ya
+			// vaciara la lista no se ve afectado.
+			s.untrack(sub)
 		}
 		s.callEventHandler(sub.fn, payload)
 	}

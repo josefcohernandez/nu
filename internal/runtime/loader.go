@@ -512,6 +512,123 @@ func topoSort(plugins []*pluginInfo) ([]*pluginInfo, error) {
 	return ordered, nil
 }
 
+// reload recarga un plugin ya cargado (api.md §14, S13): emite
+// `core:plugin.unload`, suelta los handles del plugin (etiquetados por dueño,
+// G2), vacía la caché de `require` de sus módulos `lua/` y re-ejecuta su
+// `init.lua`. Best-effort (G2): deshace lo que el core sabe deshacer. Lo invoca
+// `nu.plugin.reload` (plugin.go) y corre **bajo el token** (el llamante, una task,
+// lo tiene) en el estado principal. `L` es el thread que llamó: se pasa a `emit`
+// para que un `core:plugin.unload` que ping-pongee quede cubierto por el watchdog
+// de su task (coherente con S10).
+//
+// Un nombre que no corresponde a ningún plugin cargado es `EINVAL` accionable: no
+// se puede recargar lo que no está. (El `init.lua` del usuario, dueño "user", no
+// es un plugin recargable por esta vía: recargarlo es re-correr el arranque, no el
+// ámbito de G2.)
+func (l *loader) reload(L *lua.LState, name string) error {
+	p := l.find(name)
+	if p == nil {
+		return &StructuredError{Code: CodeEINVAL,
+			Message: fmt.Sprintf("no se puede recargar el plugin %q: no está cargado (nu.plugin.reload es para plugins ya cargados, §14)", name)}
+	}
+
+	// 1. `core:plugin.unload {name}` ANTES de soltar nada: las extensiones
+	//    enganchadas limpian sus propios registros (tools, comandos...) —cosas que
+	//    el core no conoce y no puede soltar por ellas (filosofía §1)—. El payload
+	//    nombra el plugin que se descarga (§4).
+	payload := l.rt.L.NewTable()
+	payload.RawSetString("name", lua.LString(p.Name))
+	l.rt.sched.emit(L, "core:plugin.unload", payload)
+
+	// 2. Suelta TODOS los handles del plugin (S13, inventario 🔒): el core los
+	//    etiquetó por dueño al crearlos (`on`/`once`/`every`), así que aquí se
+	//    cancelan sus suscripciones y se paran sus timers. Tras esto las viejas no
+	//    disparan: "reload no deja handlers huérfanos" (G2).
+	l.rt.sched.releaseOwnerHandles(p.Name)
+
+	// 3. Vacía la caché de `require` de los módulos `lua/` del plugin: un módulo que
+	//    cambió en disco debe re-ejecutarse, no servirse de `package.loaded`.
+	l.clearRequireCache(p)
+
+	// 4. Re-ejecuta su `init.lua` con su contexto empujado (como en el arranque,
+	//    §14): lo que registre queda de nuevo etiquetado por dueño. Un init ausente
+	//    es válido (plugin solo-módulos); un init que lanza se aísla (ADR-008), como
+	//    en el arranque, sin tumbar la task que llamó a reload.
+	l.runInit(p)
+	return nil
+}
+
+// find devuelve el `*pluginInfo` cargado con ese nombre, o nil si no hay ninguno.
+// Busca en `ordered` (lo que `Boot` cargó); el nombre es la identidad (§14), así
+// que como mucho hay uno.
+func (l *loader) find(name string) *pluginInfo {
+	for _, p := range l.ordered {
+		if p.Name == name {
+			return p
+		}
+	}
+	return nil
+}
+
+// clearRequireCache borra de `package.loaded` las entradas de los módulos del
+// directorio `lua/` del plugin que se recarga (S13, §14): así un `require` desde
+// el `init.lua` re-ejecutado vuelve a CARGAR el módulo (re-ejecuta su fichero) en
+// vez de devolver la copia cacheada de la carga anterior. Es lo que hace que
+// editar un módulo `lua/` del plugin y recargar surta efecto.
+//
+// El mapeo fichero → nombre de módulo refleja los patrones de `setupRequirePaths`
+// (`<lua>/?.lua` y `<lua>/?/init.lua`): `foo.lua` → `foo`, `foo/init.lua` → `foo`,
+// `bar/baz.lua` → `bar.baz` (los separadores de ruta se vuelven puntos, la
+// convención de `require` de Lua). Solo se tocan las entradas que existen en
+// `package.loaded` (un módulo del plugin que nadie requirió no está ahí). NO se
+// purgan módulos de OTROS plugins aunque compartan `package.path`: solo se
+// enumeran los ficheros bajo el `lua/` de ESTE plugin.
+func (l *loader) clearRequireCache(p *pluginInfo) {
+	L := l.rt.L
+	pkg, ok := L.GetGlobal("package").(*lua.LTable)
+	if !ok {
+		return // `require` no se abrió (arranque desnudo sin plugins): nada que limpiar
+	}
+	loaded, ok := pkg.RawGetString("loaded").(*lua.LTable)
+	if !ok {
+		return
+	}
+
+	luaDir := filepath.Join(p.Dir, "lua")
+	for _, mod := range moduleNames(luaDir) {
+		loaded.RawSetString(mod, lua.LNil)
+	}
+}
+
+// moduleNames enumera los nombres de módulo `require`-ables bajo `luaDir`,
+// recorriéndolo recursivamente. Devuelve, para cada `.lua`, el nombre con que se
+// `require`aría: la ruta relativa a `luaDir` sin extensión y con `/` → `.`, y un
+// `init.lua` colapsado a su directorio (`foo/init.lua` → `foo`). Un `luaDir`
+// inexistente devuelve vacío (un plugin puede no tener `lua/`).
+func moduleNames(luaDir string) []string {
+	var mods []string
+	_ = filepath.Walk(luaDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".lua") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(luaDir, path)
+		if relErr != nil {
+			return nil
+		}
+		rel = strings.TrimSuffix(rel, ".lua")
+		rel = strings.TrimSuffix(rel, string(filepath.Separator)+"init")
+		if rel == "init" {
+			return nil // `lua/init.lua` no es un módulo require-able por convención
+		}
+		mods = append(mods, strings.ReplaceAll(rel, string(filepath.Separator), "."))
+		return nil
+	})
+	return mods
+}
+
 // cycleDescription construye una descripción legible del ciclo: el tramo de la pila
 // de recursión desde la primera aparición del nodo que se re-encontró, cerrado
 // sobre sí mismo (`a -> b -> c -> a`).
