@@ -88,6 +88,15 @@ func registerNu(rt *Runtime) {
 	// frontmatter de skills (§12).
 	rt.registerCodecs(nu)
 
+	// `nu.http` (§8, S19): red. `request` es ⏸ (sobre el puente `suspend` de S04,
+	// mismo patrón que `nu.fs`/`nu.proc`): suelta el token y hace la petición HTTP
+	// **bloqueante** en la goroutine de fondo, que jamás toca Lua. Respuesta
+	// buffereada; **no lanza por status ≥ 400** (el status es dato), sí por fallo de
+	// transporte (`ENET`) o timeout (`ETIMEOUT`). TLS y proxy (G12) por petición o
+	// por defaults de `[net]` de `nu.toml`. `http` es [W] (§16): hoy en el estado
+	// principal (los workers son S34). `stream` (S20) y `ws` (S21) llegan después.
+	rt.registerHTTP(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 

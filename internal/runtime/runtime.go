@@ -50,6 +50,13 @@ type Runtime struct {
 	// `nu.config.dir/data_dir`. Inmutable tras `New`.
 	ldr *loader
 
+	// http es el estado de sesión de `nu.http` (§8, S19): la config de red
+	// (`[net]` de `nu.toml`: CA corporativa y proxy por defecto, G12) y el cliente
+	// HTTP **reutilizable** del caso común (sin overrides de TLS/proxy por
+	// petición), con su pool de conexiones. Una petición que pide TLS/proxy
+	// específico construye un cliente por-petición; el resto reusa este.
+	http *httpState
+
 	// jsonNull es el sentinel `nu.json.NULL` (§12, S18): un userdata único del
 	// estado Lua que representa `null` de JSON sin colisionar con ningún valor Lua.
 	// `decode` lo entrega en lugar de `nil` (que borraría la clave de una tabla,
@@ -180,6 +187,10 @@ func New(opts ...Option) *Runtime {
 		log: newLogger(filepath.Join(cfg.dataDir, logFileName)),
 		fs:  &fsState{},
 		sys: &sysState{},
+		// Defaults de red de `[net]` (§8, G12, S19). Un `nu.toml` ausente o sin
+		// `[net]` deja ambos vacíos (comportamiento estándar). No se aplica si el
+		// `nu.toml` está mal formado (el error se aplaza a `Boot`).
+		http: newHTTPState(nuCfg.Net.CAFile, nuCfg.Net.Proxy),
 	}
 	rt.ldr = newLoader(rt, cfg.dataDir, cfg.configDir, pluginDirs)
 	// El gating por `nu.toml` (qué se activa) y el error de config aplazado viven en
@@ -272,6 +283,11 @@ func (rt *Runtime) Close() {
 	// crearse: el scratch no debe sobrevivir al proceso.
 	if rt.fs != nil {
 		rt.fs.closeTmpdir()
+	}
+	// Cierra las conexiones inactivas del cliente HTTP reutilizable (§8, S19), si
+	// llegó a crearse: no deben sobrevivir al proceso.
+	if rt.http != nil {
+		rt.http.close()
 	}
 	if rt.log != nil {
 		_ = rt.log.close()

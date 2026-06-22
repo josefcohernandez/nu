@@ -14,6 +14,12 @@ package runtime
 //     los pasados por `WithPluginDir`. Rutas UTF-8 (§1).
 //   - `watchdog.slice_budget_ms` — el presupuesto por slice del watchdog (S09), en
 //     milisegundos (§1: tiempos en ms). Cablea el gancho `WithSliceBudget`.
+//   - `[net].ca_file` / `[net].proxy` — defaults globales de red para `nu.http`
+//     (§8, G12, S19): una CA corporativa que añadir a la raíz de confianza de TLS
+//     y un proxy por defecto. Cualquiera de los dos es **sobreescribible por
+//     petición** (`opts.tls.ca_file`, `opts.proxy`); sin `[net]` rige el
+//     comportamiento estándar (CAs del sistema, proxy del entorno
+//     `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`).
 //
 // Forward-compatibilidad: claves desconocidas se ignoran (igual que en
 // `plugin.toml`, S11) para que una config de una versión más nueva no rompa el
@@ -46,6 +52,14 @@ type runtimeConfig struct {
 		// de "especificado como 0" (0 → desactiva el watchdog explícitamente, §9).
 		SliceBudgetMs *int `toml:"slice_budget_ms"`
 	} `toml:"watchdog"`
+	// Net son los defaults globales de red para `nu.http` (§8, G12, S19): una CA
+	// corporativa y un proxy por defecto, ambos sobreescribibles por petición. Un
+	// `[net]` ausente deja el comportamiento estándar (CAs del sistema, proxy del
+	// entorno).
+	Net struct {
+		CAFile string `toml:"ca_file"` // CA corporativa a añadir a la raíz de confianza TLS
+		Proxy  string `toml:"proxy"`   // URL de proxy por defecto (vacío = proxy del entorno)
+	} `toml:"net"`
 }
 
 // loadNuToml lee y parsea `config.dir()/nu.toml`. Devuelve un `runtimeConfig` cero

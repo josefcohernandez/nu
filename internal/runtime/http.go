@@ -1,0 +1,522 @@
+package runtime
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	lua "github.com/yuin/gopher-lua"
+)
+
+// `nu.http` — red (api.md §8, sesión S19). Por ahora solo `nu.http.request`: una
+// petición HTTP **buffereada** (lee el body entero a string) que devuelve
+// `{status, headers, body}`. Es ⏸ (sobre el puente `suspend` de S04, ADR-011):
+// suelta el token, hace la petición **bloqueante** en una goroutine de fondo que
+// **jamás toca Lua**, y al volver recupera el token y entrega la respuesta (o
+// mapea el error) en la `deliverFn`. El streaming (`nu.http.stream`) es S20 y los
+// websockets (`nu.ws`) S21; aquí no se tocan.
+//
+// SEMÁNTICA CLAVE (§8):
+//
+//   - **El status es DATO, no error.** Un 404 o un 500 devuelven
+//     `{status=404, ...}` SIN lanzar —el código de estado es información que el
+//     llamante decide cómo tratar (un adaptador de provider distingue 429 de 500
+//     para reintentar, ADR-005)—. Solo los fallos de **transporte** lanzan:
+//     conexión rechazada / DNS / reset → `ENET`; expirar `timeout_ms` → `ETIMEOUT`;
+//     `url` ausente o inválida y otros usos malos → `EINVAL`.
+//
+//   - **TLS y proxy (G12).** `opts.tls = {ca_file?, insecure?}` añade una CA
+//     corporativa por petición (`ca_file`) o desactiva la verificación
+//     (`insecure`, para entornos de prueba). `opts.proxy` fija un proxy por
+//     petición; sin él se respeta `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` del entorno
+//     (`http.ProxyFromEnvironment`). Los defaults globales viven en `[net]` de
+//     `nu.toml` (`ca_file`, `proxy`), sobreescribibles por petición.
+//
+// EL MODELO DEL CLIENTE (la decisión de diseño de S19, ver claude_decisions.md):
+// **un cliente reutilizable para el caso común, uno por-petición para los casos
+// con TLS/proxy a medida.** El caso común (sin `opts.tls`, sin `opts.proxy`, sin
+// CA corporativa de `[net]`) reusa un único `*http.Client` cacheado en
+// `httpState` —así se aprovecha el pool de conexiones keep-alive entre peticiones,
+// que es lo que hace eficiente hablar repetidamente con el mismo endpoint (el
+// caso del agente: muchas llamadas al mismo provider)—. Una petición que pide una
+// CA distinta o `insecure` necesita su propio `tls.Config`, así que construye un
+// `http.Transport`/`http.Client` efímero solo para ella. No se cachean los
+// efímeros: son la excepción, y cachearlos por combinación de opciones añadiría
+// complejidad sin beneficio claro en v1.
+
+// httpDefaultTimeout es el plazo por defecto de una petición sin `timeout_ms`. No
+// es "sin límite": una petición de red sin timeout puede colgar una task para
+// siempre, así que se impone un techo razonable. `opts.timeout_ms` lo
+// sobreescribe (incluido 0, que el contrato no contempla como "infinito": un 0
+// explícito lo tratamos como inválido, ver parseo).
+const httpDefaultTimeout = 30 * time.Second
+
+// httpState es el estado de sesión de `nu.http` (§8). Guarda los defaults de red
+// de `[net]` de `nu.toml` (G12) y el cliente **reutilizable** del caso común,
+// construido perezosamente la primera vez que una petición no necesita un cliente
+// a medida. El candado protege la construcción perezosa frente a peticiones
+// concurrentes (cada `request` corre su IO en una goroutine de fondo, sin token).
+type httpState struct {
+	caFile string // CA corporativa por defecto ([net].ca_file); "" = ninguna
+	proxy  string // proxy por defecto ([net].proxy); "" = proxy del entorno
+
+	mu        sync.Mutex
+	reuseDflt *http.Client // cliente del caso común (CA del sistema + proxy default); nil hasta el primer uso
+}
+
+// newHTTPState construye el estado de `nu.http` con los defaults de `[net]` de
+// `nu.toml` (G12). Lo llama `New` (runtime.go). El cliente reutilizable se crea
+// perezosamente (no toda sesión hace red).
+func newHTTPState(caFile, proxy string) *httpState {
+	return &httpState{caFile: caFile, proxy: proxy}
+}
+
+// reqOpts son las opciones de una petición ya extraídas de la tabla Lua, en el
+// estado principal y bajo el token (no se toca Lua en la goroutine de fondo). El
+// IO (la petición) se construye a partir de esto fuera del token.
+type reqOpts struct {
+	method  string
+	rawURL  string
+	headers map[string]string
+	body    string
+	hasBody bool
+	timeout time.Duration
+
+	// TLS por petición (G12). `caFileSet`/`insecure` distinguen "no especificado"
+	// de un valor: si `opts.tls` no aparece, ambos quedan en su cero y rige el
+	// default de `[net]`.
+	caFile    string
+	caFileSet bool
+	insecure  bool
+
+	// Proxy por petición (G12). `proxySet` distingue "no especificado" (rige
+	// `[net]` o el entorno) de un proxy explícito (incluido `""`, que un día podría
+	// significar "sin proxy"; en v1 un proxy vacío explícito se trata como
+	// no-especificado para no sorprender).
+	proxy    string
+	proxySet bool
+}
+
+// needsCustomClient informa de si esta petición necesita un cliente a medida (un
+// `tls.Config` o un proxy propios) en vez del cliente reutilizable del caso
+// común. Es la bisagra del modelo "reutilizable vs por-petición": el caso común
+// (sin TLS a medida, sin proxy a medida, sin CA corporativa de `[net]`) reusa el
+// cliente cacheado; cualquier desviación construye uno efímero.
+func (o *reqOpts) needsCustomClient(st *httpState) bool {
+	if o.insecure || o.caFileSet {
+		return true // TLS a medida por petición
+	}
+	if o.proxySet && o.proxy != "" {
+		return true // proxy a medida por petición
+	}
+	// Defaults de `[net]`: una CA corporativa o un proxy globales también exigen un
+	// cliente a medida (el reutilizable usa la raíz del sistema y el proxy del
+	// entorno). Se construye una vez y se reusa como "el del caso común con
+	// defaults" —pero por simplicidad lo tratamos como a medida y lo cacheamos
+	// igual abajo solo cuando no hay overrides por petición.
+	if st.caFile != "" || st.proxy != "" {
+		return true
+	}
+	return false
+}
+
+// registerHTTP cuelga `nu.http` del global `nu` con su firma de §8. Lo llama
+// `registerNu` (nu.go). Hoy solo `request`; `stream` (S20) y `ws` (S21) se suman
+// luego sobre el mismo puente ⏸.
+func (rt *Runtime) registerHTTP(nu *lua.LTable) {
+	L := rt.L
+	httpT := L.NewTable()
+	httpT.RawSetString("request", L.NewFunction(rt.httpRequest))
+	nu.RawSetString("http", httpT)
+}
+
+// httpRequest implementa `nu.http.request(opts) -> {status, headers, body}` ⏸
+// (§8). Extrae las opciones en el estado principal (bajo el token), construye la
+// petición y la **ejecuta en la goroutine de fondo** del puente `suspend` (fuera
+// del token, sin tocar Lua); la respuesta buffereada o el error mapeado cruzan a
+// Lua en la `deliverFn`.
+func (rt *Runtime) httpRequest(L *lua.LState) int {
+	if !rt.requireTask(L, "nu.http.request") {
+		return 0
+	}
+	opts, ok := parseReqOpts(L)
+	if !ok {
+		return 0 // parseReqOpts ya lanzó EINVAL
+	}
+
+	vals := rt.sched.suspend(L, func() deliverFn {
+		// Todo lo de aquí corre FUERA del token, en la goroutine de fondo: nunca toca
+		// Lua. Construye el cliente (reutilizable o a medida), lanza la petición y
+		// bufferiza la respuesta. Los errores se guardan crudos y se mapean bajo el
+		// token, abajo.
+		status, headers, body, rerr := rt.http.do(opts)
+		return func(L *lua.LState) []lua.LValue {
+			if rerr != nil {
+				raiseHTTPError(L, rerr)
+				return nil
+			}
+			res := L.NewTable()
+			res.RawSetString("status", lua.LNumber(status))
+			h := L.NewTable()
+			for name, value := range headers {
+				h.RawSetString(name, lua.LString(value))
+			}
+			res.RawSetString("headers", h)
+			res.RawSetString("body", lua.LString(body))
+			return []lua.LValue{res}
+		}
+	})
+	return pushAll(L, vals)
+}
+
+// parseReqOpts extrae y valida los campos de la tabla `opts` de
+// `nu.http.request` en el estado principal (bajo el token). Devuelve
+// `(opts, false)` tras lanzar `EINVAL` si algo es inválido (sin `url`, `timeout_ms`
+// negativo, `opts.tls`/`opts.headers` de tipo equivocado): el llamante retorna sin
+// suspender. La URL no se valida a fondo aquí (sintaxis exacta, esquema soportado)
+// —eso lo hace `http.NewRequest` en la goroutine de fondo y un error suyo se rinde
+// como `EINVAL`—; aquí solo se exige que esté presente y sea un string no vacío.
+func parseReqOpts(L *lua.LState) (reqOpts, bool) {
+	o := reqOpts{method: http.MethodGet, timeout: httpDefaultTimeout}
+
+	tbl, ok := L.Get(1).(*lua.LTable)
+	if !ok {
+		raiseError(L, CodeEINVAL, "nu.http.request: opts debe ser una tabla", lua.LNil)
+		return o, false
+	}
+
+	urlVal, ok := tbl.RawGetString("url").(lua.LString)
+	if !ok || string(urlVal) == "" {
+		raiseError(L, CodeEINVAL, "nu.http.request: opts.url es obligatoria (string no vacío)", lua.LNil)
+		return o, false
+	}
+	o.rawURL = string(urlVal)
+
+	if m, ok := tbl.RawGetString("method").(lua.LString); ok && string(m) != "" {
+		o.method = strings.ToUpper(string(m))
+	}
+
+	if b, ok := tbl.RawGetString("body").(lua.LString); ok {
+		o.body = string(b)
+		o.hasBody = true
+	}
+
+	switch tm := tbl.RawGetString("timeout_ms").(type) {
+	case lua.LNumber:
+		if tm <= 0 {
+			raiseError(L, CodeEINVAL, "nu.http.request: opts.timeout_ms debe ser positivo", lua.LNil)
+			return o, false
+		}
+		o.timeout = time.Duration(tm) * time.Millisecond
+	case *lua.LNilType, nil:
+		// no especificado: rige el default
+	default:
+		raiseError(L, CodeEINVAL, "nu.http.request: opts.timeout_ms debe ser un número", lua.LNil)
+		return o, false
+	}
+
+	// Headers: tabla nombre→valor. Cada valor se convierte a string (un número o un
+	// booleano en un header es un error del autor, pero gopher-lua los stringifica;
+	// se exige string para no sorprender con coerciones implícitas).
+	switch ht := tbl.RawGetString("headers").(type) {
+	case *lua.LTable:
+		o.headers = make(map[string]string)
+		bad := false
+		ht.ForEach(func(k, v lua.LValue) {
+			name, kok := k.(lua.LString)
+			value, vok := v.(lua.LString)
+			if !kok || !vok {
+				bad = true
+				return
+			}
+			o.headers[string(name)] = string(value)
+		})
+		if bad {
+			raiseError(L, CodeEINVAL, "nu.http.request: opts.headers debe ser una tabla de string→string", lua.LNil)
+			return o, false
+		}
+	case *lua.LNilType, nil:
+		// sin headers
+	default:
+		raiseError(L, CodeEINVAL, "nu.http.request: opts.headers debe ser una tabla", lua.LNil)
+		return o, false
+	}
+
+	// TLS por petición (G12): `opts.tls = {ca_file?, insecure?}`.
+	switch tlsT := tbl.RawGetString("tls").(type) {
+	case *lua.LTable:
+		if ca, ok := tlsT.RawGetString("ca_file").(lua.LString); ok {
+			o.caFile = string(ca)
+			o.caFileSet = true
+		}
+		o.insecure = lua.LVAsBool(tlsT.RawGetString("insecure"))
+	case *lua.LNilType, nil:
+		// sin TLS a medida
+	default:
+		raiseError(L, CodeEINVAL, "nu.http.request: opts.tls debe ser una tabla", lua.LNil)
+		return o, false
+	}
+
+	// Proxy por petición (G12).
+	if px, ok := tbl.RawGetString("proxy").(lua.LString); ok {
+		o.proxy = string(px)
+		o.proxySet = true
+	}
+
+	return o, true
+}
+
+// errHTTPTimeout / errHTTPTransport son los centinelas internos que `do`
+// devuelve para que `raiseHTTPError` los mapee a `ETIMEOUT`/`ENET` sin reinspeccionar
+// el error original (que ya se clasificó fuera del token). Un fallo de
+// construcción de la petición o de la config TLS se devuelve como un error normal
+// que se rinde como `EINVAL`.
+var (
+	errHTTPTimeout = errors.New("nu.http: timeout")
+)
+
+// httpError envuelve el error original con su código del core ya decidido, para
+// que `raiseHTTPError` no tenga que reinspeccionar nada bajo el token.
+type httpError struct {
+	code string
+	msg  string
+}
+
+func (e *httpError) Error() string { return e.msg }
+
+// raiseHTTPError mapea el error que `do` produjo (ya clasificado) a un error
+// estructurado del core (§1.4) y lo lanza hacia Lua. Es el único punto donde un
+// fallo de red cruza la frontera.
+func raiseHTTPError(L *lua.LState, err error) {
+	var he *httpError
+	if errors.As(err, &he) {
+		raiseError(L, he.code, he.msg, lua.LNil)
+		return
+	}
+	// No debería ocurrir (do siempre envuelve), pero por robustez: trátalo como
+	// transporte.
+	raiseError(L, CodeENET, err.Error(), lua.LNil)
+}
+
+// do ejecuta la petición HTTP completa **fuera del token** (no toca Lua): elige
+// el cliente (reutilizable o a medida), arma la `*http.Request`, la lanza, lee el
+// body entero (respuesta buffereada, §8) y devuelve `(status, headers, body, err)`.
+// `err != nil` solo para fallos de transporte/timeout/uso; un status ≥ 400 NO es
+// error (el status se devuelve como dato). Los errores ya vienen envueltos con su
+// código del core (`httpError`) para que la `deliverFn` los lance sin reinspección.
+func (st *httpState) do(o reqOpts) (int, map[string]string, string, error) {
+	client, err := st.clientFor(o)
+	if err != nil {
+		// Fallo al preparar el cliente (p. ej. la CA no se pudo leer): uso inválido.
+		return 0, nil, "", &httpError{code: CodeEINVAL, msg: err.Error()}
+	}
+
+	// Contexto con el plazo de la petición: `ETIMEOUT` cuando expira. Se usa
+	// `context.WithTimeout` en vez de `client.Timeout` para distinguir limpiamente
+	// el timeout del resto de fallos de transporte vía `ctx.Err()`.
+	ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
+	defer cancel()
+
+	var bodyReader io.Reader
+	if o.hasBody {
+		bodyReader = strings.NewReader(o.body)
+	}
+	req, err := http.NewRequestWithContext(ctx, o.method, o.rawURL, bodyReader)
+	if err != nil {
+		// URL inválida, método inválido: uso inválido (§1.4 EINVAL).
+		return 0, nil, "", &httpError{code: CodeEINVAL, msg: "nu.http.request: " + err.Error()}
+	}
+	for name, value := range o.headers {
+		req.Header.Set(name, value)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, nil, "", classifyTransportError(ctx, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		// Fallo leyendo el body (conexión cortada a media respuesta, timeout del
+		// idle): transporte/timeout, no un status.
+		return 0, nil, "", classifyTransportError(ctx, err)
+	}
+
+	return resp.StatusCode, flattenHeaders(resp.Header), string(body), nil
+}
+
+// classifyTransportError decide el código del core para un fallo de transporte.
+// Distingue el **timeout** (`ETIMEOUT`) —el contexto expiró o el error es de tipo
+// timeout— del resto de fallos de transporte (`ENET`: conexión rechazada, DNS,
+// reset). Mira primero `ctx.Err()` porque, cuando el contexto expira, el error de
+// `client.Do` suele envolver `context.DeadlineExceeded` pero no siempre se detecta
+// por `os.IsTimeout`.
+func classifyTransportError(ctx context.Context, err error) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		return &httpError{code: CodeETIMEOUT, msg: "nu.http.request: la petición excedió timeout_ms"}
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return &httpError{code: CodeETIMEOUT, msg: "nu.http.request: la petición excedió timeout_ms"}
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return &httpError{code: CodeETIMEOUT, msg: "nu.http.request: la petición excedió timeout_ms"}
+	}
+	if errors.Is(err, errHTTPTimeout) {
+		return &httpError{code: CodeETIMEOUT, msg: "nu.http.request: la petición excedió timeout_ms"}
+	}
+	return &httpError{code: CodeENET, msg: "nu.http.request: fallo de transporte: " + err.Error()}
+}
+
+// flattenHeaders convierte los headers de respuesta (`http.Header`, que es
+// nombre→[]valor por el modelo del protocolo) a la tabla nombre→valor que el
+// contrato pide (§8). **Decisión sobre valores múltiples (claude_decisions.md
+// S19):** se **unen por ", "** —la forma canónica de combinar headers repetidos
+// según RFC 7230 §3.2.2, válida para casi todos (la excepción notable, `Set-Cookie`,
+// no se parte por comas; un consumidor que necesite cookies crudas usará `stream`
+// en el futuro o no le sirve la API buffereada)—. Es predecible y reversible para
+// el caso común (un solo valor pasa intacto), y evita exponer arrays donde el 99 %
+// del código espera un string.
+func flattenHeaders(h http.Header) map[string]string {
+	out := make(map[string]string, len(h))
+	for name, values := range h {
+		out[name] = strings.Join(values, ", ")
+	}
+	return out
+}
+
+// clientFor elige el `*http.Client` para esta petición: el **reutilizable** del
+// caso común (cacheado, con pool de conexiones) o uno **a medida** efímero cuando
+// la petición pide TLS/proxy propios o hay defaults de `[net]` (G12). Es el
+// corazón del modelo de cliente de S19.
+func (st *httpState) clientFor(o reqOpts) (*http.Client, error) {
+	if !o.needsCustomClient(st) {
+		return st.reusableClient(), nil
+	}
+	return st.customClient(o)
+}
+
+// reusableClient devuelve el cliente del caso común, creándolo perezosamente la
+// primera vez. Usa la raíz de confianza del sistema y el proxy del entorno
+// (`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`, vía `http.ProxyFromEnvironment`). Se
+// reusa entre peticiones para aprovechar keep-alive; el candado serializa su
+// construcción frente a peticiones concurrentes. Sin `client.Timeout`: el plazo
+// va por el `context` de cada petición (`do`).
+func (st *httpState) reusableClient() *http.Client {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.reuseDflt == nil {
+		tr := newBaseTransport()
+		tr.Proxy = http.ProxyFromEnvironment
+		st.reuseDflt = &http.Client{Transport: tr}
+	}
+	return st.reuseDflt
+}
+
+// customClient construye un cliente efímero para una petición con TLS/proxy a
+// medida (G12). No se cachea: es la excepción, no el camino caliente. Resuelve la
+// CA (la de la petición si la dio, si no la de `[net]`), el flag `insecure` y el
+// proxy (el de la petición, el de `[net]`, o el del entorno).
+func (st *httpState) customClient(o reqOpts) (*http.Client, error) {
+	tlsCfg := &tls.Config{}
+
+	// `insecure`: desactiva la verificación del certificado del servidor. Solo para
+	// entornos de prueba; el contrato lo expone a sabiendas (G12).
+	if o.insecure {
+		tlsCfg.InsecureSkipVerify = true
+	}
+
+	// CA corporativa: la de la petición tiene precedencia sobre la de `[net]`.
+	caFile := st.caFile
+	if o.caFileSet {
+		caFile = o.caFile
+	}
+	if caFile != "" && !o.insecure {
+		pool, err := loadCAPool(caFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	tr := newBaseTransport()
+	tr.TLSClientConfig = tlsCfg
+
+	// Proxy: el de la petición tiene precedencia sobre el de `[net]`; sin ninguno,
+	// el del entorno (comportamiento por defecto).
+	proxyURL := st.proxy
+	if o.proxySet && o.proxy != "" {
+		proxyURL = o.proxy
+	}
+	if proxyURL != "" {
+		u, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, errors.New("nu.http.request: proxy inválido: " + err.Error())
+		}
+		tr.Proxy = http.ProxyURL(u)
+	} else {
+		tr.Proxy = http.ProxyFromEnvironment
+	}
+
+	return &http.Client{Transport: tr}, nil
+}
+
+// loadCAPool lee un fichero PEM con una o más CAs y devuelve un pool que las
+// confía **además** de las del sistema (parte de la raíz del sistema y le añade la
+// corporativa, en vez de sustituirla: lo que pide G12 es "añadir una CA", no
+// reemplazar la confianza). Un fichero ilegible o sin certificados válidos es un
+// error de uso (`EINVAL` arriba).
+func loadCAPool(caFile string) (*x509.CertPool, error) {
+	pem, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, errors.New("nu.http.request: no se pudo leer ca_file: " + err.Error())
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, errors.New("nu.http.request: ca_file no contiene certificados PEM válidos: " + caFile)
+	}
+	return pool, nil
+}
+
+// newBaseTransport crea un `http.Transport` con los timeouts de marcado y de
+// conexión inactiva razonables, sin proxy ni TLS fijados (cada llamante los pone).
+// Es la base común del cliente reutilizable y de los a medida, para que todos
+// tengan el mismo comportamiento de bajo nivel (keep-alive, límites de conexiones).
+func newBaseTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
+// close libera los recursos del cliente reutilizable (cierra las conexiones
+// inactivas del pool). Lo llama `Runtime.Close`. Best-effort: un cliente que no
+// llegó a crearse no tiene nada que cerrar.
+func (st *httpState) close() {
+	st.mu.Lock()
+	c := st.reuseDflt
+	st.mu.Unlock()
+	if c != nil {
+		c.CloseIdleConnections()
+	}
+}
