@@ -205,6 +205,15 @@ type scheduler struct {
 	// nunca). El mapa lo tocan `trackWs` (al conectar) y `untrackWs` (`Ws:close`).
 	ws map[*luaWs]struct{}
 
+	// greps son los iteradores de `nu.search.grep` vivos (S27). Se rastrean por la
+	// misma razón que `streams`/`procs`: cancelarlos todos en `Close` (`stopAllGreps`)
+	// para no dejar el pool de goroutines de fondo (las que recorren el árbol y casan
+	// el patrón) colgado tras el fin del proceso. Como un stream, un grep vivo **no**
+	// cuenta para la quiescencia: su fin de vida es alcanzar `max`/EOF o el `cleanup`
+	// de la task, no esperar a que el pool termine. El mapa lo tocan `trackGrep` (al
+	// crear el iterador) y `untrackGrep` (`grepIter.close`).
+	greps map[*grepIter]struct{}
+
 	// coToTask mapea el thread Lua de cada task viva (su `co`) a su `*task`. Lo
 	// usa `suspend` para observar el `cancelCh` de la task que se suspende (S07):
 	// quien suspende es la goroutine de esa task, que corre sobre `co == L`. Se
@@ -249,6 +258,7 @@ func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 		procs:    make(map[*luaProc]struct{}),
 		streams:  make(map[*httpStream]struct{}),
 		ws:       make(map[*luaWs]struct{}),
+		greps:    make(map[*grepIter]struct{}),
 		budget:   budget,
 	}
 	s.cond = sync.NewCond(&s.mu)
@@ -504,6 +514,42 @@ func (s *scheduler) stopAllWs() {
 	s.mu.Unlock()
 	for _, w := range ws {
 		w.close()
+	}
+}
+
+// trackGrep registra un iterador de `nu.search.grep` vivo (S27) para poder
+// cancelarlo al cerrar el runtime. Mismo patrón que `trackStream`. Se llama al
+// crear el iterador (bajo el token, en `searchGrep`).
+func (s *scheduler) trackGrep(it *grepIter) {
+	s.mu.Lock()
+	s.greps[it] = struct{}{}
+	s.mu.Unlock()
+}
+
+// untrackGrep deja de rastrear un grep cerrado (`grepIter.close`). Idempotente:
+// quitar uno que ya no está es inocuo. Lo llama `grepIter.close`, que ya es
+// idempotente por su `closeOnce`.
+func (s *scheduler) untrackGrep(it *grepIter) {
+	s.mu.Lock()
+	delete(s.greps, it)
+	s.mu.Unlock()
+}
+
+// stopAllGreps cancela todos los greps vivos. Lo llama `Runtime.Close`: ningún
+// pool de goroutines de fondo (recorrido del árbol + casado del patrón) debe
+// sobrevivir al proceso de `nu`. `grepIter.close` es idempotente (`closeOnce`),
+// así que cancelar uno ya cerrado es inocuo. Se copia el conjunto antes de iterar
+// porque `close` llama a `untrackGrep`, que toca el mapa bajo el mismo candado.
+func (s *scheduler) stopAllGreps() {
+	s.mu.Lock()
+	its := make([]*grepIter, 0, len(s.greps))
+	for it := range s.greps {
+		its = append(its, it)
+	}
+	s.greps = make(map[*grepIter]struct{})
+	s.mu.Unlock()
+	for _, it := range its {
+		it.close()
 	}
 }
 

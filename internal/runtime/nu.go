@@ -119,6 +119,17 @@ func registerNu(rt *Runtime) {
 	// `string.find`, y `replace` usa la sintaxis de `repl` de Go (`$1`/`${name}`).
 	rt.registerRe(nu)
 
+	// `nu.search` (§11, S27): búsqueda a escala de repo. `files` (recursivo,
+	// respeta `.gitignore`) y `grep` (iterador paralelo) son ⏸ (sobre el puente
+	// `suspend` de S04): sueltan el token y hacen el recorrido/casado en goroutines
+	// de fondo que jamás tocan Lua. `grep` arranca un pool de goroutines que casan
+	// el patrón (RE2, S26) e itera matches `{path, line_no, line, ranges}` según
+	// llegan, con la vida atada a la task vía `nu.task.cleanup`. `fuzzy` es síncrono
+	// (NO ⏸): es la primitiva caliente del picker, ordena por score de forma estable.
+	// `search` es [W] (§16; hoy en el estado principal, los workers son S34). Cierra
+	// la Fase 5.
+	rt.registerSearch(nu)
+
 	// `nu.ui` (§9.2, S22): por ahora solo `block`/`caps` + el parseo de `Style` y la
 	// metatabla del tipo opaco `Block`. El compositor (regiones/blit/input) es
 	// S28–S31 y el gating headless (G20) es S32; en S22 `nu.ui` se cuelga SIEMPRE

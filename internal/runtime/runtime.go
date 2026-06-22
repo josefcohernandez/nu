@@ -286,6 +286,10 @@ func (rt *Runtime) Close() {
 		// deben sobrevivir al proceso (red de seguridad, tras el `cleanup` de quien abrió
 		// el websocket).
 		rt.sched.stopAllWs()
+		// Cancela los `nu.search.grep` vivos (S27): sus pools de goroutines de fondo
+		// (recorrido del árbol + casado del patrón) no deben sobrevivir al proceso (red
+		// de seguridad, tras el `cleanup` de la task que consume el iterador).
+		rt.sched.stopAllGreps()
 	}
 	// Borra el directorio temporal de la sesión (`nu.fs.tmpdir`, §5) si llegó a
 	// crearse: el scratch no debe sobrevivir al proceso.

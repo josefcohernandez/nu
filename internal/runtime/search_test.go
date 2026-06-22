@@ -1,0 +1,554 @@
+package runtime
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	lua "github.com/yuin/gopher-lua"
+)
+
+// setRoot registra un global Lua `ROOT` con la ruta `root`, para que los snippets
+// la usen al construir rutas de búsqueda (mismo idioma que `BASE` en fs_test).
+func setRoot(h *harness, root string) {
+	h.register("rootPath", func(L *lua.LState) int {
+		L.Push(lua.LString(root))
+		return 1
+	})
+	h.eval(`ROOT = rootPath()`)
+}
+
+// Tests de `nu.search` (S27, api.md §11; inventario 🔒). Tres bloques de lógica
+// a blindar:
+//
+//   - `files` respeta `.gitignore` (G7): ignorado NO aparece, no-ignorado SÍ;
+//     `glob` filtra; `hidden` controla ocultos; `max` corta.
+//   - `fuzzy` ordena por score de forma ESTABLE: empates conservan el orden de
+//     entrada; no-match excluidos; `index` 1-based.
+//   - `grep` itera según llegan: encuentra todos los matches con
+//     `{path, line_no, line, ranges}`; ranges byte 1-based (coherente con S26);
+//     el pool paralelo no pierde ni duplica; `max` corta; respeta gitignore/
+//     glob/case.
+//
+// Las pruebas son **herméticas**: montan un árbol de ficheros en un `t.TempDir()`
+// y operan sobre él, sin red ni dependencias externas. Las primitivas ⏸
+// (`files`/`grep`) se ejercitan desde una task (lo exige el puente, §1.3); el
+// resultado se expone por un global que la prueba lee tras `waitIdle` (idiomático
+// del arnés, como en fs_test/re_test).
+
+// makeSearchTree monta bajo un TempDir un árbol con `.gitignore`, ficheros
+// normales, un fichero ignorado, un fichero oculto y un subdirectorio. Devuelve la
+// raíz. Es el escenario común de los tests de `files`/`grep`.
+func makeSearchTree(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	write := func(rel, content string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write(".gitignore", "ignored.txt\n*.log\nbuild/\n")
+	write("a.go", "package main\nfunc Hello() {}\n// TODO: algo\n")
+	write("b.txt", "hola mundo\nsegunda linea TODO\n")
+	write("sub/c.go", "package sub\n// TODO en sub\nfunc World() {}\n")
+	write("ignored.txt", "esto esta ignorado por gitignore\n")
+	write("debug.log", "esto tambien (por *.log)\n")
+	write("build/out.bin", "artefacto ignorado por build/\n")
+	write(".hidden.txt", "fichero oculto\n")
+	write(".secretdir/d.go", "package secret\n")
+	return root
+}
+
+// --- nu.search.files (🔒: respeta .gitignore) ---------------------------------
+
+// TestSearchFilesGitignore blinda que `files` respeta `.gitignore` (G7,
+// inventario 🔒): el fichero ignorado NO aparece, el no-ignorado SÍ, un
+// directorio ignorado se poda entero, y `.git/`/ocultos quedan fuera por defecto.
+func TestSearchFilesGitignore(t *testing.T) {
+	h := newHarness(t)
+	root := makeSearchTree(t)
+	// Un .git/ interno con un fichero: debe podarse siempre (ruido universal).
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".git", "config"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setRoot(h, root)
+
+	got := searchFilesList(h, `nu.search.files(ROOT)`)
+	want := []string{"a.go", "b.txt", "sub/c.go"}
+	assertRelPaths(t, root, got, want)
+}
+
+// TestSearchFilesHidden blinda `opts.hidden`: por defecto los ocultos quedan
+// fuera; con `hidden = true` aparecen (salvo `.git/`, ruido permanente). El
+// fichero ignorado por gitignore sigue excluido aunque `hidden` esté activo.
+func TestSearchFilesHidden(t *testing.T) {
+	h := newHarness(t)
+	root := makeSearchTree(t)
+	setRoot(h, root)
+
+	got := searchFilesList(h, `nu.search.files(ROOT, { hidden = true })`)
+	// Con hidden: aparecen `.gitignore`, `.hidden.txt` y `.secretdir/d.go` (todos
+	// ficheros ocultos reales); siguen fuera los ignorados por gitignore
+	// (ignored.txt, debug.log, build/out.bin). El `.gitignore` es un fichero más:
+	// no se autoexcluye (sus patrones no lo nombran), y con hidden=true se lista.
+	want := []string{".gitignore", ".hidden.txt", ".secretdir/d.go", "a.go", "b.txt", "sub/c.go"}
+	assertRelPaths(t, root, got, want)
+}
+
+// TestSearchFilesGlob blinda `opts.glob`: filtra por el nombre base; solo los
+// ficheros que casan el patrón aparecen, y el gitignore sigue aplicándose.
+func TestSearchFilesGlob(t *testing.T) {
+	h := newHarness(t)
+	root := makeSearchTree(t)
+	setRoot(h, root)
+
+	got := searchFilesList(h, `nu.search.files(ROOT, { glob = "*.go" })`)
+	want := []string{"a.go", "sub/c.go"}
+	assertRelPaths(t, root, got, want)
+}
+
+// TestSearchFilesMax blinda `opts.max`: corta el listado a N resultados.
+func TestSearchFilesMax(t *testing.T) {
+	h := newHarness(t)
+	root := makeSearchTree(t)
+	setRoot(h, root)
+
+	got := searchFilesList(h, `nu.search.files(ROOT, { max = 2 })`)
+	if len(got) != 2 {
+		t.Fatalf("max=2: got %d resultados %q, want 2", len(got), got)
+	}
+}
+
+// TestSearchFilesErrors blinda los caminos de error: `root` inexistente →
+// `ENOENT`; `opts` no-tabla y `opts.glob`/`opts.max` con tipo malo → `EINVAL`;
+// fuera de una task → `EINVAL`.
+func TestSearchFilesErrors(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	setRoot(h, root)
+
+	// root inexistente → ENOENT (desde una task, capturado y reexpuesto).
+	h.eval(`
+		ERRC = nil
+		nu.task.spawn(function()
+			local ok, e = pcall(function() return nu.search.files(ROOT .. "/no-existe") end)
+			ERRC = ok and "no-error" or e.code
+		end)
+	`)
+	h.expectEval(`return ERRC`, "ENOENT")
+
+	// opts no-tabla, glob no-string, max no-número → EINVAL.
+	h.eval(`
+		E2,E3,E4 = nil,nil,nil
+		nu.task.spawn(function()
+			local _, a = pcall(function() return nu.search.files(ROOT, 5) end)
+			E2 = a.code
+			local _, b = pcall(function() return nu.search.files(ROOT, { glob = 7 }) end)
+			E3 = b.code
+			local _, c = pcall(function() return nu.search.files(ROOT, { max = "x" }) end)
+			E4 = c.code
+		end)
+	`)
+	h.expectEval(`return E2`, "EINVAL")
+	h.expectEval(`return E3`, "EINVAL")
+	h.expectEval(`return E4`, "EINVAL")
+
+	// Fuera de una task (en el chunk principal) → EINVAL (no se puede suspender).
+	se := h.evalErr(`return nu.search.files(ROOT)`)
+	if se.Code != CodeEINVAL {
+		t.Fatalf("files fuera de task: got %s, want EINVAL", se.Code)
+	}
+}
+
+// --- nu.search.fuzzy (🔒: ordena por score de forma estable) ------------------
+
+// TestSearchFuzzyOrder blinda que `fuzzy` ordena por score descendente, excluye
+// los que no casan y devuelve `index` 1-based correcto.
+func TestSearchFuzzyOrder(t *testing.T) {
+	h := newHarness(t)
+	// "abc" casa "abc" (1, contiguo desde el inicio), "axbxc" (2, disperso) y
+	// "xxabc" (4, contiguo pero no al inicio). "zzz" (3) no casa → excluido.
+	h.eval(`
+		R = nu.search.fuzzy("abc", { "abc", "axbxc", "zzz", "xxabc" })
+		IDX, SCORE = {}, {}
+		for i,m in ipairs(R) do IDX[i] = m.index; SCORE[i] = m.score end
+		N = #R
+	`)
+	h.expectEval(`return tostring(N)`, "3") // "zzz" excluido
+	// El mejor es "abc" (índice 1: primer carácter + contigüidad). El peor de los
+	// tres es "axbxc" (disperso). "xxabc" queda en medio (contiguo, no al inicio).
+	h.expectEval(`return tostring(IDX[1])`, "1")
+	// Score estrictamente descendente.
+	h.eval(`
+		DESC = true
+		for i = 2, #R do if SCORE[i] > SCORE[i-1] then DESC = false end end
+	`)
+	h.expectEval(`return tostring(DESC)`, "true")
+	// El no-match ("zzz", índice 3) nunca aparece.
+	h.eval(`
+		HAS3 = false
+		for _,v in ipairs(IDX) do if v == 3 then HAS3 = true end end
+	`)
+	h.expectEval(`return tostring(HAS3)`, "false")
+}
+
+// TestSearchFuzzyStable es el test ESTRELLA del inventario 🔒: los empates por
+// score conservan el orden de ENTRADA (estabilidad). Se construyen candidatos
+// idénticos (mismo texto → mismo score) y se exige que salgan en su orden
+// original 1,2,3,4 —no barajados—.
+func TestSearchFuzzyStable(t *testing.T) {
+	h := newHarness(t)
+	// Cuatro candidatos idénticos: todos casan "ab" con EXACTAMENTE el mismo score.
+	// Un orden estable debe devolverlos en orden de entrada (1,2,3,4).
+	h.eval(`
+		R = nu.search.fuzzy("ab", { "ab", "ab", "ab", "ab" })
+		ORDER = {}
+		for i,m in ipairs(R) do ORDER[i] = m.index end
+	`)
+	h.expectEval(`return #R == 4 and tostring(ORDER[1]..ORDER[2]..ORDER[3]..ORDER[4])`, "1234")
+
+	// Caso mixto: dos grupos de empate. "aa" y "ba" tienen scores distintos entre
+	// grupos, pero dentro de cada grupo (mismos textos) el orden de entrada se
+	// preserva. Candidatos: [aXa, bXa, aYa, bYa] con query "a" → todos casan; los
+	// que empiezan por "a" (índices 1,3) puntúan más (primer carácter). Estables:
+	// dentro del grupo alto debe salir 1 antes que 3; en el bajo, 2 antes que 4.
+	h.eval(`
+		R2 = nu.search.fuzzy("a", { "aXa", "bXa", "aYa", "bYa" })
+		O2 = {}
+		for i,m in ipairs(R2) do O2[i] = m.index end
+	`)
+	// Grupo alto (empieza por a): 1 antes que 3. Grupo bajo: 2 antes que 4.
+	h.eval(`
+		function posOf(arr, v) for i,x in ipairs(arr) do if x==v then return i end end return -1 end
+		STABLE = posOf(O2,1) < posOf(O2,3) and posOf(O2,2) < posOf(O2,4)
+	`)
+	h.expectEval(`return tostring(STABLE)`, "true")
+}
+
+// TestSearchFuzzyEmptyAndMax blinda: query vacío casa todo (con score 0,
+// preservando el orden); `opts.max` recorta a los N mejores; opts/candidatos
+// malos → EINVAL.
+func TestSearchFuzzyEmptyAndMax(t *testing.T) {
+	h := newHarness(t)
+	// Query vacío: casa todo, orden de entrada (todos score 0, estable).
+	h.eval(`
+		RE = nu.search.fuzzy("", { "x", "y", "z" })
+		EORDER = {}
+		for i,m in ipairs(RE) do EORDER[i] = m.index end
+	`)
+	h.expectEval(`return #RE == 3 and tostring(EORDER[1]..EORDER[2]..EORDER[3])`, "123")
+
+	// max recorta.
+	h.eval(`RM = nu.search.fuzzy("a", { "a", "ba", "xa", "aa" }, { max = 2 })`)
+	h.expectEval(`return tostring(#RM)`, "2")
+
+	// candidatos con un no-string → EINVAL; opts no-tabla → EINVAL.
+	se := h.evalErr(`return nu.search.fuzzy("a", { "ok", 5 })`)
+	if se.Code != CodeEINVAL {
+		t.Fatalf("fuzzy candidato no-string: got %s, want EINVAL", se.Code)
+	}
+	se2 := h.evalErr(`return nu.search.fuzzy("a", { "ok" }, 5)`)
+	if se2.Code != CodeEINVAL {
+		t.Fatalf("fuzzy opts no-tabla: got %s, want EINVAL", se2.Code)
+	}
+}
+
+// TestFuzzyScoreUnit es la prueba unitaria directa del scorer (lógica nuestra):
+// subsecuencia, case-insensitive, bonus de inicio de palabra/contigüidad, y
+// no-match cuando un carácter falta o el orden no se respeta.
+func TestFuzzyScoreUnit(t *testing.T) {
+	cases := []struct {
+		query, cand string
+		wantMatch   bool
+	}{
+		{"abc", "abc", true},     // exacto
+		{"abc", "aXbXc", true},   // subsecuencia dispersa
+		{"abc", "ABC", true},     // case-insensitive
+		{"abc", "ab", false},     // falta 'c'
+		{"cba", "abc", false},    // orden no respetado
+		{"", "cualquiera", true}, // query vacío casa todo
+		{"go", "main.go", true},  // sufijo
+		{"", "", true},           // ambos vacíos
+		{"x", "", false},         // query no vacío contra cand vacío
+	}
+	for _, c := range cases {
+		_, ok := fuzzyScore(c.query, c.cand)
+		if ok != c.wantMatch {
+			t.Errorf("fuzzyScore(%q,%q): match=%v, want %v", c.query, c.cand, ok, c.wantMatch)
+		}
+	}
+
+	// Un acierto al inicio de palabra (tras separador) puntúa más que uno en medio.
+	// "ab" en "x_ab" (la 'a' tras '_' es inicio de palabra) > "ab" en "xab".
+	sBoundary, _ := fuzzyScore("ab", "x_ab")
+	sMid, _ := fuzzyScore("ab", "xyab")
+	if sBoundary <= sMid {
+		t.Errorf("bonus inicio de palabra: x_ab=%d debe superar a xyab=%d", sBoundary, sMid)
+	}
+
+	// Un match contiguo puntúa más que uno disperso para la misma query.
+	sContig, _ := fuzzyScore("abc", "abc")
+	sSparse, _ := fuzzyScore("abc", "axbxc")
+	if sContig <= sSparse {
+		t.Errorf("bonus contigüidad: abc=%d debe superar a axbxc=%d", sContig, sSparse)
+	}
+}
+
+// --- nu.search.grep (🔒: itera según llegan, ranges, paralelo, max) -----------
+
+// TestSearchGrepAll blinda que `grep` encuentra TODOS los matches con la forma
+// `{path, line_no, line, ranges}` correcta, que los ranges (byte 1-based
+// inclusive, coherente con `nu.re.find_all` de S26) reconstruyen el match por
+// `line:sub`, y que el pool paralelo no pierde ni duplica resultados (respeta
+// gitignore: el match en el fichero ignorado no aparece).
+func TestSearchGrepAll(t *testing.T) {
+	h := newHarness(t)
+	root := makeSearchTree(t)
+	setRoot(h, root)
+
+	// "TODO" aparece en a.go (1), b.txt (1) y sub/c.go (1): 3 matches. El fichero
+	// ignored.txt/debug.log/build NO deben contribuir (gitignore).
+	h.eval(`
+		MATCHES = {}
+		SUBOK = true
+		nu.task.spawn(function()
+			for r in nu.search.grep("TODO", { root = ROOT }) do
+				MATCHES[#MATCHES+1] = { path = r.path, line_no = r.line_no, line = r.line }
+				-- ranges reconstruyen el match exacto por line:sub (S26).
+				local rg = r.ranges[1]
+				if r.line:sub(rg[1], rg[2]) ~= "TODO" then SUBOK = false end
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(#MATCHES)`, "3")
+	h.expectEval(`return tostring(SUBOK)`, "true")
+
+	// line_no correcto (1-based) y line completa: comprobamos que ninguna línea
+	// trae el '\n' y que line_no >= 1.
+	h.eval(`
+		LNOK = true
+		for _,m in ipairs(MATCHES) do
+			if m.line_no < 1 then LNOK = false end
+			if m.line:find("\n") then LNOK = false end
+		end
+	`)
+	h.expectEval(`return tostring(LNOK)`, "true")
+}
+
+// TestSearchGrepGlobCaseMax blinda glob (restringe ficheros), case
+// (sensible/insensible) y max (corta).
+func TestSearchGrepGlobCaseMax(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	mk := func(rel, content string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("x.go", "hello\nHELLO\nhello\n")
+	mk("y.txt", "hello en txt\n")
+	setRoot(h, root)
+
+	// glob *.go: solo x.go. case sensible: "hello" en minúscula → 2 líneas.
+	h.eval(`
+		N_GLOB = 0
+		nu.task.spawn(function()
+			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "sensitive" }) do
+				N_GLOB = N_GLOB + 1
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(N_GLOB)`, "2")
+
+	// case insensible en x.go: "hello"/"HELLO"/"hello" → 3 líneas.
+	h.eval(`
+		N_CI = 0
+		nu.task.spawn(function()
+			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive" }) do
+				N_CI = N_CI + 1
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(N_CI)`, "3")
+
+	// max corta: con max=1 sobre x.go (3 matches insensibles) → exactamente 1.
+	h.eval(`
+		N_MAX = 0
+		nu.task.spawn(function()
+			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive", max = 1 }) do
+				N_MAX = N_MAX + 1
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(N_MAX)`, "1")
+}
+
+// TestSearchGrepParallelComplete es el test anti-pérdida/duplicado del pool
+// paralelo: muchos ficheros, cada uno con un número conocido de matches, y se
+// exige que el TOTAL recolectado sea exacto y que cada fichero aparezca con
+// todas sus líneas (sin perder ni duplicar pese a las goroutines concurrentes).
+func TestSearchGrepParallelComplete(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	const nFiles = 50
+	const perFile = 3 // líneas con "MARK" por fichero
+	for i := 0; i < nFiles; i++ {
+		p := filepath.Join(root, "f"+itoa(i)+".txt")
+		content := ""
+		for j := 0; j < perFile; j++ {
+			content += "MARK aqui\n"
+			content += "ruido sin nada\n"
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setRoot(h, root)
+
+	h.eval(`
+		TOTAL = 0
+		PERPATH = {}
+		nu.task.spawn(function()
+			for r in nu.search.grep("MARK", { root = ROOT }) do
+				TOTAL = TOTAL + 1
+				PERPATH[r.path] = (PERPATH[r.path] or 0) + 1
+			end
+		end)
+	`)
+	// nFiles * perFile matches en total, sin pérdidas ni duplicados.
+	h.expectEval(`return tostring(TOTAL)`, itoa(nFiles*perFile))
+	// Cada fichero aportó exactamente perFile (ningún fichero perdido/duplicado).
+	h.eval(`
+		ALLOK = true
+		local count = 0
+		for _,v in pairs(PERPATH) do count = count + 1; if v ~= ` + itoa(perFile) + ` then ALLOK = false end end
+		if count ~= ` + itoa(nFiles) + ` then ALLOK = false end
+	`)
+	h.expectEval(`return tostring(ALLOK)`, "true")
+}
+
+// TestSearchGrepEarlyStopNoLeak blinda que cerrar el iterador antes de drenarlo
+// (un `break` en el `for`, o alcanzar `max`) no deja goroutines del pool
+// colgadas: tras la task, el número de goroutines vuelve a la línea base. Es el
+// criterio "sin fugas de goroutine" del DoD.
+func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	// Bastantes ficheros con muchos matches: el pool tendrá trabajo de sobra
+	// cuando el consumidor abandone tras el primer match.
+	for i := 0; i < 40; i++ {
+		content := ""
+		for j := 0; j < 100; j++ {
+			content += "NEEDLE en linea\n"
+		}
+		if err := os.WriteFile(filepath.Join(root, "g"+itoa(i)+".txt"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setRoot(h, root)
+
+	base := runtime.NumGoroutine()
+	h.eval(`
+		FIRST = nil
+		nu.task.spawn(function()
+			for r in nu.search.grep("NEEDLE", { root = ROOT }) do
+				FIRST = r.path
+				break -- abandona el iterador con el pool aún trabajando
+			end
+		end)
+	`)
+	h.expectEval(`return type(FIRST)`, "string")
+
+	// El cleanup de la task (cancela el contexto del grep) corre al terminar la
+	// task. Damos un margen a que las goroutines del pool drenen y comparamos con
+	// la base con holgura (otras goroutines del runtime fluctúan).
+	if !eventuallyLeqGoroutines(base+5, 2_000) {
+		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
+	}
+}
+
+// --- helpers ------------------------------------------------------------------
+
+// searchFilesList corre una expresión `nu.search.files(...)` desde una task y
+// devuelve las rutas resultantes (ordenadas para comparación determinista).
+func searchFilesList(h *harness, expr string) []string {
+	h.t.Helper()
+	h.eval(`
+		FILES_RESULT = nil
+		nu.task.spawn(function()
+			FILES_RESULT = ` + expr + `
+		end)
+	`)
+	// Lee el array resultante a Go vía un global serializado a líneas con \n.
+	h.eval(`
+		FILES_JOINED = table.concat(FILES_RESULT, "\n")
+	`)
+	joined := h.eval(`return FILES_JOINED`)
+	if len(joined) != 1 {
+		h.t.Fatalf("FILES_JOINED inesperado: %q", joined)
+	}
+	if joined[0] == "" {
+		return nil
+	}
+	out := strings.Split(joined[0], "\n")
+	sort.Strings(out)
+	return out
+}
+
+// eventuallyLeqGoroutines espera hasta `timeoutMs` a que el número de goroutines
+// caiga a `limit` o menos, sondeando con `runtime.GC` para que las goroutines
+// terminadas se contabilicen. Devuelve true si lo logra. Se usa para detectar
+// fugas tras un early-stop del grep, con holgura frente a las goroutines del
+// runtime que fluctúan (no es un número exacto, sino "no creció sin acotar").
+func eventuallyLeqGoroutines(limit, timeoutMs int) bool {
+	deadline := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
+	for {
+		runtime.GC()
+		if runtime.NumGoroutine() <= limit {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return runtime.NumGoroutine() <= limit
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// assertRelPaths comprueba que `got` (rutas absolutas devueltas por `files`)
+// coincide, una vez relativizado a `root` y ordenado, con `want`.
+func assertRelPaths(t *testing.T, root string, got, want []string) {
+	t.Helper()
+	rels := make([]string, 0, len(got))
+	for _, p := range got {
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			t.Fatalf("Rel(%s,%s): %v", root, p, err)
+		}
+		rels = append(rels, filepath.ToSlash(rel))
+	}
+	sort.Strings(rels)
+	sort.Strings(want)
+	if len(rels) != len(want) {
+		t.Fatalf("rutas: got %v, want %v", rels, want)
+	}
+	for i := range want {
+		if rels[i] != want[i] {
+			t.Fatalf("ruta %d: got %q, want %q (todas: got %v want %v)", i, rels[i], want[i], rels, want)
+		}
+	}
+}
