@@ -164,10 +164,34 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
 3. **Diseño de la API pública del toolkit oficial** (vocabulario de widgets,
    layout, slots, focus): no es API sagrada del core, pero el ecosistema
    heredará su calidad.
-4. **Contrato de la extensión MCP**: citada en toda la documentación
+4. ~~**Contrato de la extensión MCP**: citada en toda la documentación
    (ADR-003, [agente.md](agente.md) §3, capa 2) pero sin documento propio —
    formato de configuración (qué servidores, cómo se declaran), ciclo de
-   vida de los procesos, mapeo de tools y de su confianza.
+   vida de los procesos, mapeo de tools y de su confianza.~~ **RESUELTA** por
+   la implementación de S41 (extensión `mcp`, [implementacion.md](implementacion.md)).
+   El contrato quedó fijado al construirla —Lua puro sobre la API pública, sin
+   tocar el core (corolario de completitud satisfecho)—:
+   - **Configuración** (división datos/código, ADR-005): los servidores se
+     DECLARAN en `mcp.toml` (`nu.config.dir()`), formato
+     `[servers.<nombre>] command = [...] cwd? env?`. Ausente → no se conecta
+     nada. También se conectan a mano con `mcp.connect{ name, command, cwd?,
+     env? } ⏸ -> Conn`.
+   - **Ciclo de vida de los procesos**: el servidor se lanza con
+     `nu.proc.spawn`, vive mientras su `Conn` exista, y se mata limpiamente
+     (`Proc:kill` registrado en `nu.task.cleanup` + `Conn:close()` idempotente,
+     [api.md](api.md) §6). Un servidor que muere (EOF en stdout) despierta a
+     todos los requests pendientes con `EMCP` (nadie cuelga). El diálogo es
+     JSON-RPC 2.0 sobre stdio con **framing por líneas** (una línea = un mensaje
+     JSON), demultiplexado por `id` con una task lectora dedicada.
+   - **Mapeo de tools y de su confianza**: cada tool anunciada por el servidor
+     (`tools/list`) se registra con `agent.tool{...}` ([agente.md](agente.md)
+     §3) bajo el prefijo `mcp__<servidor>__<tool>`; su handler hace `tools/call`
+     por JSON-RPC. La **confianza** —son tools de TERCEROS— se gobierna con el
+     pipeline de permisos del agente ([agente.md](agente.md) §5): se registran
+     con `permissions.default = "ask"`, así que requieren permiso explícito
+     (`allow = {"mcp__<servidor>__*"}`) y en headless sin él se DENIEGAN con
+     error accionable. No hay caso especial: una tool MCP pasa por la misma
+     valla que cualquier otra.
 5. **Superficie CLI**: `nu -e` y `--auto-permissions` aparecen en los
    contratos sin especificación propia (flags, subcomandos, comportamiento
    headless, códigos de salida). El azúcar de reanudación (un `--continue`
