@@ -192,6 +192,42 @@ requires = ["base", "ui"]
 	}
 }
 
+// TestTOMLDecodeArrayDeTablas blinda que `nu.toml.decode` convierte un
+// **array-de-tablas** (`[[...]]`) a una lista Lua de tablas, no a un string.
+// BurntSushi/toml entrega ese caso como el tipo concreto `[]map[string]interface{}`
+// (no el `[]interface{}` "abierto"), que el puente `goToLua` ignoraba y *estringaba*
+// (`"[map[id:big-1]]"`). Es el formato CENTRAL de `providers.toml` (providers.md
+// §1, S36): una regresión aquí rompe el registro de modelos por completo.
+func TestTOMLDecodeArrayDeTablas(t *testing.T) {
+	h := newHarness(t)
+	h.expectEval(`
+		local doc = [==[
+[providers.testco]
+adapter = "stub"
+
+[[providers.testco.models]]
+id = "big-1"
+context = 200000
+cost = { input = 5.0, output = 25.0 }
+aliases = ["big"]
+
+[[providers.testco.models]]
+id = "small-1"
+]==]
+		local d = nu.toml.decode(doc)
+		local models = d.providers.testco.models
+		assert(type(models) == "table", "models es una tabla, no "..type(models))
+		assert(#models == 2, "dos modelos, hay "..tostring(#models))
+		assert(models[1].id == "big-1", "primer id")
+		assert(models[1].context == 200000, "context numérico")
+		-- Tabla inline anidada dentro del elemento del array.
+		assert(models[1].cost.input == 5.0, "cost.input anidado")
+		assert(models[1].aliases[1] == "big", "aliases lista anidada")
+		assert(models[2].id == "small-1", "segundo id")
+		return "ok"
+	`, "ok")
+}
+
 // TestYAMLFrontmatterSkill blinda el round-trip de un frontmatter de skill típico
 // (claves, listas, strings) —el uso que motiva añadir YAML (§12: "metadatos del
 // ecosistema existente", "demasiado traicionero para Lua puro")—.

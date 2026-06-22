@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"unicode/utf8"
 
@@ -278,6 +279,41 @@ func (rt *Runtime) goToLua(L *lua.LState, v interface{}, useNull bool) lua.LValu
 		}
 		return obj
 	default:
+		// Las librerías de decodificación no siempre entregan los tipos "abiertos"
+		// `[]interface{}`/`map[string]interface{}`: BurntSushi/toml, al decodificar
+		// un array-de-tablas (`[[providers.x.models]]`), devuelve el tipo CONCRETO
+		// `[]map[string]interface{}` (y, en general, otras librerías pueden dar
+		// `[]string`, `map[string]string`, etc.). Sin esto caían en el último
+		// recurso de abajo y se *estringaban* (`"[map[id:big-1]]"`), rompiendo el
+		// round-trip de cualquier registro TOML con array-de-tablas —el formato
+		// central de `providers.toml` (providers.md §1)—. Reflexión genérica sobre
+		// slices y maps para cubrir cualquier tipo concreto sin enumerarlos.
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Slice, reflect.Array:
+			arr := L.NewTable()
+			for i := 0; i < rv.Len(); i++ {
+				arr.Append(rt.goToLua(L, rv.Index(i).Interface(), useNull))
+			}
+			return arr
+		case reflect.Map:
+			obj := L.NewTable()
+			// Orden estable de claves (determinismo de trazas/tests), como en el
+			// caso `map[string]interface{}`.
+			mk := rv.MapKeys()
+			keys := make([]string, 0, len(mk))
+			km := make(map[string]reflect.Value, len(mk))
+			for _, k := range mk {
+				ks := fmt.Sprintf("%v", k.Interface())
+				keys = append(keys, ks)
+				km[ks] = k
+			}
+			sort.Strings(keys)
+			for _, ks := range keys {
+				obj.RawSetString(ks, rt.goToLua(L, rv.MapIndex(km[ks]).Interface(), useNull))
+			}
+			return obj
+		}
 		// Tipo Go inesperado de una librería: lo serializamos a string como último
 		// recurso en vez de fallar (no debería ocurrir con los Unmarshal usados).
 		return lua.LString(fmt.Sprintf("%v", val))
