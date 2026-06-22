@@ -1,0 +1,9 @@
+nu
+Copyright 2026 Diego Barea
+
+Este producto se distribuye bajo la Apache License 2.0 (ver el fichero LICENSE).
+
+`nu` es un binario Go estático que embebe (vía go:embed) extensiones oficiales
+escritas en Lua. Las dependencias de terceros conservan sus propias licencias
+(declaradas en go.mod / go.sum); su inclusión no altera la titularidad de este
+producto.

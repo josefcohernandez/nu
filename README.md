@@ -1,12 +1,46 @@
 # nu
 
+[![CI](https://github.com/dbareagimeno/nu/actions/workflows/ci.yml/badge.svg)](https://github.com/dbareagimeno/nu/actions/workflows/ci.yml)
+
 > Un runtime de Lua orientado a terminal cuya killer app es un coding
 > harness. Un binario Go, kernel mínimo, y todo lo demás — incluido el
 > propio agente — extensiones Lua.
 
-Estado: **fase de diseño**. Aún no hay código; estos documentos *son* el
-proyecto. La API se valida escribiendo pseudocódigo contra ella antes de
-congelarla.
+Estado: **kernel construido** (las 45 sesiones del [plan de
+implementación](docs/implementacion.md) están cerradas; un binario Go estático,
+sin CGO, con las extensiones oficiales embebidas). El método del proyecto sigue
+siendo el mismo que lo hizo posible: el diseño se decide en `docs/` y la API se
+valida escribiendo pseudocódigo contra ella antes de congelarla —esos documentos
+*son* la espec, y el código la implementa, nunca al revés.
+
+## Instalación
+
+Cada release publica el binario estático para las plataformas objetivo. Descarga
+el `.tar.gz` de tu sistema de la [última
+release](https://github.com/dbareagimeno/nu/releases/latest), descomprímelo y
+ponlo en el `PATH`:
+
+```sh
+# Ajusta VERSIÓN y la plataforma (linux/darwin × amd64/arm64).
+tar -xzf nu-vVERSIÓN-linux-amd64.tar.gz
+chmod +x nu
+sudo mv nu /usr/local/bin/
+nu -e 'return nu.version'   # comprueba la instalación (headless, sin TTY)
+```
+
+Verifica la integridad con el `checksums.txt` que acompaña a cada release
+(`sha256sum -c checksums.txt`).
+
+El binario no tiene dependencias dinámicas (`CGO_ENABLED=0`): corre tal cual en
+cualquier distro o contenedor. En **Windows**, `nu` se usa vía **WSL2** con el
+binario de `linux/amd64` (el Windows nativo está pospuesto, ver
+[`docs/pospuesto.md`](docs/pospuesto.md) P18).
+
+También puedes compilarlo desde el código con Go (la versión está en `go.mod`):
+
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o nu .
+```
 
 ## Documentación
 
@@ -35,3 +69,14 @@ Proceso y registro de trabajo:
 - [Problemas abiertos](docs/problemas.md) — grietas que la v1 necesita cerradas
 - [Pospuesto](docs/pospuesto.md) — lo que decidimos no decidir todavía, con su disparador
 - [Plan de implementación](docs/implementacion.md) — la secuencia de construcción, una feature por sesión
+
+## Licencia y contribuciones
+
+`nu` es software libre bajo la [Apache License 2.0](LICENSE) (permisiva, con
+concesión de patentes). Eres libre de usarlo, estudiarlo, modificarlo y
+distribuirlo, incluso comercialmente.
+
+Las aportaciones son bienvenidas; lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de
+enviar un Pull Request. El autor conserva la titularidad del proyecto, por lo que
+al incorporar código de terceros puede pedir una cesión de derechos o un acuerdo
+de contribución (CLA).
