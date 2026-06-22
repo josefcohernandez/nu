@@ -50,6 +50,13 @@ type Runtime struct {
 	// `nu.config.dir/data_dir`. Inmutable tras `New`.
 	ldr *loader
 
+	// jsonNull es el sentinel `nu.json.NULL` (§12, S18): un userdata único del
+	// estado Lua que representa `null` de JSON sin colisionar con ningún valor Lua.
+	// `decode` lo entrega en lugar de `nil` (que borraría la clave de una tabla,
+	// rompiendo el round-trip) y `encode` lo reconoce por identidad para emitir
+	// `null`. Se crea una sola vez en `registerCodecs` y nunca cambia.
+	jsonNull *lua.LUserData
+
 	// ownerStack es la pila de contextos de plugin activos (§14). El tope es el
 	// plugin "en cuyo contexto corre el código" que devuelve `nu.plugin.current`;
 	// vacía = código del usuario/core (`init.lua` del usuario, chunk de `-e`),

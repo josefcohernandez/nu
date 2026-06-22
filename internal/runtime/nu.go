@@ -80,6 +80,14 @@ func registerNu(rt *Runtime) {
 	// en el estado principal (los workers son S34).
 	rt.registerSys(nu)
 
+	// `nu.json`/`nu.toml`/`nu.yaml` (§12, S18): codecs de serialización. **Ninguno
+	// ⏸** (CPU puro, sin IO que esperar) y todos [W] (§16; hoy en el estado
+	// principal, los workers son S34). JSON es estricto con UTF-8 (G11) y usa el
+	// sentinel `nu.json.NULL` para no perder claves null en el round-trip. TOML
+	// reusa la librería del loader (S11); YAML añade yaml.v3 (puro-Go) para el
+	// frontmatter de skills (§12).
+	rt.registerCodecs(nu)
+
 	// `nu.log` (§15) y, de paso, el alias `print` = `nu.log.info`.
 	registerLog(rt, nu)
 
