@@ -27,6 +27,9 @@ import (
 //   - `mono_ms() -> number` — reloj monotónico en ms desde un origen arbitrario
 //     (para medir duraciones, inmune a saltos del reloj de pared).
 //   - `hostname() -> string` — `os.Hostname`.
+//   - `pid() -> integer` — `os.Getpid`, el pid del proceso `nu` actual (G32).
+//     Junto a `hostname` forma la identidad del escritor de los locks de sesión
+//     (sesiones.md §6); distinto de `nu.proc.alive(pid)`, que valida pids ajenos.
 //
 // EL OVERLAY DE `setenv` (la única lógica propia de S17, lo demás es glue). Es
 // un mapa `name -> value` en `sysState`, protegido por un candado: `setenv` lo
@@ -107,6 +110,7 @@ func (rt *Runtime) registerSys(nu *lua.LTable) {
 	sys.RawSetString("now_ms", L.NewFunction(rt.sysNowMs))
 	sys.RawSetString("mono_ms", L.NewFunction(rt.sysMonoMs))
 	sys.RawSetString("hostname", L.NewFunction(rt.sysHostname))
+	sys.RawSetString("pid", L.NewFunction(rt.sysPid))
 	nu.RawSetString("sys", sys)
 }
 
@@ -180,5 +184,18 @@ func (rt *Runtime) sysHostname(L *lua.LState) int {
 		return 0
 	}
 	L.Push(lua.LString(name))
+	return 1
+}
+
+// sysPid implementa `nu.sys.pid() -> integer` (§7, G32): el pid del proceso `nu`
+// actual (`os.Getpid`). No ⏸ (consulta local inmediata, como `hostname`) y [W]
+// (§16: hereda de que `sys` es módulo [W] entero). Es el `pid` que la extensión
+// sesiones graba en el lock `{ pid, hostname, started }` (sesiones.md §6) para
+// que otro proceso pueda comprobar con `nu.proc.alive` si el escritor sigue vivo.
+// Lo que `nu.proc.alive(pid)` valida es un pid AJENO (existencia, no identidad);
+// `pid()` es el camino para conocer el PROPIO, que `nu.proc` —gestor de hijos— no
+// daba. Se devuelve como integer Lua: un pid cabe de sobra en el rango entero.
+func (rt *Runtime) sysPid(L *lua.LState) int {
+	L.Push(lua.LNumber(os.Getpid()))
 	return 1
 }

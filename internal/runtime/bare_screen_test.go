@@ -104,8 +104,8 @@ func TestBareScreenContent(t *testing.T) {
 	lines := rt.RenderBareScreen()
 	joined := strings.Join(lines, "\n")
 
-	// Versión + nivel de API (§2).
-	wantVer := "nu 0.1.0 · API 1"
+	// Versión + nivel de API (§2). El nivel subió a 2 en S38 (nu.sys.pid, G32).
+	wantVer := "nu 0.1.0 · API 2"
 	if !strings.Contains(joined, wantVer) {
 		t.Errorf("falta la versión/API %q en la pantalla:\n%s", wantVer, joined)
 	}

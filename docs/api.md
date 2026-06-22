@@ -177,6 +177,7 @@ matado por el GC (no determinista — no confíes en ello).
 | `nu.sys.env(name) -> string?` / `nu.sys.setenv(name, value)` | `setenv` afecta solo a subprocesos futuros. |
 | `nu.sys.now_ms() -> number` / `nu.sys.mono_ms() -> number` | Reloj de pared / monotónico. |
 | `nu.sys.hostname() -> string` | Nombre de la máquina (G17; contenido de los locks de sesión, [sesiones.md](sesiones.md) §6). |
+| `nu.sys.pid() -> integer` | Pid del proceso `nu` actual (consulta local, como `hostname`/`now_ms`). Junto a `hostname` forma la **identidad del escritor** de los locks de sesión (G32; [sesiones.md](sesiones.md) §6). Distinto de `nu.proc.alive(pid)`, que valida pids *ajenos*: `pid()` es el *propio*. |
 
 ---
 
@@ -392,7 +393,11 @@ theme, overrides) por construcción, sin sistema de prioridades.
 ## 17. Estabilidad y evolución
 
 - Congelar v1 = congelar **este documento**: firmas y semánticas solo cambian
-  por adición; `nu.version.api` se incrementa con cada adición.
+  por adición; `nu.version.api` se incrementa con cada adición. **Nivel actual:
+  `api = 2`** — el nivel 1 fue el congelado inicial; la primera (y por ahora
+  única) adición posterior fue `nu.sys.pid()` (G32), que lo subió a 2. Una
+  adición nunca rompe firmas existentes: el código escrito contra el nivel 1
+  sigue siendo válido en el 2.
 - Detección de capacidades con `nu.has()`, nunca sniffing de versión.
 - Namespaces de eventos `core:`/`ui:` y códigos de error de §1.4 reservados.
 - Fuera de esta especificación (deliberadamente): toolkit de widgets, hooks

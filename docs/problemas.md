@@ -9,8 +9,8 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 29 registradas, resueltas** (G31 añadida 2026-06-21 desde la
-construcción). Las dieciséis de las
+**Estado: 30 registradas, resueltas** (G32 añadida 2026-06-22 desde la
+construcción de la extensión sesiones). Las dieciséis de las
 rondas 3-4, las seis de la revisión de coherencia de la documentación
 completa (G17-G22, sobre todo contratos que presuponían API inexistente) y
 las de la revisión filosófico-técnica del proyecto (G23, vocabulario de
@@ -24,9 +24,11 @@ scrollback), G29 (hit-testing del ratón es del toolkit, mismo reparto que
 G1/G22) y G30 (pegar imágenes inyecta una ruta). G31 es la primera grieta
 que sale de la **construcción** y no de una ronda de pseudocódigo: gopher-lua
 no deja ceder una corrutina a través de `pcall`/tail call, lo que obligó a
-realizar el scheduler sin yields (ADR-011). La lista queda como registro del
-proceso; los problemas nuevos que surjan (spike incluido) se añaden aquí con
-el mismo método.
+realizar el scheduler sin yields (ADR-011). G32 es la segunda que sale de la
+construcción (la extensión sesiones, S38): el lock de §6 necesita el pid del
+proceso *propio* y la API no lo exponía — el cabo suelto de G17. La lista queda
+como registro del proceso; los problemas nuevos que surjan (spike incluido) se
+añaden aquí con el mismo método.
 
 ---
 
@@ -797,6 +799,49 @@ trabajo bloqueante en una goroutine de fondo y al volver lo recupera; como no
 hay yield, `pcall`, las tail calls y el desenrollado de errores son los
 nativos de gopher-lua y sobreviven a la suspensión. Implementado en S04
 (`internal/runtime/scheduler.go`), validado con `-race`.
+
+## G32 · El lock de sesión necesita el pid PROPIO y la API no lo expone — `api.md` §7 / `sesiones.md` §6 — **RESUELTO**
+
+**Resolución** (aplicada en [api.md](api.md) §7/§16/§17 y
+[sesiones.md](sesiones.md) §6): una primitiva mínima —`nu.sys.pid() ->
+integer`, el pid del proceso `nu` actual—, consulta local inmediata (no ⏸) y
+[W] como el resto de `nu.sys`. Junto a `nu.sys.hostname()` forma la **identidad
+del escritor** que el lock graba (`{ pid, hostname, started }`, §6). Es la
+cuarta pieza que el corolario de completitud (filosofía §2) reclama: G17 añadió
+`fs.write{exclusive}` + `nu.proc.alive(pid)` + `nu.sys.hostname()` para *crear*
+el lock y *validar pids ajenos*, pero se le escapó la forma de conocer el pid
+**propio** que va dentro del lock. Como es la **primera adición a la superficie
+sagrada tras el congelado**, `nu.version.api` sube de 1 a **2** (api.md §17:
+crece solo por adición, el contador se incrementa con cada una); es estricta
+adición, no rompe ninguna firma. La primitiva dedicada se justifica como las
+de G17: es vocabulario del **kernel** (un pid es del proceso, no del producto)
+y no se compone con lo existente —`nu.proc` solo conoce los pids de los hijos
+que lanza, jamás el del propio `nu`—. Descartado derivarlo de un subproceso
+(`nu.proc.run(["sh","-c","echo $PPID"])` es frágil, caro y POSIX-only) y
+descartado plegarlo a `nu.proc.alive` (es existencia de un pid dado, no
+descubrimiento del propio).
+
+**Problema.** El lockfile de [sesiones.md](sesiones.md) §6 graba
+`{ pid, hostname, started }` con el **pid del proceso que escribe**, pero
+[api.md](api.md) no lo expone: `nu.sys` da `platform`/`env`/`setenv`/`now_ms`/
+`mono_ms`/`hostname` (sin pid) y `nu.proc.alive(pid)` valida pids **ajenos**
+(para detectar locks huérfanos) pero no hay forma de obtener el **propio**. Sin
+él la extensión sesiones (S38) no puede escribir el lock especificado: misma
+clase de grieta que G17 (resolución correcta en prosa, no escribible con la API
+especificada), y nacida igual al *construir* el contra-código (S38), no en una
+ronda de pseudocódigo.
+
+**Impacto.** Bloquea S38 (la extensión sesiones); reabre de hecho G5/G17 (la
+corrupción de sesiones que cerraban vuelve a ser posible si el lock no se puede
+escribir como está especificado). Barato de cerrar ahora, sobre la superficie
+que se congela.
+
+**Opciones.** (a) `nu.sys.pid() -> integer` (la elegida): mínima, vocabulario de
+kernel, hermana de `hostname`; (b) ampliar `nu.proc` con un `nu.proc.self()` —
+mete el pid propio en el módulo de *subprocesos*, donde no encaja (proc gestiona
+hijos); (c) rebajar el contenido del lock a solo `{ hostname, started }` y
+confiar la unicidad al `O_EXCL` — pierde la detección de huérfanos por pid de
+§6 (un crash dejaría el lock para siempre), descartable.
 
 **Problema.** Surgió **construyendo** la quilla (S04), no en una ronda de
 pseudocódigo. gopher-lua (semántica Lua 5.1) no deja que una corrutina ceda a

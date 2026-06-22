@@ -96,10 +96,13 @@ Dos procesos haciendo append al mismo JSONL = corrupción intercalada. Regla:
   `{ pid, hostname, started }`. Se adquiere al abrir para escribir
   (crear/reanudar) con creación **exclusiva**
   (`nu.fs.write(..., { exclusive = true })`, atómica: dos procesos no
-  pueden ganar a la vez — [api.md](api.md) §5), se libera al salir. El
-  `pid` se verifica con `nu.proc.alive`; el `hostname`, con
-  `nu.sys.hostname` (G17). **Leer nunca requiere lock** (un
-  append-only es seguro de leer a medias).
+  pueden ganar a la vez — [api.md](api.md) §5), se libera al salir. La
+  identidad del escritor que se graba es la del proceso `nu` actual: el
+  `pid`, de `nu.sys.pid()` (G32); el `hostname`, de `nu.sys.hostname()`
+  (G17); el `started`, de `nu.sys.now_ms()`. Al *verificar* un lock ajeno se
+  comprueba su `pid` con `nu.proc.alive` (existencia en esta máquina, no
+  identidad — G17). **Leer nunca requiere lock** (un append-only es seguro
+  de leer a medias).
 - **Lock huérfano** (crash): si el `pid` no está vivo en esta máquina, es
   basura — se limpia en silencio. Si el lock es de otro `hostname`
   (directorio sincronizado), no se puede verificar: se pregunta, nunca se

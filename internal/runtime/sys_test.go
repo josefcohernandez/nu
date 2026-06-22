@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -250,6 +251,74 @@ func TestSysHostname(t *testing.T) {
 	if len(got) != 1 || got[0] != want || strings.TrimSpace(got[0]) == "" {
 		t.Fatalf("hostname: got %q, want %q", got, want)
 	}
+}
+
+// TestSysPid comprueba `nu.sys.pid()` (G32): un integer > 0, estable entre
+// llamadas e igual a `os.Getpid()` del proceso de test (el wrapper es directo).
+// Es el `pid` que la extensión sesiones graba en su lockfile (sesiones.md §6).
+func TestSysPid(t *testing.T) {
+	want := os.Getpid()
+	h := newHarness(t)
+	h.expectEval(`
+		local p = nu.sys.pid()
+		assert(type(p) == "number", "pid debe ser un number")
+		assert(p == math.floor(p), "pid debe ser entero")
+		assert(p > 0, "pid debe ser positivo")
+		assert(nu.sys.pid() == p, "pid debe ser estable entre llamadas")
+		return "ok"`, "ok")
+	got := h.eval(`return tostring(nu.sys.pid())`)
+	if len(got) != 1 || strings.TrimSpace(got[0]) != strconv.Itoa(want) {
+		t.Fatalf("pid: got %q, want %d (== os.Getpid)", got, want)
+	}
+}
+
+// TestSysPidInWorker comprueba que `nu.sys.pid()` está disponible [W]: `sys` es
+// módulo [W] entero (§16), así que `pid` hereda. Con `caps={"sys"}` el worker lo
+// ve; con `caps={"sys.pid"}` también (granularidad de función, G6). Como un worker
+// comparte el proceso del padre (es una goroutine, no un fork), su `pid` coincide
+// con el del proceso de test.
+func TestSysPidInWorker(t *testing.T) {
+	want := os.Getpid()
+	for _, capLua := range []string{`{ caps = {"sys"} }`, `{ caps = {"sys.pid"} }`, ``} {
+		spawn := `nu.worker.spawn("wmod")`
+		if capLua != "" {
+			spawn = `nu.worker.spawn("wmod", ` + capLua + `)`
+		}
+		h := workerHarness(t, `nu.worker.parent.send({ pid = nu.sys.pid() })`)
+		h.eval(`
+			WPID = nil
+			nu.task.spawn(function()
+				local w = ` + spawn + `
+				WPID = w:recv().pid
+				w:terminate()
+			end)`)
+		got := h.eval(`return tostring(WPID)`)
+		if len(got) != 1 || strings.TrimSpace(got[0]) != strconv.Itoa(want) {
+			t.Fatalf("pid en worker (caps=%q): got %q, want %d", capLua, got, want)
+		}
+	}
+}
+
+// TestSysPidDeniedByCaps confirma el deny-by-default (G6): un worker con `caps={}`
+// no recibe `nu.sys` en absoluto, así que `nu.sys.pid` no existe.
+func TestSysPidDeniedByCaps(t *testing.T) {
+	h := workerHarness(t, `nu.worker.parent.send({ has = (nu.sys ~= nil) })`)
+	h.eval(`
+		HAS = nil
+		nu.task.spawn(function()
+			local w = nu.worker.spawn("wmod", { caps = {} })
+			HAS = w:recv().has
+			w:terminate()
+		end)`)
+	h.expectEval(`return tostring(HAS)`, "false")
+}
+
+// TestVersionApiIsTwo blinda el incremento de `nu.version.api` a 2 (G32: la
+// primera adición tras el congelado, `nu.sys.pid`). api.md §17: el contador sube
+// con cada adición.
+func TestVersionApiIsTwo(t *testing.T) {
+	h := newHarness(t)
+	h.expectEval(`return tostring(nu.version.api)`, "2")
 }
 
 // TestSysAvailableInTask comprueba que `nu.sys` funciona también desde dentro de

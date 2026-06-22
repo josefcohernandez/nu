@@ -6,7 +6,7 @@ import (
 
 // EvalString compila y ejecuta `code` como un chunk Lua y devuelve sus valores
 // de retorno convertidos a string (vía `tostring`), en orden. Es lo que respalda
-// `nu -e`: el chunk `return nu.version.api` produce `["1"]`.
+// `nu -e`: el chunk `return nu.version.api` produce `["2"]` (G32 lo subió de 1).
 //
 // Si el chunk lanza un error estructurado del core (§1.4), se devuelve como
 // `*StructuredError` con su `code`/`message` intactos: el puente no traga ni
