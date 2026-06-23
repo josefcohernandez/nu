@@ -72,6 +72,38 @@ func embeddedNames() ([]string, error) {
 	return names, nil
 }
 
+// nonProductEmbedded lista las extensiones embebidas que NO son parte del
+// "conjunto oficial de producto" (ADR-015): andamiaje que se distribuye en el
+// binario para probar el mecanismo, no para activarse en la config del usuario.
+// Hoy solo `example` (el stub del gating, S12). Se mantiene como conjunto —no como
+// una sola constante— para que añadir otro andamiaje futuro sea una línea aquí.
+var nonProductEmbedded = map[string]bool{
+	"example": true,
+}
+
+// officialProductSet devuelve el **conjunto oficial de producto** (ADR-015, G33):
+// las extensiones embebidas DISPONIBLES (`embeddedNames`) menos el andamiaje de
+// `nonProductEmbedded` (`example`). Es la ÚNICA fuente de verdad de "qué activa el
+// conjunto oficial": la usan tanto la acción de la pantalla de runtime desnudo
+// (`ActivateOfficial`, vía TTY, G21) como el flag `nu --default-config` (sin TTY),
+// de modo que ambos enchufan exactamente lo mismo (la coherencia que G33 exige). El
+// orden hereda el de `embeddedNames` (no garantizado por `fs.ReadDir`); el loader lo
+// reordena topológicamente por `requires`, así que el orden aquí es irrelevante.
+func officialProductSet() ([]string, error) {
+	names, err := embeddedNames()
+	if err != nil {
+		return nil, err
+	}
+	product := names[:0:0] // copia nueva, no aliasa el slice de embeddedNames
+	for _, n := range names {
+		if nonProductEmbedded[n] {
+			continue
+		}
+		product = append(product, n)
+	}
+	return product, nil
+}
+
 // extractEmbedded materializa el árbol de la extensión embebida `name` (su
 // subdirectorio de `embedded/`) en `<destRoot>/<name>` y devuelve esa ruta, lista
 // para que el loader la trate como un plugin de disco más. La extracción es

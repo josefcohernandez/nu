@@ -142,6 +142,15 @@ type config struct {
 	// (`newHarness` la activa). El gating REAL por TTY aplica al binario `nu`.
 	forceUI    bool
 	forceUISet bool
+
+	// enabledOverride / enabledOverrideSet permiten fijar `plugins.enabled` EN MEMORIA,
+	// sobrescribiendo lo que diga `nu.toml`, SIN tocar disco (ADR-015, G33). Es la vía del
+	// modo EFÍMERO de `nu --default-config -p/-e`: activar el conjunto oficial de producto
+	// solo para ese proceso (Docker/CI inmutable). Con `enabledOverrideSet=true`, el valor
+	// de `enabledOverride` reemplaza a `nuCfg.Plugins.Enabled` tras leer `nu.toml`. Una lista
+	// vacía explícita es válida (activa nada); distinta de "no fijada" (usa `nu.toml`).
+	enabledOverride    []string
+	enabledOverrideSet bool
 }
 
 // Option ajusta la construcción de un Runtime. El default sirve para producción
@@ -205,6 +214,21 @@ func WithUISize(w, h int) Option {
 // salida redirigida arrancan sin `nu.ui`, como exige el "Criterio de hecho" de S32).
 func WithForceUI(active bool) Option {
 	return func(c *config) { c.forceUI = active; c.forceUISet = true }
+}
+
+// WithEnabledPlugins fija `plugins.enabled` EN MEMORIA, sobrescribiendo lo que diga
+// `config.dir()/nu.toml`, SIN escribir nada a disco (ADR-015, G33). Es la vía del modo
+// EFÍMERO de `nu --default-config` combinado con una acción headless (`-p`/`-e`): el
+// binario activa el conjunto oficial de producto solo para ESE proceso, sin reescribir la
+// config del usuario —el caso del contenedor inmutable—. El valor reemplaza por completo
+// a la lista de `nu.toml` (no se fusiona): una lista vacía explícita activa nada. El resto
+// de `nu.toml` (watchdog, dirs, net) se sigue respetando. La usan también los tests para
+// inyectar un conjunto activo sin escribir un `nu.toml` temporal.
+func WithEnabledPlugins(names []string) Option {
+	return func(c *config) {
+		c.enabledOverride = append([]string(nil), names...)
+		c.enabledOverrideSet = true
+	}
 }
 
 // New construye un Runtime listo para ejecutar Lua: abre solo las librerías
@@ -285,6 +309,15 @@ func New(opts ...Option) *Runtime {
 	// el loader, que es quien descubre y carga (S12). `Boot` consultará ambos.
 	rt.ldr.enabled = nuCfg.Plugins.Enabled
 	rt.ldr.configErr = tomlErr
+	// `WithEnabledPlugins` (modo efímero de `nu --default-config`, ADR-015/G33) GANA sobre
+	// `nu.toml`: fija la lista de activación en memoria sin tocar disco. Se aplica tras leer
+	// `nu.toml` para que el resto de la config (watchdog, dirs, net) se respete y solo se
+	// sustituya `enabled`. Un override con `nu.toml` mal formado NO limpia `configErr`: el
+	// fichero roto sigue siendo un error de arranque que `Boot` reportará (no lo enmascaramos
+	// silenciosamente por pasar `-e`/`-p`).
+	if cfg.enabledOverrideSet {
+		rt.ldr.enabled = cfg.enabledOverride
+	}
 	rt.sched = newScheduler(rt, cfg.sliceBudget)
 	applySandbox(L)
 	registerNu(rt)

@@ -15,8 +15,25 @@ valida escribiendo pseudocódigo contra ella antes de congelarla —esos documen
 
 ## Instalación
 
-Cada release publica el binario estático para las plataformas objetivo. Descarga
-el `.tar.gz` de tu sistema de la [última
+La vía rápida — el script detecta tu sistema (linux/darwin × amd64/arm64),
+descarga el binario de la última release estable, **verifica el checksum** y lo
+instala en tu `PATH`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/dbareagimeno/nu/main/install.sh | sh
+```
+
+Por defecto instala en `~/.local/bin`; fija el destino con `NU_INSTALL_DIR` o la
+versión con `NU_VERSION`. Si prefieres revisarlo antes, descarga
+[`install.sh`](install.sh), léelo y córrelo a mano —es un script POSIX corto—.
+
+Tras instalar, `nu` es un **runtime desnudo** (las extensiones oficiales están
+inactivas por defecto, ADR-010): actívalas con `nu --default-config` (sin TTY) o
+desde la pantalla de arranque con TTY.
+
+### Manual
+
+Si no quieres el script, descarga el `.tar.gz` de tu sistema de la [última
 release](https://github.com/dbareagimeno/nu/releases/latest), descomprímelo y
 ponlo en el `PATH`:
 

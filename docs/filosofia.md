@@ -58,11 +58,14 @@ operación debería ser una primitiva.
 
 El binario distribuye las extensiones oficiales embebidas (`go:embed`),
 pero **ninguna se activa sola**: nu instalado es un runtime desnudo, y el
-harness es una elección del usuario, no un hecho consumado. El primer
-arranque ofrece activar el conjunto oficial — una tecla, sin red — y a
-partir de ahí el agente funciona. Mismo modelo mental que Neovim: el
-programa no trae plugins activados. Y como siempre: esas extensiones no
-tienen ningún privilegio — se leen, se sustituyen, se apagan.
+harness es una elección del usuario, no un hecho consumado. Enchufarlas es
+trivial pero **explícito**: con TTY, el primer arranque ofrece activar el
+conjunto oficial de una tecla; sin TTY (CI, Docker, scripts), el flag
+`nu --default-config` hace lo mismo de un comando (ADR-015). En ambos casos,
+sin red — todo sale del binario — y a partir de ahí el agente funciona.
+Mismo modelo mental que Neovim: el programa no trae plugins activados. Y
+como siempre: esas extensiones no tienen ningún privilegio — se leen, se
+sustituyen, se apagan.
 
 ### 6. La API del core es sagrada
 

@@ -12,6 +12,13 @@
 //
 //	nu                       Arranque canónico (§14). Con TTY y ningún plugin activo,
 //	                         pinta la PANTALLA DE RUNTIME DESNUDO (G21, S33).
+//	nu --default-config      Activa el CONJUNTO OFICIAL DE PRODUCTO (las embebidas menos
+//	                         el andamiaje `example`, ADR-015/G33) sin TTY. SOLO: escribe
+//	                         `plugins.enabled` en `config.dir()/nu.toml` y sale (atómico,
+//	                         idempotente, preserva el resto; un `nu.toml` roto NO se pisa).
+//	                         Combinado con `-p`/`-e`: EFÍMERO, lo activa solo para ese
+//	                         proceso (`WithEnabledPlugins`) sin tocar disco —Docker/CI
+//	                         inmutable—. Es el onramp sin TTY que la pantalla no daba.
 //	nu -e '<lua>'            Evalúa un chunk Lua SIN TTY (headless) e imprime sus
 //	                         valores de retorno. El chunk corre en el estado
 //	                         principal (no es task): puede `nu.task.spawn` pero no
@@ -53,6 +60,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dbareagimeno/nu/internal/runtime"
 )
@@ -77,6 +85,7 @@ type cliOptions struct {
 	cont      bool   // --continue: reanudar la última sesión del cwd (G18)
 	autoPerm  bool   // --auto-permissions: modo "auto" de permisos (agente.md §5)
 	model     string // --model: provider/modelo del turno (anula agent.toml)
+	defConfig bool   // --default-config: activa el conjunto oficial de producto (ADR-015, G33)
 }
 
 func main() {
@@ -91,6 +100,7 @@ func run() int {
 	flag.BoolVar(&opts.cont, "c", false, "alias de --continue")
 	flag.BoolVar(&opts.autoPerm, "auto-permissions", false, "permisos del agente en modo \"auto\" (agente.md §5); sin él, en headless las tools sensibles se deniegan")
 	flag.StringVar(&opts.model, "model", "", "selecciona el provider/modelo del turno de agente (anula agent.toml)")
+	flag.BoolVar(&opts.defConfig, "default-config", false, "activa el conjunto oficial de producto: solo, escribe plugins.enabled en nu.toml y sale; con -p/-e, lo activa solo para ese proceso (ADR-015)")
 	flag.Parse()
 	// El modo agente exige un prompt NO vacío (un turno necesita algo que enviar),
 	// así que tratamos `-p ""` igual que la ausencia: ambos son "sin prompt". No hay
@@ -98,13 +108,40 @@ func run() int {
 	// con el que ejecutar el modo agente".
 	opts.promptSet = opts.prompt != ""
 
-	rt := runtime.New()
+	// Una acción headless es la que dispara un modo no interactivo (`-e`/`-p`/--continue).
+	// `--auto-permissions`/`--model` sueltos NO la disparan: son modificadores de un turno
+	// que aquí no existe. `--default-config` tampoco es una acción headless por sí mismo:
+	// su modo SOLO (persistente) escribe y sale; combinado con una acción headless pasa a
+	// EFÍMERO (activa el conjunto en memoria y ejecuta esa acción).
+	headless := opts.eval != "" || opts.promptSet || opts.cont
+
+	// Modo EFÍMERO (ADR-015, G33): `--default-config` + acción headless. El runtime se
+	// construye con `WithEnabledPlugins(conjunto de producto)`, que fija la activación EN
+	// MEMORIA sin tocar disco; luego arranca y ejecuta la acción (`-e`/`-p`). El conjunto
+	// sale de `OfficialProductSet` (estático, del binario), que se resuelve antes de `New`.
+	// En el modo persistente (`--default-config` sin acción headless) NO se inyecta nada:
+	// ese modo solo escribe el fichero, no arranca.
+	var newOpts []runtime.Option
+	if opts.defConfig && headless {
+		names, err := runtime.OfficialProductSet()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return exitError
+		}
+		newOpts = append(newOpts, runtime.WithEnabledPlugins(names))
+	}
+
+	rt := runtime.New(newOpts...)
 	defer rt.Close()
 
-	// Sin NINGUNA acción headless (`-e`/`-p`/--continue): es el arranque normal o la
-	// pantalla de runtime desnudo (S33). `--auto-permissions`/`--model` sueltos no
-	// disparan el agente: son modificadores de un turno que aquí no existe.
-	headless := opts.eval != "" || opts.promptSet || opts.cont
+	// `--default-config` SOLO (sin acción headless): modo PERSISTENTE (ADR-015, G33).
+	// Escribe el conjunto oficial de producto en `config.dir()/nu.toml` y SALE, sin
+	// arrancar nada. No depende del TTY (es el onramp que la pantalla desnuda de G21 no
+	// daba sin terminal): no hace `Boot`, solo escribe el fichero.
+	if opts.defConfig && !headless {
+		return runDefaultConfig(rt)
+	}
+
 	if !headless {
 		// Sin `-e`/`-p`: si hay un TTY interactivo y NINGÚN plugin activo, se pinta la
 		// PANTALLA DE RUNTIME DESNUDO (§14, G21, S33): un render FIJO con la versión y
@@ -119,7 +156,7 @@ func run() int {
 			}
 			return exitOK
 		}
-		fmt.Fprintln(os.Stderr, "uso: nu [-e '<lua>'] | [-p '<prompt>' [--continue] [--auto-permissions] [--model prov/modelo]]")
+		fmt.Fprintln(os.Stderr, "uso: nu [--default-config] | [-e '<lua>'] | [-p '<prompt>' [--continue] [--auto-permissions] [--model prov/modelo]]")
 		return exitUsage
 	}
 
@@ -147,6 +184,26 @@ func runWith(rt *runtime.Runtime, opts cliOptions) int {
 		return runEval(rt, opts.eval)
 	}
 	return runAgent(rt, opts)
+}
+
+// runDefaultConfig respalda el modo PERSISTENTE de `nu --default-config` (ADR-015,
+// G33): escribe el conjunto oficial de producto en `config.dir()/nu.toml` y SALE, sin
+// arrancar. Reusa `rt.WriteDefaultConfig` (que reusa `writeEnabledPlugins`: preserva el
+// resto del fichero, atómico, idempotente, no sobrescribe un `nu.toml` mal formado).
+// Informa a stdout qué activó y dónde —accionable: el usuario sabe el fichero exacto y
+// el siguiente paso—. Un fallo de escritura (E/S, o `nu.toml` roto que no se pisa) sale
+// con código 1 y mensaje accionable a stderr. Construye un Runtime mínimo solo para
+// resolver `config.dir()` y escribir; no hace `Boot` (no carga ni una extensión).
+func runDefaultConfig(rt *runtime.Runtime) int {
+	dir, names, err := rt.WriteDefaultConfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return exitError
+	}
+	fmt.Printf("conjunto oficial de producto activado en %s/nu.toml: %s\n",
+		dir, strings.Join(names, ", "))
+	fmt.Println("ya puedes ejecutar el agente: nu -p '<prompt>'")
+	return exitOK
 }
 
 // runEval respalda `nu -e '<lua>'`: evalúa el chunk en el estado principal (no es

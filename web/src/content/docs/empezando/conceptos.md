@@ -87,10 +87,11 @@ si estás quemando CPU en Lua, probablemente falta una primitiva Go.
 ## 5. Batteries included, pero no enchufadas
 
 El binario trae las extensiones oficiales **embebidas** (`go:embed`) pero
-**ninguna activa por defecto**. `nu` recién instalado es un runtime desnudo; el
-primer arranque con TTY ofrece activar el conjunto oficial (el agente, el
-chat…) con una tecla, sin red. Mismo modelo mental que Neovim: el programa no
-trae plugins activados.
+**ninguna activa por defecto**. `nu` recién instalado es un runtime desnudo;
+enchufarlas es explícito pero trivial: el primer arranque con TTY ofrece activar
+el conjunto oficial (el agente, el chat…) con una tecla, y sin TTY el flag
+`nu --default-config` hace lo mismo de un comando —en ambos casos sin red—.
+Mismo modelo mental que Neovim: el programa no trae plugins activados.
 
 Un [**plugin**](/nu/referencia/plugin/) es un directorio con `plugin.toml`
 (`name`, `version`, `requires?`) e `init.lua`. El **nombre es la identidad** y el

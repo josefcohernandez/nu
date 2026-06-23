@@ -132,11 +132,13 @@ recompilación. El contrato del adaptador y el formato del registro están en
   nativo: [P18](pospuesto.md).
 - Extensiones oficiales embebidas con `go:embed` pero **inactivas por
   defecto** (ADR-010): activación explícita (pantalla de runtime desnudo
-  — api.md §14 — o `nu.toml`), sin red; sobreescribibles por el usuario
-  desde su directorio de config. El conjunto incluye, además del harness
-  (agente, chat, providers, MCP, toolkit), un **`repl`**: REPL de Lua
-  sobre la API pública, activable solo — el punto de partida del autor de
-  extensiones que no quiere el harness (G21).
+  con TTY — api.md §14 —, el flag `nu --default-config` sin TTY —ADR-015,
+  G33—, o `nu.toml` a mano), sin red; sobreescribibles por el usuario
+  desde su directorio de config. El **conjunto oficial de producto** son
+  las siete embebidas menos el andamiaje `example` (ADR-015): además del
+  harness (agente, chat, providers, MCP, toolkit), un **`repl`** —REPL de
+  Lua sobre la API pública, activable solo, el punto de partida del autor
+  de extensiones que no quiere el harness (G21)—.
 
 ## Persistencia
 
@@ -209,7 +211,11 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
      final del asistente a stdout); `--auto-permissions` (permisos del agente en
      modo `"auto"`, agente.md §5 amortiguador 3 — sin él, en headless las tools
      sensibles se DENIEGAN); `--model 'prov/modelo'` (anula el modelo por defecto
-     de `agent.toml`); `--continue`/`-c` (azúcar de reanudación, abajo).
+     de `agent.toml`); `--continue`/`-c` (azúcar de reanudación, abajo);
+     `--default-config` (activa el **conjunto oficial de producto** sin TTY —el
+     onramp que la pantalla desnuda de G21 no cubría—: solo, escribe
+     `plugins.enabled` en `nu.toml` y sale; con `-p`/`-e`, lo activa solo para ese
+     proceso sin tocar disco. ADR-015, G33).
    - **Headless / códigos de salida**: `nu -e` y el modo agente corren SIN TTY
      (G20) con códigos de salida coherentes para CI/scripts — **0** éxito;
      **1** error de ejecución (el chunk, el turno o el provider lanzaron, o el
@@ -224,7 +230,9 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
      deliberadamente fuera de los contratos por pertenecer a esta superficie.
    - **Arranque** (S33): sin args y con TTY → arranque normal (pantalla de
      runtime desnudo si no hay plugins, G21); sin args y sin TTY → uso (código 2);
-     `nu -e`/`-p`/`--continue` → modo headless.
+     `nu -e`/`-p`/`--continue` → modo headless. `--default-config` solo (sin acción
+     headless) escribe el conjunto de producto en `nu.toml` y sale (G33): el onramp
+     sin TTY que la pantalla desnuda no daba.
    El ejecutor headless de los modos suspendientes (el turno del agente es ⏸) es
    `Runtime.EvalTaskString` (corre un chunk Lua como TASK a término): interfaz Go
    del binario, NO superficie Lua sagrada (como `EvalString`/`RenderBareScreen`);

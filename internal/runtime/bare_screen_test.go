@@ -161,9 +161,11 @@ func gridText(g *grid) string {
 	return b.String()
 }
 
-// TestBareScreenActivateOfficial blinda la ACCIÓN "activar el conjunto oficial": se
-// escribe `plugins.enabled` en `nu.toml` con TODAS las embebidas, y el `Boot` que
-// continúa las carga con `source="builtin"` —sin red (ADR-010)—.
+// TestBareScreenActivateOfficial blinda la ACCIÓN "activar el conjunto oficial"
+// (ADR-015, G33): escribe `plugins.enabled` en `nu.toml` con el CONJUNTO OFICIAL DE
+// PRODUCTO —las embebidas menos el andamiaje `example`—, y el `Boot` que continúa las
+// carga con `source="builtin"`, sin red (ADR-010). Es el mismo conjunto que activa el
+// flag `nu --default-config`: pantalla (TTY) y flag (sin TTY) enchufan lo mismo.
 func TestBareScreenActivateOfficial(t *testing.T) {
 	rt, cfg := newBareRuntime(t)
 
@@ -176,22 +178,41 @@ func TestBareScreenActivateOfficial(t *testing.T) {
 		t.Fatalf("ActivateOfficial falló: %v", err)
 	}
 
-	// El `nu.toml` se escribió con `plugins.enabled` conteniendo el catálogo (example).
-	data, err := os.ReadFile(filepath.Join(cfg, nuTomlName))
+	// El `nu.toml` se escribió con `plugins.enabled` = conjunto de producto. Debe
+	// contener las de producto (sonda: `providers`, raíz del grafo) y NO `example`.
+	cfgData, err := loadNuTomlForTest(cfg)
 	if err != nil {
-		t.Fatalf("nu.toml no se escribió: %v", err)
+		t.Fatalf("nu.toml no se escribió/leyó: %v", err)
 	}
-	if !strings.Contains(string(data), "example") {
-		t.Fatalf("plugins.enabled no nombra la embebida; nu.toml:\n%s", data)
+	enabled := map[string]bool{}
+	for _, n := range cfgData.Plugins.Enabled {
+		enabled[n] = true
+	}
+	if !enabled["providers"] || !enabled["agent"] {
+		t.Fatalf("plugins.enabled no nombra el conjunto de producto; got %v", cfgData.Plugins.Enabled)
+	}
+	if enabled["example"] {
+		t.Fatalf("el conjunto oficial de producto NO debe incluir `example` (ADR-015); got %v", cfgData.Plugins.Enabled)
 	}
 
-	// El Boot que continuó cargó la embebida con source="builtin" y corrió su init.
-	h := &harness{t: t, rt: rt}
-	if src := listSource(h, "example"); src != string(sourceBuiltin) {
-		t.Fatalf("tras activar, example debería ser builtin; source=%q", src)
+	// Coherencia con la fuente de verdad: lo escrito == officialProductSet().
+	want, err := officialProductSet()
+	if err != nil {
+		t.Fatalf("officialProductSet: %v", err)
 	}
-	if got := h.eval(`return _example_embedded_cargada == true`)[0]; got != "true" {
-		t.Fatalf("el init.lua de la embebida activada no corrió; got %q", got)
+	if len(want) != len(cfgData.Plugins.Enabled) {
+		t.Fatalf("plugins.enabled (%v) no coincide con officialProductSet (%v)", cfgData.Plugins.Enabled, want)
+	}
+
+	// El Boot que continuó cargó las de producto con source="builtin" (sonda: providers,
+	// sin dependencias propias, S36).
+	h := &harness{t: t, rt: rt}
+	if src := listSource(h, "providers"); src != string(sourceBuiltin) {
+		t.Fatalf("tras activar, providers debería ser builtin; source=%q", src)
+	}
+	// `example` quedó FUERA: no se cargó (su huella no está).
+	if got := h.eval(`return _example_embedded_cargada == true`)[0]; got == "true" {
+		t.Fatalf("`example` no debería haberse cargado (no es producto, ADR-015)")
 	}
 }
 

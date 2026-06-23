@@ -19,6 +19,7 @@ package main
 //     montan varias sesiones y se verifica que toma la última y la reanuda.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -486,4 +487,103 @@ func fileSize(t *testing.T, path string) int64 {
 		t.Fatalf("stat %s: %v", path, err)
 	}
 	return fi.Size()
+}
+
+// --- `nu --default-config` (onramp sin TTY, ADR-015/G33) --------------------------
+
+// TestCLIDefaultConfigPersistent: `nu --default-config` SOLO (sin acción headless)
+// escribe el conjunto de producto en `nu.toml`, informa a stdout dónde, y sale con 0.
+// Ejercita `runDefaultConfig(rt)` con un Runtime de dirs de prueba (sin tocar el HOME
+// real). Blinda la pieza "onramp persistente sin TTY" de G33.
+func TestCLIDefaultConfigPersistent(t *testing.T) {
+	cfg := t.TempDir()
+	rt := runtime.New(runtime.WithDataDir(t.TempDir()), runtime.WithConfigDir(cfg), runtime.WithForceUI(false))
+	t.Cleanup(rt.Close)
+
+	var code int
+	stdout, stderr := captureOutput(t, func() { code = runDefaultConfig(rt) })
+	if code != exitOK {
+		t.Fatalf("código: got %d, want %d (stderr=%q)", code, exitOK, stderr)
+	}
+	// stdout nombra el fichero escrito y el siguiente paso (accionable).
+	if !strings.Contains(stdout, "nu.toml") || !strings.Contains(stdout, "nu -p") {
+		t.Fatalf("stdout debería nombrar el fichero y el siguiente paso; got %q", stdout)
+	}
+	// El `nu.toml` quedó con el conjunto de producto (sonda providers) y SIN example.
+	data, err := os.ReadFile(filepath.Join(cfg, "nu.toml"))
+	if err != nil {
+		t.Fatalf("nu.toml no se escribió: %v", err)
+	}
+	if !strings.Contains(string(data), "providers") {
+		t.Fatalf("plugins.enabled no nombra el conjunto de producto; nu.toml:\n%s", data)
+	}
+	if strings.Contains(string(data), "example") {
+		t.Fatalf("el conjunto persistido no debe incluir example; nu.toml:\n%s", data)
+	}
+}
+
+// TestCLIDefaultConfigPersistentMalformedExit1: `nu --default-config` ante un `nu.toml`
+// mal formado NO lo sobrescribe y sale con código 1 (error de ejecución), con stderr
+// accionable. Blinda que el modo persistente no destruye config del usuario.
+func TestCLIDefaultConfigPersistentMalformedExit1(t *testing.T) {
+	cfg := t.TempDir()
+	bad := "esto no es toml = = [[[\n"
+	if err := os.WriteFile(filepath.Join(cfg, "nu.toml"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(runtime.WithDataDir(t.TempDir()), runtime.WithConfigDir(cfg), runtime.WithForceUI(false))
+	t.Cleanup(rt.Close)
+
+	var code int
+	stdout, stderr := captureOutput(t, func() { code = runDefaultConfig(rt) })
+	if code != exitError {
+		t.Fatalf("código: got %d, want %d", code, exitError)
+	}
+	if strings.TrimSpace(stdout) != "" {
+		t.Fatalf("un fallo no debe escribir a stdout; got %q", stdout)
+	}
+	if !strings.Contains(stderr, "nu.toml") {
+		t.Fatalf("stderr debería ser accionable y nombrar nu.toml; got %q", stderr)
+	}
+	// El fichero roto sigue intacto.
+	data, _ := os.ReadFile(filepath.Join(cfg, "nu.toml"))
+	if string(data) != bad {
+		t.Fatalf("el nu.toml mal formado NO debe sobrescribirse; quedó:\n%s", data)
+	}
+}
+
+// TestCLIDefaultConfigEphemeral: `nu --default-config -e '<lua>'` activa el conjunto de
+// producto SOLO para ese proceso (sin escribir `nu.toml`) y ejecuta el `-e`. Como `run`
+// (no `runWith`) es quien construye el runtime efímero, este test ejercita el camino
+// equivalente: un Runtime con `WithEnabledPlugins(OfficialProductSet)` + dirs de prueba,
+// y comprueba que tras `runWith(-e)` el `nu.toml` NO existe y el conjunto está activo.
+func TestCLIDefaultConfigEphemeral(t *testing.T) {
+	cfg := t.TempDir()
+	names, err := runtime.OfficialProductSet()
+	if err != nil {
+		t.Fatalf("OfficialProductSet: %v", err)
+	}
+	rt := runtime.New(
+		runtime.WithDataDir(t.TempDir()), runtime.WithConfigDir(cfg),
+		runtime.WithForceUI(false), runtime.WithEnabledPlugins(names))
+	t.Cleanup(rt.Close)
+	if err := rt.Boot(); err != nil {
+		t.Fatalf("Boot efímero: %v", err)
+	}
+
+	var code int
+	stdout, stderr := captureOutput(t, func() {
+		// Cuenta las extensiones activas vía la API pública.
+		code = runWith(rt, cliOptions{eval: `local n=0 for _,p in ipairs(nu.plugin.list()) do if p.enabled then n=n+1 end end return n`})
+	})
+	if code != exitOK {
+		t.Fatalf("código: got %d, want %d (stderr=%q)", code, exitOK, stderr)
+	}
+	if got, want := strings.TrimSpace(stdout), fmt.Sprint(len(names)); got != want {
+		t.Fatalf("esperaba %s extensiones de producto activas; got %q", want, got)
+	}
+	// NO se escribió `nu.toml` (efímero = solo memoria).
+	if _, err := os.Stat(filepath.Join(cfg, "nu.toml")); !os.IsNotExist(err) {
+		t.Fatalf("el modo efímero NO debe escribir nu.toml; err=%v", err)
+	}
 }

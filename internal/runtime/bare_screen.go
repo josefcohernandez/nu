@@ -19,11 +19,11 @@ package runtime
 // extensión inactiva siguen siendo accionables (nombran la línea de `nu.toml`,
 // S12). Con cualquier plugin activo tampoco se pinta: el arranque sigue su curso.
 //
-// ACCIONES (§14): (1) activar el CONJUNTO oficial → escribe `plugins.enabled` en
-// `config.dir()/nu.toml` con todas las extensiones embebidas y CONTINÚA el
-// arranque canónico (`Boot`), SIN red (la activación de una embebida sale del
-// binario, ADR-010); (2) activar extensiones SUELTAS (p. ej. solo `repl`) → escribe
-// solo esas; (3) salir. La elección real con el TECLADO usa el input de S31 + el
+// ACCIONES (§14): (1) activar el CONJUNTO oficial de producto → escribe `plugins.enabled`
+// en `config.dir()/nu.toml` con las extensiones embebidas del conjunto de producto (todas
+// menos el andamiaje `example`, ADR-015) y CONTINÚA el arranque canónico (`Boot`), SIN red
+// (la activación de una embebida sale del binario, ADR-010); (2) activar extensiones SUELTAS
+// (p. ej. solo `repl`) → escribe solo esas; (3) salir. La elección real con el TECLADO usa el input de S31 + el
 // driver de TTY; en este entorno HEADLESS no hay TTY, así que la lógica
 // "activar → escribir nu.toml → continuar Boot" se expone por una vía interna
 // (`activateAndBoot`) testeable, y el render se inspecciona componiendo a un buffer
@@ -61,17 +61,44 @@ func (rt *Runtime) RenderBareScreen() []string {
 	return rt.renderBareScreen().lines()
 }
 
-// ActivateOfficial activa el CONJUNTO oficial (todas las extensiones embebidas) y
-// continúa el arranque (§14): es la primera acción de la pantalla desnuda. Sin red
-// (las embebidas salen del binario, ADR-010). La invoca la elección de teclado
-// "activar el conjunto oficial" (driver de TTY, S33+); aquí queda expuesta para `main`
-// y los tests.
+// ActivateOfficial activa el CONJUNTO oficial de producto (las embebidas menos el
+// andamiaje `example`, ADR-015) y continúa el arranque (§14): es la primera acción de
+// la pantalla desnuda. Sin red (las embebidas salen del binario, ADR-010). La invoca
+// la elección de teclado "activar el conjunto oficial" (driver de TTY, S33+); el flag
+// `nu --default-config` (sin TTY, G33) activa el MISMO conjunto vía `officialProductSet`,
+// de modo que pantalla y flag enchufan lo mismo.
 func (rt *Runtime) ActivateOfficial() error {
-	names, err := embeddedNames()
+	names, err := officialProductSet()
 	if err != nil {
 		return err
 	}
 	return rt.activateAndBoot(names)
+}
+
+// OfficialProductSet expone el conjunto oficial de producto (ADR-015, G33) a `main`
+// (el binario) como FUNCIÓN DE PAQUETE —no método—: el modo EFÍMERO de
+// `nu --default-config` necesita el conjunto ANTES de construir el Runtime (para
+// pasarlo a `WithEnabledPlugins`), cuando aún no hay `rt`. El conjunto es estático
+// (sale del `embed.FS`, sin estado de runtime), así que no requiere un Runtime. Es un
+// wrapper fino de `officialProductSet`.
+func OfficialProductSet() ([]string, error) { return officialProductSet() }
+
+// WriteDefaultConfig respalda el modo PERSISTENTE de `nu --default-config` (ADR-015,
+// G33): escribe el conjunto oficial de producto en `plugins.enabled` de
+// `config.dir()/nu.toml` —preservando el resto del fichero, atómico, idempotente; un
+// `nu.toml` mal formado NO se sobrescribe (error accionable)— y devuelve `(configDir,
+// names, err)` para que `main` informe qué escribió y dónde. NO arranca nada (a
+// diferencia de `ActivateOfficial`, la acción TTY que escribe Y continúa el `Boot`):
+// el modo persistente escribe y sale. Sin red (ADR-010).
+func (rt *Runtime) WriteDefaultConfig() (configDir string, names []string, err error) {
+	names, err = officialProductSet()
+	if err != nil {
+		return "", nil, err
+	}
+	if err = writeEnabledPlugins(rt.ldr.configDir, names); err != nil {
+		return "", nil, err
+	}
+	return rt.ldr.configDir, names, nil
 }
 
 // bareScreenActive decide si toca pintar la pantalla de runtime desnudo (§14, G21):
@@ -237,8 +264,8 @@ func (rt *Runtime) renderBareScreen() bareScreenModel {
 // producción la dispara la elección de teclado (driver de TTY, S33+); en headless la
 // invocan los tests.
 //
-//   - "activar el conjunto oficial" = `activateAndBoot(embeddedNames())` (todas las
-//     embebidas del catálogo).
+//   - "activar el conjunto oficial" = `activateAndBoot(officialProductSet())` (las
+//     embebidas del catálogo menos el andamiaje `example`, ADR-015).
 //   - "activar suelta" = `activateAndBoot([]string{"repl"})` (solo esa).
 //
 // Tras escribir el fichero, recarga la config (`plugins.enabled`/`dirs`/watchdog) en
@@ -285,7 +312,7 @@ func writeEnabledPlugins(configDir string, names []string) error {
 	if data, err := os.ReadFile(path); err == nil {
 		if _, decErr := toml.Decode(string(data), &root); decErr != nil {
 			return &StructuredError{Code: CodeEINVAL,
-				Message: fmt.Sprintf("%s inválido en %q: %v (la pantalla de runtime desnudo no lo sobrescribe para no perder tu configuración)",
+				Message: fmt.Sprintf("%s inválido en %q: %v (no se sobrescribe para no perder tu configuración; corrígelo a mano)",
 					nuTomlName, path, decErr)}
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
