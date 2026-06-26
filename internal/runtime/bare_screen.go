@@ -152,7 +152,7 @@ func (l *loader) anyDiskPlugin() bool {
 // y lo consume `renderBareScreen` (para pintar) y los tests (para verificar el
 // contenido sin depender del layout exacto).
 type bareScreenModel struct {
-	versionLine string   // "nu 0.1.0 · API 1"
+	versionLine string   // "nu 0.1.0 · API 2"
 	configDir   string   // config.dir()
 	pluginDirs  []string // directorios donde se buscan plugins
 	embedded    []string // catálogo de extensiones embebidas DISPONIBLES

@@ -14,9 +14,10 @@ package runtime
 //
 // El andamiaje escribe un `nu.toml` real en el `config.dir` (un `t.TempDir`) y
 // arranca un Runtime apuntando ahí, igual que lo haría `main`. La extensión
-// embebida bajo prueba es el STUB `example` (internal/runtime/embedded/example),
-// que existe justamente para poder probar el gating antes de que existan las
-// extensiones oficiales reales (Fase 8).
+// embebida bajo prueba es el STUB `example` (internal/runtime/embedded/example):
+// una fixture trivial e independiente de las extensiones oficiales reales (Fase 8,
+// hoy ya presentes bajo embedded/), de modo que estos tests del gating no quedan
+// acoplados a la lógica de ninguna de ellas.
 
 import (
 	"os"

@@ -325,9 +325,9 @@ func TestAllNilResultPreservesPositions(t *testing.T) {
 }
 
 // TestAllParallelism: las tasks de `all` corren en paralelo, no en serie —el total
-// se aproxima al máximo de los sleeps, no a su suma—. Se mide con `nu.sys`... que
-// aún no existe (S17); en su lugar se comprueba el efecto observable: tres sleeps
-// de 20 ms terminan todos (si fueran en serie tardaría 60 ms, pero igual
+// se aproxima al máximo de los sleeps, no a su suma—. Cronometrarlo con el reloj de
+// pared (`nu.sys`) sería frágil; en su lugar se comprueba el efecto observable: tres
+// sleeps de 20 ms terminan todos (si fueran en serie tardaría 60 ms, pero igual
 // terminan), así que aquí basta con que el resultado llegue completo y alineado.
 // El no-bloqueo del loop ya lo blindan los tests de S05; este fija que `all` no
 // serializa el fan-out.

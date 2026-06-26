@@ -19,8 +19,8 @@ import (
 //
 // ADAPTACIÓN (claude_decisions.md S18): el texto del plan menciona
 // `nu.search.files` para el recorrido del repo, pero **esa primitiva es S27
-// (Fase 5) y aún no existe**. Aquí se sustituye por un **recorrido recursivo en
-// Lua sobre `nu.fs.list`** (disponible desde S14): la lista directa de un
+// (Fase 5), posterior a este checkpoint de Fase 3**. Aquí se ejercita con un
+// **recorrido recursivo en Lua sobre `nu.fs.list`** (disponible desde S14): la lista directa de un
 // directorio + recursión por los subdirectorios. Es la sustitución más fiel —el
 // mismo trabajo (enumerar el árbol) expresado con la primitiva que SÍ existe en
 // la Fase 3—; `search.files` (recursión + filtrado en Go) llega en S27/CP-6.

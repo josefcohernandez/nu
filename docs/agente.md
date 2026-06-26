@@ -29,12 +29,16 @@ agent.session(opts) -> Session
           resume?: string }                          -- id: reabre en vez de crear
 
 Session:send(content: string|Block[]) ⏸ -> Message  -- ejecuta el turno completo
-Session:cancel()                                     -- cancela el turno en curso
-Session:fork(at?: integer) -> Session                -- sesiones.md §5
-Session:compact() ⏸                                  -- compactación manual
+Session:cancel()                                     -- cancela el turno en curso  [⏸ pospuesto P22]
+Session:fork(at?: integer) -> Session                -- sesiones.md §5             [⏸ pospuesto P22]
+Session:compact() ⏸                                  -- compactación manual        [⏸ pospuesto P22]
 Session:set_model(model: string)                     -- cambio en caliente (G19)
 Session.id / Session.usage -> { context_tokens, cost_usd, turns }
 ```
+
+> **Estado de implementación.** La extensión `agent` `0.1.0` implementa
+> `send/spawn/set_model/close`; `cancel`, `fork`, `compact` y `clear_queue`
+> (abajo) son **implementación diferida** ([pospuesto.md](pospuesto.md) **P22**).
 
 **El turno** (`send`) es el corazón del contrato:
 
@@ -57,7 +61,8 @@ nunca a mitad de un stream). El usuario puede así corregir al agente
 mientras trabaja ("usa pnpm, no npm"). Todos los `send` consumidos por un
 mismo turno resuelven con el mensaje final de ese turno. `Session:cancel()`
 cancela el turno, **no** vacía la cola (vaciarla es acción aparte:
-`Session:clear_queue()`).
+`Session:clear_queue()`). *(Implementación diferida:
+[pospuesto.md](pospuesto.md) **P23**; depende de `cancel`, P22.)*
 
 **Reanudación (G18)**: `opts.resume = <id>` reabre una sesión existente en
 vez de crearla: replay del transcript ([sesiones.md](sesiones.md) §3) y
@@ -105,7 +110,9 @@ Dos mecanismos, deliberadamente separados:
 **Notificaciones** (fire-and-forget, bus del core `nu.events`, namespace
 `agent:`): `session.start`, `session.end`, `turn.start`, `turn.end`,
 `delta`, `message`, `tool.start`, `tool.progress`, `tool.end`, `compact`,
-`error`, `permission.asked`. Para pintar, loggear, observar. El namespace
+`error`, `permission.asked`. Para pintar, loggear, observar. *(El evento
+`compact` solo se emitirá cuando exista la compactación automática:
+[pospuesto.md](pospuesto.md) **P25**.)* El namespace
 `agent:` no es una reserva del core (el core no sabe de agentes, ADR-003):
 es el namespace del plugin `agent`, protegido por la unicidad del nombre de
 plugin como cualquier otro (G26, [api.md](api.md) §4).
@@ -177,6 +184,11 @@ worker sin `proc` no ejecuta procesos, opine quien opine.
 
 ## 6. Skills
 
+> **Implementación diferida** ([pospuesto.md](pospuesto.md) **P24**). El
+> ensamblado del system prompt de la `0.1.0` aún no descubre skills ni inyecta
+> su índice; `agent.skills.list()` no está expuesto. Esta sección describe el
+> diseño; su construcción espera el disparador de P24.
+
 Compatibles con el formato del ecosistema existente: directorio con
 `SKILL.md` (frontmatter YAML: `name`, `description` — vía `nu.yaml`).
 
@@ -196,7 +208,16 @@ fichero de contexto del proyecto (`nu.md` en la raíz del repo, si existe) →
 `opts.system`. Los hooks `request.pre` pueden retocar el resultado. Cada
 pieza es sustituible por configuración — no hay prompt mágico inaccesible.
 
+> **Implementación diferida** ([pospuesto.md](pospuesto.md) **P24**). La `0.1.0`
+> ensambla solo `base → opts.system`: las piezas de **índice de skills** y de
+> **`nu.md`** (con su puerta TOFU de §11.2) aún no se inyectan.
+
 ## 8. Compactación
+
+> **Implementación diferida** ([pospuesto.md](pospuesto.md) **P25**). El hook
+> `compact`, el replay desde el resumen y el soporte de entradas `compact` en el
+> store existen; lo que la `0.1.0` aún no hace es **disparar** la compactación al
+> superar el umbral ni emitir el evento `agent:compact`.
 
 - Disparo automático: cuando `usage.input_tokens` supera el umbral
   configurable (defecto: 80% del `context` del modelo, dato del
@@ -218,7 +239,8 @@ pieza es sustituible por configuración — no hay prompt mágico inaccesible.
 Session:spawn(opts) -> Sub
   opts: los de agent.session + { worker? = false, caps?: string[] }
 
-Sub:run(prompt) ⏸ -> Message   -- turno(s) completos del subagente
+Sub:run(prompt) ⏸ -> Digest    -- turno(s) completos del subagente
+  Digest = { text, message, stop_reason, usage, turns }   -- resumen digerido, no el stream
 Sub:cancel()
 ```
 

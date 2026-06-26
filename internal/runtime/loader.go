@@ -25,10 +25,10 @@ package runtime
 // `enabled` que no resuelve a nada es un error accionable que nombra la línea de
 // `nu.toml`. Una embebida activada queda con `source = "builtin"`.
 //
-// FRONTERA con S13/S33. `nu.plugin.reload` es **S13**: el etiquetado de handles
-// por dueño se apoya en el `ownerStack` que este loader empuja, pero la recarga en
-// sí no se implementa todavía. La **pantalla de runtime desnudo** (G21: render TTY
-// del catálogo de embebidas + activar/salir) es UI y llega en **S30/S33**; S12 no
+// RELACIÓN con S13/S33. `nu.plugin.reload` (S13, ya implementado en plugin.go) se
+// apoya en este loader: el etiquetado de handles por dueño usa el `ownerStack` que
+// este loader empuja. La **pantalla de runtime desnudo** (G21: render TTY del
+// catálogo de embebidas + activar/salir, S30/S33) es UI aparte; este loader (S12) no
 // pinta nada (puede no haber UI), solo gobierna el arranque por config.
 
 import (

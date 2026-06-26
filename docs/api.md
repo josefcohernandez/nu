@@ -188,7 +188,7 @@ providers viven en Lua y consumen SSE).
 
 | Firma | Semántica |
 |---|---|
-| `nu.http.request(opts) -> {status, headers, body}` ⏸ | `opts`: `url`, `method?`, `headers?`, `body?`, `timeout_ms?`. Respuesta buffereada. No lanza por status >= 400 (el status es dato); lanza `ENET`/`ETIMEOUT` por fallos de transporte. |
+| `nu.http.request(opts) -> {status, headers, body}` ⏸ | `opts`: `url`, `method?`, `headers?`, `body?`, `timeout_ms?`, `tls?`, `proxy?` (TLS/proxy por petición, ver nota G12 abajo). Respuesta buffereada. No lanza por status >= 400 (el status es dato); lanza `ENET`/`ETIMEOUT` por fallos de transporte. |
 | `nu.http.stream(opts) -> Stream` ⏸ | Devuelve al recibir cabeceras: `Stream.status`, `Stream.headers`. `opts.timeout_ms` cubre hasta las cabeceras; `opts.idle_timeout_ms?` lanza `ETIMEOUT` si pasan N ms sin recibir bytes del body (un SSE puede quedarse mudo para siempre). |
 | `Stream:chunks() -> iterator` ⏸ | Trozos crudos del body según llegan. |
 | `Stream:events() -> iterator` ⏸ | Parser SSE incorporado: itera `{event?, data, id?}`. |
@@ -271,7 +271,7 @@ Las operaciones cuadráticas-en-pantalla viven aquí, en Go (ADR-004/007).
 | Firma | Semántica |
 |---|---|
 | `nu.text.width(s) -> integer` | Anchura en celdas (graphemes, east-asian, emoji). |
-| `nu.text.wrap(s, width, opts?) -> Block` | Word-wrap estilizable. |
+| `nu.text.wrap(s, width, opts?) -> Block` | Word-wrap; `opts.style?` (un Style §9.2) aplica a cada línea. |
 | `nu.text.truncate(s, width, opts?) -> string` | Con elipsis opcional. |
 | `nu.text.markdown(s, opts) -> Block` | Render completo de markdown a `opts.width`, themable. Acepta entrada incompleta (streaming-safe). |
 | `nu.text.highlight(code, lang, opts?) -> Block` | Syntax highlighting. |
@@ -391,7 +391,7 @@ theme, overrides) por construcción, sin sistema de prioridades.
 
 | Disponible [W] | Solo estado principal |
 |---|---|
-| `task`, `fs` (salvo `watch`), `proc`, `sys`, `http`, `ws`, `text`, `re`, `search`, `json`, `toml`, `yaml`, `log`, `config.dir` | `ui`, `events`, `fs.watch`, `worker.spawn`, `plugin` |
+| `task`, `fs` (salvo `watch`), `proc`, `sys`, `http`, `ws`, `text`, `re`, `search`, `json`, `toml`, `yaml`, `log`, `config.dir`, `config.data_dir` | `ui`, `events`, `fs.watch`, `worker.spawn`, `plugin` |
 
 ---
 

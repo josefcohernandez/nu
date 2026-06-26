@@ -44,6 +44,11 @@ indefinidamente.
 | `agent:permission.asked` | Diálogo modal (§5), encolado FIFO si ya hay uno visible. |
 | `agent:compact` | Marca visual de "historia compactada arriba". |
 
+> **Implementación diferida** ([pospuesto.md](pospuesto.md) **P27**). La `chat`
+> `0.1.0` consume `delta/message/tool.start/tool.end/error/permission.asked`,
+> pero aún no `agent:tool.progress` (progreso en vivo) ni `agent:compact` (este
+> último depende además de que el agente lo emita, **P25**).
+
 **Renderers enchufables**: un plugin puede registrar el render del resultado
 de su tool — `chat.renderer(tool_name, fn(result, width) -> Block)`. Así la
 tool de diff pinta diffs con colores y la de tests pinta su tabla, sin que
@@ -57,7 +62,9 @@ tool de diff pinta diffs con colores y la de tests pinta su tabla, sin que
 - **Menciones `@`**: abre picker difuso de ficheros del repo
   (`nu.search.files` + `nu.search.fuzzy`); la mención inyecta la ruta y el
   agente decide leerla (no se incrusta el contenido a ciegas).
+  *(Implementación diferida: [pospuesto.md](pospuesto.md) **P26**.)*
 - **`/` al inicio**: autocompletado de comandos (§4).
+  *(El autocompletado visual es implementación diferida: **P29**.)*
 - Pegado multilínea correcto (evento `paste` de `nu.ui`).
 
 ## 4. Comandos slash
@@ -79,6 +86,11 @@ Builtins (registrados con esta misma función — dogfooding):
 reanuda vía `agent.session{ resume = id }`), `/fork`, `/compact`,
 `/permissions` (ver y editar la política de la sesión), `/help`, `/quit`.
 
+> **Implementación diferida** ([pospuesto.md](pospuesto.md) **P28**). La `0.1.0`
+> trae `/model`, `/sessions`, `/compact` (degrada mientras no haya compactación,
+> P25), `/clear`, `/help`, `/quit`. Faltan `/fork` (requiere `Session:fork`,
+> P22) y `/permissions`.
+
 ## 5. Diálogo de permisos
 
 Ante `agent:permission.asked`: modal con la tool, los args completos (sin
@@ -91,6 +103,8 @@ truncar lo peligroso: el comando entero, la ruta entera) y opciones:
   de confianza ([agente.md](agente.md) §11). El patrón propuesto se
   muestra y es editable antes de aceptar (generalizar `bash:npm install` a
   `bash:npm *` es decisión del humano, no de la UI).
+  *(Implementación diferida: [pospuesto.md](pospuesto.md) **P29**; la `0.1.0`
+  ofrece "permitir una vez" y "denegar".)*
 - **Denegar** (con nota opcional, que llega al modelo como rechazo).
 
 Mientras el modal está abierto, el turno espera (así está diseñado el

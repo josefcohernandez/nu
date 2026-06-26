@@ -153,7 +153,10 @@ Obligaciones del adaptador:
    en Anthropic el adaptador coloca los breakpoints `cache_control`
    mecánicamente (tools + system + últimos mensajes). Casos exóticos
    (p. ej. la caché explícita de Gemini para contextos reutilizados entre
-   sesiones) tienen su válvula en `meta`/`extra`.
+   sesiones) tienen su válvula en `meta`/`extra`. *(Implementación diferida
+   para `anthropic`: la `0.1.0` reinyecta el `cache_control` que venga en `meta`
+   pero aún no coloca los breakpoints por su cuenta —
+   [pospuesto.md](pospuesto.md) **P31**; afecta al coste, no a la corrección.)*
 
 Esqueleto ilustrativo (no normativo):
 
@@ -184,7 +187,9 @@ return {
 ## 4. Registro y descubrimiento
 
 - Los adaptadores oficiales (`anthropic`, `openai-compat`, `gemini`) van
-  embebidos como parte de la extensión de providers.
+  embebidos como parte de la extensión de providers. *(Implementación diferida:
+  la `0.1.0` incluye solo `anthropic`; `openai-compat` y `gemini` esperan el
+  disparador de [pospuesto.md](pospuesto.md) **P30**.)*
 - Un plugin aporta el suyo registrándolo:
   `providers.register_adapter("corp-gateway", adapter)` — o por convención de
   nombre resoluble con `require` desde el TOML (`"mi-plugin/corp-gateway"`).

@@ -9,13 +9,18 @@ package runtime
 // desnudo, y el harness es una elección del usuario, no un hecho consumado. Una
 // embebida solo se carga si `config.dir()/nu.toml` la nombra en `plugins.enabled`.
 //
-// FRONTERA temporal. Las extensiones oficiales reales son la Fase 8 (S36-S45) y
-// aún no existen. Para poder montar y PROBAR el mecanismo de embebido + gating ya
-// en S12, el árbol embebido contiene una sola extensión STUB de ejemplo
-// (`embedded/example/`), suficiente para verificar que: (a) por defecto NO se
-// carga; (b) activada por `nu.toml` sí, con `source="builtin"`; (c) un directorio
-// de usuario del mismo nombre la sustituye. Cuando lleguen las oficiales reales,
-// se añaden bajo `embedded/` sin tocar este mecanismo.
+// Las extensiones oficiales reales (la Fase 8, S36-S45) ya viven bajo `embedded/`:
+// `agent`, `chat`, `providers`, `sessions`, `mcp`, `toolkit` y `repl`. Se añadieron
+// sin tocar este mecanismo, que es exactamente lo que su diseño en S12 buscaba.
+//
+// Junto a ellas convive `embedded/example/`: una extensión STUB mínima, conservada
+// a propósito como FIXTURE del propio mecanismo de embebido + gating. Al ser trivial
+// e independiente de las oficiales, deja probar en aislamiento que: (a) por defecto
+// NO se carga; (b) activada por `nu.toml` sí, con `source="builtin"`; (c) un
+// directorio de usuario del mismo nombre la sustituye — sin acoplar esos tests a la
+// lógica de ninguna extensión real. Por eso queda fuera del conjunto de producto
+// (`nonProductEmbedded`, abajo): es andamiaje de pruebas, no algo que el usuario
+// active.
 //
 // Cómo se materializan. El loader (loader.go) descubre y carga plugins de
 // DIRECTORIOS en disco (lee `plugin.toml` con `os.ReadFile`, corre `init.lua` con
