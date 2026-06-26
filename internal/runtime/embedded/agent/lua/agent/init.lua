@@ -432,26 +432,180 @@ end
 -- System prompt (agente.md §7).
 -- ---------------------------------------------------------------------------
 
--- assemble_system(opts) -> string|nil. Ensambla el system prompt por piezas
--- ordenadas (agente.md §7): base de la extensión → (índice de skills, S39 no las
--- carga) → `nu.md` del repo si existe y es de confianza (TOFU §11, fuera de S39)
--- → `opts.system`. En S39 las piezas v1 son la base y `opts.system`; el resto
--- son extensiones posteriores. Devuelve nil si no hay nada (request sin system).
 local BASE_SYSTEM = "Eres un agente de codificación que opera sobre un repositorio mediante tools."
 
-local function assemble_system(opts)
-  local parts = {}
-  if opts.no_base ~= true then
-    parts[#parts + 1] = BASE_SYSTEM
-  end
-  if type(opts.system) == "string" and opts.system ~= "" then
-    parts[#parts + 1] = opts.system
-  end
-  if #parts == 0 then
-    return nil
-  end
-  return table.concat(parts, "\n\n")
+-- ---------------------------------------------------------------------------
+-- Confianza del contenido del repo: TOFU (agente.md §11.2, P24).
+-- ---------------------------------------------------------------------------
+
+-- El contenido que el repo aporta al MODELO (`.nu/skills/`, `nu.md`) es de un
+-- tercero (§11): solo se inyecta tras un sí explícito, recordado por repo en
+-- `data_dir/trust.json`. Sin decisión afirmativa (incluido headless), no se
+-- inyecta. El contenido del USUARIO (`config.dir()/skills/`) es suyo: confiable.
+
+local function trust_slug(cwd)
+  local s = (cwd or ""):gsub("[^%w%-%.]", "_"):gsub("^_+", ""):gsub("_+$", "")
+  if s == "" then return "root" end
+  return s
 end
+
+local function trust_path()
+  return nu.config.data_dir() .. "/trust.json"
+end
+
+local trust_cache = nil
+local function load_trust()
+  if trust_cache ~= nil then
+    return trust_cache
+  end
+  local ok, raw = pcall(nu.fs.read, trust_path())
+  if ok and type(raw) == "string" and raw ~= "" then
+    local okd, decoded = pcall(nu.json.decode, raw)
+    if okd and type(decoded) == "table" then
+      trust_cache = decoded
+      return trust_cache
+    end
+  end
+  trust_cache = {}
+  return trust_cache
+end
+
+M.trust = {}
+
+-- agent.trust.is_trusted(cwd) -> true|false|nil. nil = sin decidir (la UI debe
+-- preguntar, §11.2); true/false = recordado.
+function M.trust.is_trusted(cwd)
+  local v = load_trust()[trust_slug(cwd)]
+  if v == nil then return nil end
+  return v == true
+end
+
+-- agent.trust.set(cwd, trusted) recuerda la decisión TOFU por repo (persistida).
+function M.trust.set(cwd, trusted)
+  local t = load_trust()
+  t[trust_slug(cwd)] = (trusted == true)
+  trust_cache = t
+  pcall(function()
+    nu.fs.mkdir(nu.config.data_dir())
+    nu.fs.write(trust_path(), nu.json.encode(t))
+  end)
+end
+
+-- agent.trust.has_repo_content(cwd) -> bool. ¿El repo trae algo inyectable
+-- (`.nu/skills/` o `nu.md`)? Es lo que decide si hay que disparar el TOFU (§11.2):
+-- si no hay contenido, no se pregunta nada.
+function M.trust.has_repo_content(cwd)
+  if nu.fs.stat(cwd .. "/nu.md") ~= nil then return true end
+  if nu.fs.stat(cwd .. "/.nu/skills") ~= nil then return true end
+  return false
+end
+
+-- ---------------------------------------------------------------------------
+-- Skills (agente.md §6, P24): descubrimiento + índice + tool `skill`.
+-- ---------------------------------------------------------------------------
+
+-- split_skill_md(content) -> meta, body. Parte un SKILL.md en su frontmatter YAML
+-- (`name`, `description`) y su cuerpo. Compatible con el formato del ecosistema
+-- (frontmatter entre `---`), decodificado con `nu.yaml` (api.md §12).
+local function split_skill_md(content)
+  local fm, body = content:match("^%-%-%-%s*\r?\n(.-)\r?\n%-%-%-%s*\r?\n(.*)$")
+  if fm == nil then
+    fm = content:match("^%-%-%-%s*\r?\n(.-)\r?\n%-%-%-%s*$")
+    body = ""
+  end
+  if fm == nil then
+    return nil, content
+  end
+  local ok, meta = pcall(nu.yaml.decode, fm)
+  if not ok or type(meta) ~= "table" then
+    return nil, body or ""
+  end
+  return meta, body or ""
+end
+
+-- discover_skills_in(dir, source, out) anexa a `out` las skills de `dir` (cada
+-- subdirectorio con un `SKILL.md` válido). Tolera un `dir` ausente o ilegible.
+local function discover_skills_in(dir, source, out)
+  if nu.fs.stat(dir) == nil then return end
+  local ok, entries = pcall(nu.fs.list, dir)
+  if not ok or type(entries) ~= "table" then return end
+  for _, ent in ipairs(entries) do
+    if ent.is_dir then
+      local skill_md = dir .. "/" .. ent.name .. "/SKILL.md"
+      if nu.fs.stat(skill_md) ~= nil then
+        local okr, raw = pcall(nu.fs.read, skill_md)
+        if okr and type(raw) == "string" then
+          local meta = split_skill_md(raw)
+          if type(meta) == "table" and type(meta.name) == "string" and meta.name ~= "" then
+            out[#out + 1] = {
+              name = meta.name,
+              description = meta.description or "",
+              path = skill_md,
+              source = source,
+            }
+          end
+        end
+      end
+    end
+  end
+end
+
+-- agent.skills.list(cwd) -> SkillInfo[] (agente.md §6). Descubre las skills del
+-- USUARIO (`config.dir()/skills/`, siempre) y las del REPO (`<cwd>/.nu/skills/`,
+-- solo si el repo es de confianza, §11.2). SkillInfo = { name, description, path,
+-- source = "user"|"repo" }.
+M.skills = {}
+function M.skills.list(cwd)
+  cwd = cwd or nu.fs.cwd()
+  local out = {}
+  discover_skills_in(nu.config.dir() .. "/skills", "user", out)
+  if M.trust.is_trusted(cwd) == true then
+    discover_skills_in(cwd .. "/.nu/skills", "repo", out)
+  end
+  return out
+end
+
+-- load_skill_body(cwd, name) -> string|nil. Cuerpo completo de una skill por
+-- nombre (lo carga la tool `skill` bajo demanda, §6 fase 2). Respeta la confianza
+-- (una skill de repo no se carga si el repo no es de confianza).
+local function load_skill_body(cwd, name)
+  for _, s in ipairs(M.skills.list(cwd)) do
+    if s.name == name then
+      local ok, raw = pcall(nu.fs.read, s.path)
+      if ok and type(raw) == "string" then
+        local _, body = split_skill_md(raw)
+        return body
+      end
+    end
+  end
+  return nil
+end
+
+-- Tool interna `skill` (agente.md §6, inyección en dos fases): el system prompt
+-- lleva solo el ÍNDICE (nombre + descripción); el modelo invoca `skill{name}`
+-- para cargar el contenido completo bajo demanda (economía de contexto). Es de
+-- solo lectura sobre contenido ya confiado (TOFU), así que se concede sin pedir.
+-- Solo se OFRECE a las sesiones que tienen skills (ver tools_for_request en
+-- M.session); registrarla global hace que `run_tool` encuentre su handler.
+M.tool({
+  name        = "skill",
+  description = "Carga el contenido completo de una skill por su nombre.",
+  schema      = { type = "object",
+    properties = { name = { type = "string", description = "nombre de la skill" } },
+    required = { "name" } },
+  permissions = { default = "allow" },
+  handler = function(args, ctx)
+    local name = (type(args) == "table") and args.name or nil
+    if type(name) ~= "string" or name == "" then
+      return "error: la tool `skill` requiere `name` (string)"
+    end
+    local body = load_skill_body(ctx.cwd, name)
+    if body == nil then
+      return "error: skill desconocida o no confiada: " .. name
+    end
+    return body
+  end,
+})
 
 -- ---------------------------------------------------------------------------
 -- El handle Session y el TURNO (agente.md §2).
@@ -586,37 +740,178 @@ local function consume_stream(session, iter)
   return done
 end
 
--- Session:send(content) ⏸ -> Message (agente.md §2). EL TURNO COMPLETO.
+-- ---------------------------------------------------------------------------
+-- System prompt por sesión (agente.md §7, P24): base → índice de skills → nu.md
+-- (tras TOFU) → opts.system. La INCLUSIÓN del contenido del repo se decide por
+-- confianza en CADA ensamblado (cheap: trust cacheado), sobre el descubrimiento
+-- capturado una vez al abrir la sesión.
+-- ---------------------------------------------------------------------------
+
+-- Session:_has_skills() ¿la sesión ofrece alguna skill (de usuario, o de repo si
+-- es de confianza)? Decide si se ofrece la tool `skill` y si hay índice.
+function Session:_has_skills()
+  if #(self._user_skills or {}) > 0 then return true end
+  if M.trust.is_trusted(self.cwd) == true and #(self._repo_skills or {}) > 0 then
+    return true
+  end
+  return false
+end
+
+-- Session:_skills_index() -> string|nil. El ÍNDICE de skills (nombre+descripción)
+-- para el system prompt (§6 fase 1). Las de usuario siempre; las de repo solo si
+-- el repo es de confianza (§11.2).
+function Session:_skills_index()
+  local list = {}
+  for _, s in ipairs(self._user_skills or {}) do list[#list + 1] = s end
+  if M.trust.is_trusted(self.cwd) == true then
+    for _, s in ipairs(self._repo_skills or {}) do list[#list + 1] = s end
+  end
+  if #list == 0 then return nil end
+  local lines = { "Skills disponibles (usa la tool `skill` con el nombre para cargar su contenido):" }
+  for _, s in ipairs(list) do
+    lines[#lines + 1] = "- " .. s.name .. ": " .. (s.description or "")
+  end
+  return table.concat(lines, "\n")
+end
+
+-- Session:_repo_context() -> string|nil. El `nu.md` del repo como contexto del
+-- proyecto (§7), solo si el repo es de confianza (TOFU, §11.2).
+function Session:_repo_context()
+  if type(self._nu_md) == "string" and self._nu_md ~= ""
+      and M.trust.is_trusted(self.cwd) == true then
+    return "Contexto del proyecto (nu.md):\n\n" .. self._nu_md
+  end
+  return nil
+end
+
+-- Session:_assemble_system() -> string|nil. Ensambla por piezas ordenadas
+-- (agente.md §7). Devuelve nil si no hay nada (request sin system).
+function Session:_assemble_system()
+  local parts = {}
+  if self.opts.no_base ~= true then
+    parts[#parts + 1] = BASE_SYSTEM
+  end
+  local idx = self:_skills_index()
+  if idx then parts[#parts + 1] = idx end
+  local ctx = self:_repo_context()
+  if ctx then parts[#parts + 1] = ctx end
+  if type(self.opts.system) == "string" and self.opts.system ~= "" then
+    parts[#parts + 1] = self.opts.system
+  end
+  if #parts == 0 then return nil end
+  return table.concat(parts, "\n\n")
+end
+
+-- normalize_user_blocks(content) -> Block[]. Mensaje del usuario (agente.md §2
+-- paso 1): string → un bloque de texto; tabla → se asume Block[].
+local function normalize_user_blocks(content)
+  if type(content) == "string" then
+    return { { type = "text", text = content } }
+  elseif type(content) == "table" then
+    return content
+  end
+  einval("Session:send espera un string o un array de bloques (providers.md §2.2)")
+end
+
+-- Session:send(content) ⏸ -> Message (agente.md §2). EL TURNO COMPLETO con
+-- REENTRADA (G4, P23). Cada `send` ENCOLA su mensaje y, si no hay turno en vuelo,
+-- arranca uno en una task PROPIA de la sesión (la que `Session:cancel` cancela,
+-- P22). El loop drena la cola entre iteraciones —nunca a mitad de un stream—,
+-- inyectando las correcciones del usuario ("usa pnpm, no npm"). Todos los `send`
+-- consumidos por un mismo turno resuelven con su mensaje final (G4). `send`
+-- SUSPENDE esperando ese resultado por un future (no por la task: cancelar el
+-- turno no cancela a quien llamó —resuelve su future como cancelado—).
 function Session:send(content)
   if self.closed then
     eagent("la sesión está cerrada")
   end
+  local blocks = normalize_user_blocks(content)
+  local item = { blocks = blocks, fut = nu.task.future() }
+  self.queue[#self.queue + 1] = item
 
-  -- Mensaje del usuario (agente.md §2 paso 1): string → un bloque de texto.
-  local user_blocks
-  if type(content) == "string" then
-    user_blocks = { { type = "text", text = content } }
-  elseif type(content) == "table" then
-    user_blocks = content
+  if not self.turn_active then
+    self.turn_active = true
+    self._turn_done = false
+    self.waiters = {}
+    self.turn_task = nu.task.spawn(function() self:_turn_loop() end)
+  end
+
+  local res = item.fut:await()
+  if res.canceled then
+    return nil
+  end
+  return res.message
+end
+
+-- Session:_drain_queue() inyecta los mensajes encolados (G4): los anexa al
+-- historial/store como mensajes de usuario y mueve sus futures a `waiters` (para
+-- que resuelvan con el mensaje final de ESTE turno). Se llama al inicio de cada
+-- iteración del loop, nunca a mitad de un stream.
+function Session:_drain_queue()
+  if #self.queue == 0 then
+    return
+  end
+  local pending = self.queue
+  self.queue = {}
+  for _, it in ipairs(pending) do
+    local user_message = { role = "user", content = it.blocks }
+    table.insert(self.history, user_message)
+    if self.store then
+      self.store:append_message(user_message)
+    end
+    self.waiters[#self.waiters + 1] = it
+  end
+end
+
+-- Session:_finish_turn(canceled) cierra el turno UNA sola vez (idempotente):
+-- resuelve los futures de todos los `send` consumidos (`waiters`) y de los que
+-- quedaran sin inyectar (`queue`) con el mensaje final (o `canceled`). Lo invoca
+-- el final normal del loop (canceled=false) Y el `nu.task.cleanup` del turno en
+-- un aborto (canceled=true, no capturable por pcall, S08): el guard `_turn_done`
+-- garantiza que solo la primera llamada resuelve.
+function Session:_finish_turn(canceled)
+  if self._turn_done then
+    return
+  end
+  self._turn_done = true
+  self.turn_active = false
+  self.turn_task = nil
+  local res = canceled and { canceled = true } or { message = self._final_message }
+  for _, it in ipairs(self.waiters) do it.fut:set(res) end
+  self.waiters = {}
+  for _, it in ipairs(self.queue) do it.fut:set(res) end
+  self.queue = {}
+  if canceled then
+    emit(self.handle.id, "turn.end", { canceled = true })
   else
-    einval("Session:send espera un string o un array de bloques (providers.md §2.2)")
+    emit(self.handle.id, "turn.end", { message = self._final_message })
   end
-  local user_message = { role = "user", content = user_blocks }
-  table.insert(self.history, user_message)
-  if self.store then
-    self.store:append_message(user_message)
-  end
+end
+
+-- Session:_turn_loop() es el cuerpo del turno (agente.md §2), corriendo en la
+-- task propia de la sesión. Registra su `cleanup` para cerrar limpio ante un
+-- aborto (P22), drena la cola (G4/P23) y autocompacta al rebasar el umbral (P25).
+function Session:_turn_loop()
+  -- Cierre garantizado pase lo que pase (éxito, error o `Session:cancel`): el
+  -- aborto NO es capturable por pcall (S08), así que la resolución de los futures
+  -- y el `turn.end` viven en el cleanup, no en un pcall del cuerpo.
+  nu.task.cleanup(function() self:_finish_turn(true) end)
 
   emit(self.handle.id, "turn.start", {})
-
-  local resolved = providers.resolve(self.model)
-  local adapter = resolved.adapter
-  local provider_config = resolved.config
-
-  local final_message = nil
+  self._final_message = nil
   local turns = 0
 
+  -- Autocompactación en el LÍMITE del turno (P25): comprime el prefijo viejo
+  -- ANTES de inyectar el mensaje nuevo y antes de la primera petición. Se hace
+  -- aquí —no entre iteraciones— para no romper el emparejamiento tool_call ↔
+  -- tool_result de un loop de tools en vuelo (la compactación a mitad de tool
+  -- loop queda fuera de v1; el disparo por turno cubre el caso común).
+  self:_maybe_autocompact()
+
   while true do
+    -- Inyecta correcciones encoladas ANTES de ensamblar (G4): entre iteraciones.
+    self:_drain_queue()
+
     turns = turns + 1
     if turns > self.max_turns then
       emit(self.handle.id, "error", { message = "max_turns agotado", max_turns = self.max_turns })
@@ -624,10 +919,16 @@ function Session:send(content)
         { reason = "max_turns" })
     end
 
+    -- Resuelve el adaptador POR ITERACIÓN (G19): así un `Session:set_model` a
+    -- mitad de turno aplica desde la siguiente, nunca a mitad de un stream.
+    local resolved = providers.resolve(self.model)
+    local adapter = resolved.adapter
+    local provider_config = resolved.config
+
     -- Ensambla el request canónico (agente.md §7) y pásalo por request.pre (§4).
     local request = {
       model       = provider_config.model.id,
-      system      = assemble_system(self.opts),
+      system      = self:_assemble_system(),
       messages    = self.history,
       tools       = self.tools_for_request,
       max_tokens  = self.max_tokens,
@@ -657,40 +958,190 @@ function Session:send(content)
       -- distinto de `self.usage` (acumulado de la sesión). Lo usa el digesto de un
       -- subagente en modo task (§9) para alinear su forma con la del modo worker.
       self.last_usage = usage
+      -- Recuerda los input_tokens para el disparo de autocompactación (P25).
+      self._last_input_tokens = usage.input_tokens or self._last_input_tokens
     end
     self.usage.turns = self.usage.turns + 1
     emit(self.handle.id, "message", { message = assistant, usage = usage, stop_reason = done.stop_reason })
-    final_message = assistant
+    self._final_message = assistant
 
-    -- ¿Hay tool calls? (agente.md §2 paso 5). Si no, el turno termina.
+    -- ¿Hay tool calls? (agente.md §2 paso 5).
     if done.stop_reason ~= "tool_calls" then
-      break
-    end
-
-    -- Ejecuta cada tool call EN ORDEN (P12: la paralela está pospuesta) y anexa
-    -- los tool_result como un mensaje de usuario (providers.md §2.2: los
-    -- tool_result viajan en un mensaje rol user). Luego vuelve al paso 2.
-    local results = {}
-    for _, block in ipairs(assistant.content) do
-      if block.type == "tool_call" then
-        results[#results + 1] = run_tool(self, block)
+      -- El modelo paró. Si llegó una corrección encolada mientras tanto (G4), NO
+      -- terminamos: volvemos a iterar para inyectarla como un nuevo turno de
+      -- usuario. Solo se cierra cuando el modelo para Y la cola está vacía.
+      if #self.queue == 0 then
+        break
+      end
+    else
+      -- Ejecuta cada tool call EN ORDEN (P12: la paralela está pospuesta) y anexa
+      -- los tool_result como un mensaje de usuario (providers.md §2.2). Luego vuelve.
+      local results = {}
+      for _, block in ipairs(assistant.content) do
+        if block.type == "tool_call" then
+          results[#results + 1] = run_tool(self, block)
+        end
+      end
+      if #results == 0 then
+        -- stop_reason=tool_calls pero sin bloques tool_call: el modelo se
+        -- contradijo; terminamos para no hacer loop vacío.
+        if #self.queue == 0 then
+          break
+        end
+      else
+        local tool_message = { role = "user", content = results }
+        table.insert(self.history, tool_message)
+        if self.store then
+          self.store:append_message(tool_message)
+        end
       end
     end
-    if #results == 0 then
-      -- stop_reason=tool_calls pero el mensaje no trae bloques tool_call: el
-      -- modelo se contradijo; terminamos para no hacer loop vacío.
-      break
-    end
-    local tool_message = { role = "user", content = results }
-    table.insert(self.history, tool_message)
-    if self.store then
-      self.store:append_message(tool_message)
-    end
-    -- vuelve al while (re-pide al provider con los resultados).
+    -- vuelve al while (re-pide al provider).
   end
 
-  emit(self.handle.id, "turn.end", { message = final_message })
-  return final_message
+  self:_finish_turn(false)
+end
+
+-- Session:cancel() cancela el turno en vuelo (agente.md §2 P22). NO vacía la cola
+-- (eso es `clear_queue`): cancela la task del turno, cuyo `cleanup` resuelve los
+-- `send` pendientes como cancelados. Sin turno en vuelo, no-op.
+function Session:cancel()
+  local task = self.turn_task
+  if task ~= nil and task.cancel ~= nil then
+    task:cancel()
+  end
+end
+
+-- Session:clear_queue() descarta los `send` ENCOLADOS aún no inyectados (G4/P22),
+-- resolviéndolos como cancelados. No toca el turno en vuelo (para eso, `cancel`).
+function Session:clear_queue()
+  local q = self.queue
+  self.queue = {}
+  for _, it in ipairs(q) do it.fut:set({ canceled = true }) end
+end
+
+-- Session:fork(at?) -> Session (agente.md §2 / sesiones.md §5, P22). Bifurca: una
+-- sesión NUEVA cuyo `meta.parent` apunta a esta y a la entrada `at` (default: el
+-- final del historial), con el prefijo copiado. El original queda intacto; el
+-- árbol de variantes es navegable por los `meta.parent` (sesiones.md §5).
+--
+-- DESVIACIÓN (documentada): el contrato describe el replay del fork "leyendo del
+-- padre hasta ese punto"; esta v1 COPIA el prefijo al transcript del hijo (más
+-- simple y autocontenido: el hijo resume sin seguir la cadena del padre). El
+-- puntero `parent` se escribe igual, así que el árbol sigue siendo navegable.
+function Session:fork(at)
+  if self.closed then
+    eagent("la sesión está cerrada")
+  end
+  local n = #self.history
+  at = at or n
+  if type(at) ~= "number" then
+    einval("Session:fork espera un índice de historial (entero) o nil")
+  end
+  if at < 0 then at = 0 end
+  if at > n then at = n end
+  local prefix = {}
+  for i = 1, at do prefix[i] = self.history[i] end
+
+  return M.session({
+    model       = self.model,
+    cwd         = self.cwd,
+    system      = self.opts.system,
+    permissions = self.opts.permissions,
+    max_turns   = self.max_turns,
+    tools       = self.opts.tools,
+    no_store    = self.opts.no_store,
+    parent      = { id = self.handle.id, entry = at },
+    _fork_prefix = prefix,
+  })
+end
+
+-- Session:compact(opts?) ⏸ (agente.md §8 P22/P25). Compactación MANUAL: resume el
+-- prefijo viejo y reinicia el historial desde el resumen. Estrategia:
+--   1. hook `compact` (§4): recibe la conversación; puede devolver el
+--      mensaje-resumen (se usa) o `{deny}` (se aborta, no se compacta);
+--   2. por defecto, resumen vía LLM (modelo configurable, por defecto el de la
+--      sesión) — `_summarize`.
+-- Escribe una entrada `compact` en el transcript (sesiones.md §3), sustituye el
+-- historial en memoria por `[resumen]` y emite `agent:compact` (§4).
+function Session:compact(opts)
+  if self.closed then
+    eagent("la sesión está cerrada")
+  end
+  opts = opts or {}
+  local payload, deny = run_hooks("compact", { messages = self.history }, { session = self.handle })
+  if deny ~= nil then
+    return false -- un hook impidió la compactación (agente.md §8)
+  end
+  local summary
+  if type(payload) == "table" and payload.summary ~= nil then
+    summary = payload.summary
+  else
+    summary = self:_summarize()
+  end
+  if type(summary) ~= "table" then
+    return false
+  end
+  if self.store then
+    self.store:append({ t = "compact", summary = summary })
+  end
+  local replaced = #self.history
+  self.history = { summary }
+  self._last_input_tokens = nil -- tras compactar, el contador de autocompact se reinicia
+  emit(self.handle.id, "compact", { auto = opts.auto == true, replaced = replaced })
+  return true
+end
+
+-- Session:_summarize() -> Message. Estrategia de compactación por defecto
+-- (agente.md §8): pide al modelo (el `compact_model`, por defecto el de la
+-- sesión) un resumen conciso de la conversación y lo devuelve como un mensaje de
+-- usuario (el rol más seguro para un prefijo inyectado). Una sola pasada, sin
+-- tools. Si la llamada falla, devuelve un resumen mínimo de respaldo (no rompe).
+function Session:_summarize()
+  local model = self.compact_model or self.model
+  local ok, resolved = pcall(providers.resolve, model)
+  if not ok then
+    return { role = "user", content = { { type = "text",
+      text = "[Resumen no disponible: " .. tostring(model) .. "]" } } }
+  end
+  local req = {
+    model    = resolved.config.model.id,
+    system   = "Resume la conversación siguiente de forma concisa, preservando "
+      .. "decisiones, hechos y el estado del trabajo. No añadas comentarios.",
+    messages = self.history,
+    max_tokens = self.max_tokens,
+  }
+  local text = ""
+  local ok2 = pcall(function()
+    for ev in resolved.adapter.stream(req, resolved.config) do
+      if ev.type == "done" and type(ev.message) == "table" then
+        for _, b in ipairs(ev.message.content or {}) do
+          if b.type == "text" then text = text .. (b.text or "") end
+        end
+      end
+    end
+  end)
+  if not ok2 or text == "" then
+    text = "[Resumen de la conversación previa no disponible]"
+  end
+  return { role = "user", content = { { type = "text",
+    text = "[Resumen de la conversación previa]\n" .. text } } }
+end
+
+-- Session:_maybe_autocompact() (P25). Si el último `usage.input_tokens` del
+-- proveedor (fuente de verdad, providers.md §5) rebasa el umbral configurable
+-- (defecto 80% del `context` del modelo), compacta automáticamente. El umbral
+-- depende de conocer la ventana de contexto (del providers.toml): sin ella, no
+-- dispara. Tras compactar, `_last_input_tokens` se limpia (no re-dispara).
+function Session:_maybe_autocompact()
+  local tokens = self._last_input_tokens
+  local window = self.context_window
+  if tokens == nil or type(window) ~= "number" or window <= 0 then
+    return
+  end
+  if tokens > self.compact_threshold * window then
+    self:compact({ auto = true })
+  end
 end
 
 -- Session:spawn(opts) -> Sub (agente.md §9). Lanza un SUBAGENTE: un agente que
@@ -764,8 +1215,11 @@ function M.session(opts)
     einval("agent.session requiere `model` (\"proveedor/modelo\") en opts o en agent.toml")
   end
   -- Valida el modelo pronto (resolve lanza EPROVIDER si el provider/adaptador no
-  -- existe): mejor fallar al abrir que en el primer turno.
-  providers.resolve(model)
+  -- existe): mejor fallar al abrir que en el primer turno. Aprovecha para conocer
+  -- la ventana de contexto del modelo (del providers.toml), que el disparo de
+  -- autocompactación (P25) necesita.
+  local resolved0 = providers.resolve(model)
+  local context_window = resolved0.config.model and resolved0.config.model.context
 
   local cwd = opts.cwd or nu.fs.cwd()
 
@@ -798,7 +1252,11 @@ function M.session(opts)
       end
     else
       for _, t in pairs(available) do
-        chosen[#chosen + 1] = t
+        -- La tool interna `skill` (P24) NO entra en el conjunto por defecto: solo
+        -- se ofrece a las sesiones que tienen skills (se añade tras descubrirlas).
+        if t.name ~= "skill" then
+          chosen[#chosen + 1] = t
+        end
       end
     end
     if #chosen > 0 then
@@ -809,6 +1267,13 @@ function M.session(opts)
       end
     end
   end
+
+  -- Config de compactación (agente.md §8, P25): umbral (fracción del contexto) y
+  -- modelo del resumen. Orden: opts < agent.toml [compact] < default (0.8 / el
+  -- modelo de la sesión).
+  local compact_cfg = cfg.compact or {}
+  local compact_threshold = opts.compact_threshold or compact_cfg.threshold or 0.8
+  local compact_model = opts.compact_model or compact_cfg.model
 
   local self = setmetatable({
     model            = model,
@@ -823,6 +1288,16 @@ function M.session(opts)
     tools_for_request = tools_for_request,
     closed           = false,
     usage            = { context_tokens = 0, cost_usd = 0, turns = 0 },
+    -- Reentrada (G4/P23) y cancelación (P22): la cola de `send`, los que esperan
+    -- el mensaje final, y el estado del turno en vuelo.
+    queue            = {},
+    waiters          = {},
+    turn_active      = false,
+    turn_task        = nil,
+    -- Compactación (P25): la ventana de contexto y la política de disparo.
+    context_window   = context_window,
+    compact_threshold = compact_threshold,
+    compact_model    = compact_model,
   }, Session)
 
   -- El handle público expuesto a hooks/ctx/eventos: id + usage (agente.md §2).
@@ -850,6 +1325,56 @@ function M.session(opts)
       elseif e.t == "compact" and type(e.summary) == "table" then
         table.insert(self.history, e.summary)
       end
+    end
+  end
+
+  -- Fork (P22, Session:fork): copia el prefijo del padre al historial y al
+  -- transcript del hijo (el `meta.parent` ya lo escribió sessions.open con
+  -- `opts.parent`). El hijo queda autocontenido (sesiones.md §5).
+  if type(opts._fork_prefix) == "table" then
+    for _, m in ipairs(opts._fork_prefix) do
+      table.insert(self.history, m)
+      if self.store then
+        self.store:append_message(m)
+      end
+    end
+  end
+
+  -- Descubrimiento de skills + nu.md del repo (P24). Se captura UNA vez al abrir;
+  -- la INCLUSIÓN en el system prompt la decide la confianza (TOFU §11.2) en cada
+  -- ensamblado. `opts.skills` (string[]) limita el índice visible (§6).
+  do
+    local user_skills, repo_skills = {}, {}
+    discover_skills_in(nu.config.dir() .. "/skills", "user", user_skills)
+    discover_skills_in(cwd .. "/.nu/skills", "repo", repo_skills)
+    if type(opts.skills) == "table" then
+      local allow = {}
+      for _, n in ipairs(opts.skills) do allow[n] = true end
+      local function keep(list)
+        local out = {}
+        for _, s in ipairs(list) do if allow[s.name] then out[#out + 1] = s end end
+        return out
+      end
+      user_skills = keep(user_skills)
+      repo_skills = keep(repo_skills)
+    end
+    self._user_skills = user_skills
+    self._repo_skills = repo_skills
+    local okmd, md = pcall(nu.fs.read, cwd .. "/nu.md")
+    if okmd and type(md) == "string" then self._nu_md = md end
+  end
+
+  -- Ofrece la tool `skill` (P24) solo si la sesión tiene skills visibles.
+  if self:_has_skills() and tools["skill"] ~= nil then
+    self.tools_for_request = self.tools_for_request or {}
+    local present = false
+    for _, td in ipairs(self.tools_for_request) do
+      if td.name == "skill" then present = true break end
+    end
+    if not present then
+      local st = tools["skill"]
+      self.tools_for_request[#self.tools_for_request + 1] =
+        { name = st.name, description = st.description, schema = st.schema }
     end
   end
 
