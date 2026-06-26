@@ -19,8 +19,9 @@ nu.http.request(opts) -> { status, headers, body }
 ```
 
 Petición con respuesta **buffereada**. `opts`: `url`, `method?`, `headers?`,
-`body?`, `timeout_ms?`. **No lanza por status ≥ 400** (el status es un dato);
-lanza `ENET`/`ETIMEOUT` por fallos de transporte.
+`body?`, `timeout_ms?`, `tls?`, `proxy?` (ver [TLS y proxy](#tls-y-proxy)).
+**No lanza por status ≥ 400** (el status es un dato); lanza `ENET`/`ETIMEOUT`
+por fallos de transporte.
 
 ```lua
 nu.task.spawn(function()
@@ -82,9 +83,10 @@ límite; al excederlo el stream falla con `EIO`. Consume sin acumular.
 ### TLS y proxy
 
 `request` y `stream` aceptan `opts.tls = { ca_file?, insecure? }` (CA corporativa
-por petición). Las variables `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` del entorno
-se respetan por defecto. Los defaults globales viven en la sección `[net]` de
-`nu.toml`, sobreescribibles por petición.
+por petición) y `opts.proxy = "http://host:puerto"` (proxy concreto para esa
+petición). Las variables `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` del entorno se
+respetan por defecto. Los defaults globales viven en la sección `[net]` de
+`nu.toml`, sobreescribibles por petición con esas dos opciones.
 
 ## `nu.ws.connect` ⏸ [W]
 

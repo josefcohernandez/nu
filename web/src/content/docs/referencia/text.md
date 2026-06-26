@@ -41,11 +41,11 @@ nu.text.truncate(s, width, opts?) -> string
 Trunca a `width` celdas, con elipsis opcional.
 
 ```sh
-nu -e 'return nu.text.truncate("hola mundo", 6, { ellipsis = true })'
+nu -e 'return nu.text.truncate("hola mundo", 7, { ellipsis = "…" })'
 ```
 
 ```
-hola m
+hola m…
 ```
 
 ## `nu.text.wrap` [W]
@@ -54,11 +54,18 @@ hola m
 nu.text.wrap(s, width, opts?) -> Block
 ```
 
-Word-wrap estilizable a `width` celdas. Devuelve un Block listo para `blit`.
+Word-wrap a `width` celdas. Devuelve un Block listo para `blit`. Con
+`opts.style` —un [Style](../ui/) `{ fg?, bg?, bold?, italic?, underline?, reverse? }`—
+cada línea del Block sale con ese estilo por defecto.
 
 ```lua
 local block = nu.text.wrap("un párrafo largo que no cabe en una línea", 20)
 -- region:blit(0, 0, block)
+
+-- estilizado: cada línea en el color de acento, en negrita.
+local aviso = nu.text.wrap("atención: esto es importante", 20, {
+  style = { fg = "#ffcc00", bold = true },
+})
 ```
 
 ## `nu.text.markdown` [W]
