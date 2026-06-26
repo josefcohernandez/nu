@@ -489,6 +489,21 @@ func (c *compositor) blitRegion(r *uiRegion) {
 	}
 }
 
+// invalidate descarta la base del diff: reinicia el `front` a una rejilla en blanco
+// y olvida la última secuencia de cursor, de modo que el SIGUIENTE `paint` re-emita
+// TODA la pantalla visible (no solo lo que cambió respecto al frame anterior). Lo usa
+// el driver de TTY (S33) al **conectar el terminal real** (`attachOutput`): los
+// pintados previos (p. ej. el de la pantalla desnuda, o los del arranque) llenaron el
+// `front`, pero sus bytes no se enviaron a ningún terminal —`out` aún era nil—, así
+// que el terminal recién puesto en raw mode/alt-screen está en blanco y necesita el
+// frame completo, no un diff contra un `front` que él nunca vio. Marca sucio para que
+// el painter repinte en el próximo tick.
+func (c *compositor) invalidate() {
+	c.front = newGrid(c.w, c.h)
+	c.lastCursor = ""
+	c.markDirty()
+}
+
 // resize cambia el tamaño de la pantalla (un `ui:resize`): reasigna las rejillas
 // de back/front al nuevo tamaño y marca sucio para recomponer. Las regiones NO se
 // tocan (sus coordenadas y lienzos persisten, G1): el siguiente `composite` las

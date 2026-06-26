@@ -143,21 +143,16 @@ func run() int {
 	}
 
 	if !headless {
-		// Sin `-e`/`-p`: si hay un TTY interactivo y NINGÚN plugin activo, se pinta la
-		// PANTALLA DE RUNTIME DESNUDO (§14, G21, S33): un render FIJO con la versión y
-		// el nivel de API, las rutas de config y plugins, el catálogo de extensiones
-		// embebidas disponibles y las acciones (activar el conjunto oficial / sueltas /
-		// salir). La elección con el TECLADO (y ver su efecto) la cablea el driver de
-		// TTY —es el CP-7 MANUAL—; aquí se pinta la pantalla y se vuelcan sus líneas a
-		// stdout. Sin TTY (salida redirigida, CI) no hay pantalla: se imprime el uso.
-		if rt.BareScreenActive() {
-			for _, ln := range rt.RenderBareScreen() {
-				fmt.Println(ln)
-			}
-			return exitOK
+		// Sin `-e`/`-p`: el arranque INTERACTIVO (S33, CP-7). Con un TTY, el binario da
+		// vida al `nu.ui`: arranca el contenido (la pantalla desnuda de G21 si no hay
+		// plugins, o el `Boot` canónico que corre los `init.lua`) y entra en el bucle del
+		// driver de TTY (raw mode, pintado al terminal, teclado, resize) hasta que se pide
+		// apagar. Sin TTY (salida redirigida, CI) no hay superficie: se imprime el uso.
+		if !rt.UIActive() {
+			fmt.Fprintln(os.Stderr, "uso: nu [--default-config] | [-e '<lua>'] | [-p '<prompt>' [--continue] [--auto-permissions] [--model prov/modelo]]")
+			return exitUsage
 		}
-		fmt.Fprintln(os.Stderr, "uso: nu [--default-config] | [-e '<lua>'] | [-p '<prompt>' [--continue] [--auto-permissions] [--model prov/modelo]]")
-		return exitUsage
+		return runInteractive(rt)
 	}
 
 	// Arranque canónico (§14, S11/S12): lee `config.dir()/nu.toml` (activación de
@@ -173,6 +168,30 @@ func run() int {
 	}
 
 	return runWith(rt, opts)
+}
+
+// runInteractive arranca el runtime con un TTY (S33, CP-7): da vida al `nu.ui`. Decide
+// el CONTENIDO —la pantalla de runtime desnudo (G21) si no hay plugins activos, o el
+// `Boot` canónico que corre los `init.lua` de plugins y usuario si los hay— y entra en el
+// bucle del driver de TTY (`RunInteractive`: raw mode, pintado al terminal, teclado,
+// resize, señales) hasta que se pide apagar. Un fallo de arranque o de inicialización del
+// terminal sale con código 1.
+func runInteractive(rt *runtime.Runtime) int {
+	if rt.BareScreenActive() {
+		// Sin plugins ni init.lua activo: la pantalla desnuda, con salida por teclado.
+		rt.PrepareBareScreen()
+	} else {
+		// Hay plugins/usuario que montan UI: arranque canónico (corre sus init.lua).
+		if err := rt.Boot(); err != nil {
+			fmt.Fprintln(os.Stderr, "error de arranque:", err)
+			return exitError
+		}
+	}
+	if err := rt.RunInteractive(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return exitError
+	}
+	return exitOK
 }
 
 // runWith ejecuta el modo headless elegido sobre un Runtime YA arrancado (`Boot`

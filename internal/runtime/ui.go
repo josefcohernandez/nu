@@ -72,6 +72,16 @@ type uiState struct {
 	// se prueba por unidad con bytes sintéticos. La lectura corre en la goroutine de
 	// fondo del ⏸ (sin token), así que `clipReader` no se toca bajo el token.
 	clipReader io.Reader
+
+	// out es el DESTINO real del frame pintado (driver de TTY, S33). El compositor
+	// construye el buffer ANSI del diff en `comp.enc`; hasta S33 ese buffer vivía solo
+	// en memoria (inspeccionable por los tests) y **nada lo enviaba a un terminal**: la
+	// UI se componía pero no se veía. `out` cierra ese hueco —es el `os.Stdout` del
+	// proceso interactivo, que el driver fija con `attachOutput` al entrar en raw mode—:
+	// tras cada `paint`, el painter (`armPainter`) vuelca el diff a `out` bajo el token.
+	// En headless (tests del compositor, `nu -e`) es **nil** y no se vuelca nada (la
+	// salida sigue siendo solo `comp.enc`). Solo se toca bajo el token (estado principal).
+	out io.Writer
 }
 
 // maybeUIState construye el estado de UI **solo si hay superficie de UI concedida**
@@ -154,13 +164,32 @@ func (rt *Runtime) armPainter() {
 				return
 			case <-ticker.C:
 				s.acquire()
-				if rt.ui.comp.dirty {
-					rt.ui.comp.paint()
-				}
+				rt.flushFrame()
 				s.release()
 			}
 		}
 	}()
+}
+
+// flushFrame pinta el compositor (si hay cambios) y **vuelca el diff resultante al
+// terminal real** conectado por el driver de TTY (`rt.ui.out`, S33). Es el puente que
+// faltaba entre el compositor —que siempre supo construir el buffer ANSI del frame en
+// `comp.enc`— y un terminal de verdad: hasta S33 ese buffer vivía solo en memoria y
+// **nada lo enviaba a la pantalla**. Lo llaman el timer de coalescing (`armPainter`,
+// cada ~30 ms) y el driver tras alimentar input (para feedback inmediato por tecla, sin
+// esperar al tick). PRESUPONE el token tomado (toca el compositor, estado principal,
+// ADR-008); no-op sin UI o sin cambios. En headless `out` es nil: el frame se compone
+// (lo inspeccionan los tests por `comp.encoded()`) pero no se vuelca a ningún sitio.
+func (rt *Runtime) flushFrame() {
+	if rt.ui == nil || !rt.ui.comp.dirty {
+		return
+	}
+	rt.ui.comp.paint()
+	if rt.ui.out != nil {
+		if frame := rt.ui.comp.encoded(); frame != "" {
+			_, _ = io.WriteString(rt.ui.out, frame)
+		}
+	}
 }
 
 // stopPainter corta el timer de coalescing (su goroutine). Idempotente: cerrar
