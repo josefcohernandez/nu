@@ -272,6 +272,34 @@ function M.install_builtins(deps)
       if #v.deny == 0 then lines[#lines + 1] = "    (ninguno)" end
       return table.concat(lines, "\n")
     end })
+
+  -- /think: ve y cambia el control de razonamiento de la sesión (ADR-016). Sin
+  -- args, muestra el modo vigente; con args lo cambia (Session:set_thinking):
+  -- `off`, `adaptive`, o `budget <N>`. El dialecto real por-modelo lo resuelve el
+  -- adaptador (un modelo "none" ignora la petición); aquí solo se elige el modo.
+  M.command({ name = "think", description = "ve o cambia el razonamiento del modelo",
+    args = "[off|adaptive|budget <N>]",
+    handler = function(args, ctx)
+      local s = ctx.session
+      if not (s and s.set_thinking) then
+        return "el control de razonamiento no está disponible"
+      end
+      local verb, rest = (args or ""):match("^(%S*)%s*(.*)$")
+      if verb == nil or verb == "" then
+        return "razonamiento: " .. s:thinking_mode()
+      elseif verb == "off" or verb == "adaptive" then
+        s:set_thinking(verb)
+        return "razonamiento: " .. s:thinking_mode()
+      elseif verb == "budget" then
+        local n = tonumber(rest)
+        if n == nil then
+          return "uso: /think budget <N>  (N = presupuesto de tokens)"
+        end
+        s:set_thinking({ mode = "budget", budget = math.floor(n) })
+        return string.format("razonamiento: budget (%d tokens)", math.floor(n))
+      end
+      return "uso: /think [off|adaptive|budget <N>]"
+    end })
 end
 
 return M

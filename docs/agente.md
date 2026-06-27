@@ -26,13 +26,15 @@ tercero. Consecuencias buscadas:
 agent.session(opts) -> Session
   opts: { model: "proveedor/modelo", system?, cwd?, tools?: string[],
           skills?: string[], permissions?: Permissions, parent?,
+          thinking?: { mode?: "off"|"adaptive"|"budget", budget?: integer },
           resume?: string }                          -- id: reabre en vez de crear
 
 Session:send(content: string|Block[]) ⏸ -> Message  -- ejecuta el turno completo
-Session:cancel()                                     -- cancela el turno en curso  [⏸ pospuesto P22]
-Session:fork(at?: integer) -> Session                -- sesiones.md §5             [⏸ pospuesto P22]
-Session:compact() ⏸                                  -- compactación manual        [⏸ pospuesto P22]
+Session:cancel()                                     -- cancela el turno en curso
+Session:fork(at?: integer) -> Session                -- sesiones.md §5
+Session:compact() ⏸                                  -- compactación manual
 Session:set_model(model: string)                     -- cambio en caliente (G19)
+Session:set_thinking(thinking)                        -- razonamiento en caliente (ADR-016)
 Session.id / Session.usage -> { context_tokens, cost_usd, turns }
 ```
 
@@ -79,6 +81,16 @@ contra el registro de providers, escribe una entrada `event` en el
 transcript ([sesiones.md](sesiones.md) §3) y aplica desde el siguiente
 request; con un turno en vuelo, al ensamblar la siguiente iteración (como
 la cola de G4), nunca a mitad de un stream.
+
+**Control de razonamiento ([ADR-016](adr.md#adr-016--modelo-canónico-de-thinking-con-mode-y-traducción-por-modelo-en-el-adaptador))**:
+`opts.thinking` (o el default de `agent.toml [thinking]`, §10) fija el modo de
+razonamiento que llevará cada request canónico (`thinking`, providers.md §2.1);
+`Session:set_thinking(mode|tabla)` lo cambia en caliente (mismo flujo que
+`set_model`: desde el siguiente request). La sesión solo elige el **modo**
+(`"off"`/`"adaptive"`/`"budget"`); el **dialecto** que cada modelo entiende lo
+resuelve el adaptador con el dato `thinking` del `providers.toml` (un modelo de
+dialecto `"none"` ignora la petición). Un hook `request.pre` puede afinar el
+`thinking` por turno.
 
 Errores del adaptador con `retryable = true`: reintento con backoff
 exponencial y límite configurable — la política vive aquí, nunca en el
@@ -284,7 +296,8 @@ Sub:cancel()
 ## 10. Configuración
 
 `config.dir()/agent.toml`: modelo por defecto, `max_turns`, umbral y modelo
-de compactación, política de retención de sesiones ([P10](pospuesto.md)),
+de compactación, **razonamiento por defecto** (`[thinking]` con `mode` y
+`budget`, ADR-016), política de retención de sesiones ([P10](pospuesto.md)),
 permisos globales. La precedencia es la estándar: defaults < global <
 proyecto (`<repo>/.nu/agent.toml`) < sesión (`opts`) — con la excepción de
 seguridad de §11: los permisos del proyecto solo recortan.

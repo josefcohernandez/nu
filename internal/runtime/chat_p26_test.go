@@ -183,6 +183,33 @@ func TestChatForkCommand(t *testing.T) {
 	h.eval(`C:quit()`)
 }
 
+// TestChatThinkCommand (P21/ADR-016): /think ve y cambia el razonamiento de la
+// sesión, y el modo se refleja en thinking_mode() (que alimenta la statusline).
+func TestChatThinkCommand(t *testing.T) {
+	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
+	startChat(h, "")
+	h.eval(`
+		nu.task.spawn(function()
+			local cmds = require("chat.commands")
+			local ctx = C:command_ctx()
+			_, SHOW0 = cmds.dispatch("/think", ctx)            -- estado inicial: off
+			cmds.dispatch("/think adaptive", ctx)
+			MODE_A = C.session:thinking_mode()
+			_, MSG_BUD = cmds.dispatch("/think budget 8000", ctx)
+			MODE_B = C.session:thinking_mode()
+			BUDGET_B = C.session.thinking and C.session.thinking.budget
+			cmds.dispatch("/think off", ctx)
+			MODE_OFF = C.session:thinking_mode()
+		end)
+	`)
+	h.expectEval(`return SHOW0`, "razonamiento: off")
+	h.expectEval(`return MODE_A`, "adaptive")
+	h.expectEval(`return MODE_B`, "budget")
+	h.expectEval(`return tostring(BUDGET_B)`, "8000")
+	h.expectEval(`return MODE_OFF`, "off")
+	h.eval(`C:quit()`)
+}
+
 // TestChatPermissionsCommand (P28): /permissions edita la política de la sesión.
 func TestChatPermissionsCommand(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)

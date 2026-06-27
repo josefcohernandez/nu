@@ -84,12 +84,14 @@ Builtins (registrados con esta misma función — dogfooding):
 `/model` (picker desde `providers.list()`, aplica `Session:set_model`),
 `/sessions` (picker desde el listado de [sesiones.md](sesiones.md) §7,
 reanuda vía `agent.session{ resume = id }`), `/fork`, `/compact`,
-`/permissions` (ver y editar la política de la sesión), `/help`, `/quit`.
+`/permissions` (ver y editar la política de la sesión), `/think` (ver y
+cambiar el razonamiento, ADR-016), `/help`, `/quit`.
 
 > ✅ **Implementado** ([pospuesto.md](pospuesto.md) **P28**). Además de
 > `/model`, `/sessions`, `/compact`, `/clear`, `/help`, `/quit`, el chat trae
-> `/fork` (bifurca con `Session:fork` y sigue en la rama vía `Chat:switch_session`)
-> y `/permissions` (ve y edita la política: `allow|deny <patrón>`, `mode ask|auto`).
+> `/fork` (bifurca con `Session:fork` y sigue en la rama vía `Chat:switch_session`),
+> `/permissions` (ve y edita la política: `allow|deny <patrón>`, `mode ask|auto`)
+> y `/think` (`off|adaptive|budget <N>`, vía `Session:set_thinking`, ADR-016).
 
 ## 5. Diálogo de permisos
 
@@ -117,7 +119,8 @@ los demás esperan en cola (y se señalan en la statusline).
 
 Segmentos por defecto: modelo activo · llenado de contexto (% desde
 `Session.usage`, con aviso visual cerca del umbral de compactación) ·
-coste acumulado de la sesión · cwd · modo de permisos. Extensible:
+coste acumulado de la sesión · razonamiento (🧠, solo si está activo;
+ADR-016) · cwd · modo de permisos. Extensible:
 
 ```
 chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span[] }

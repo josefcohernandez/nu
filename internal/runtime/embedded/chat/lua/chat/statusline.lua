@@ -109,6 +109,15 @@ function M.install_defaults()
     return string.format("$%.4f", u.cost_usd or 0)
   end })
 
+  -- Modo de razonamiento (ADR-016): indicador discreto, solo si está activo.
+  M.add({ id = "thinking", side = "left", priority = 25, render = function(ctx)
+    local mode = ctx.thinking
+    if mode and mode ~= "off" then
+      return "🧠 " .. tostring(mode)
+    end
+    return ""
+  end })
+
   -- cwd (derecha).
   M.add({ id = "cwd", side = "right", priority = 20, render = function(ctx)
     return ctx.cwd or ""
