@@ -9,8 +9,11 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 33 registradas, resueltas** (G35 añadida 2026-06-27 al usar el binario
-tras el onramp de ADR-015; G34 añadida 2026-06-27 al validar con pseudocódigo el
+**Estado: 35 registradas, resueltas** (G36 y G37 añadidas 2026-06-28 al pulir la
+UI/UX de las extensiones oficiales para que parezcan producto: G36, el doble
+auto-montaje de chat+repl; G37, un bug latente del eje X de `blitBlock`; G35 añadida
+2026-06-27 al usar el binario tras el onramp de ADR-015; G34 añadida 2026-06-27 al
+validar con pseudocódigo el
 control de razonamiento; G33 añadida 2026-06-23 al probar el
 binario con las extensiones oficiales; G32 añadida 2026-06-22 desde la
 construcción de la extensión sesiones). Las dieciséis de las
@@ -917,3 +920,21 @@ propio, no con el yield aquí descartado.
 **Impacto.** Es la **primera experiencia** de quien sigue el onramp de ADR-015 al pie de la letra: el comando que prometía dejar el harness listo lo deja roto e inservible. Bloquea por completo el arranque interactivo del producto. Barato de cerrar sobre la superficie CLI ya congelada (S45) y la Lua de las extensiones, sin tocar la API sagrada.
 
 **Opciones.** (a) **Onramp completo + degradación con gracia** (la elegida, ADR-017): el onramp deja config usable *y* el chat sobrevive a la falta de config. (b) Solo degradación: el chat monta una UI accionable, pero el primer `nu` sigue sin modelo y exige editar TOML a mano — deshace la ergonomía de ADR-015. (c) Solo onramp: escribir las plantillas, pero el chat seguiría muriendo si el usuario borra/rompe la config — deja el segundo defecto (UI atrapada) sin cerrar. (d) Un **modelo por defecto cableado en el agente** sin `providers.toml`: mete vocabulario de producto (qué modelo, qué endpoint, qué env) en el motor, contra ADR-003/ADR-005; descartada. (e) No hacer nada y documentar "edita `agent.toml`/`providers.toml`": hostil, justo lo que ADR-010/ADR-015 quisieron evitar.
+
+## G36 · El conjunto oficial de producto auto-monta dos UIs (chat y repl): salir del chat deja el REPL debajo — ADR-015 / `arquitectura.md` §Distribución / `chat.md` §8 — **RESUELTO**
+
+**Resolución** (aplicada en el `init.lua` de la extensión `repl`, sin tocar la API sagrada; documentada en [arquitectura.md](arquitectura.md) §Distribución y [chat.md](chat.md) §8): el repl **cede la pantalla al chat**. Su auto-montaje en `core:ready` pasa a ser condicional: solo monta su UI si el `chat` **no** está entre los plugins activos (lo comprueba con `nu.plugin.list()`, sin `require`ar chat —el repl debe poder activarse SOLO, G21). Con el conjunto oficial activo, abre **solo** el chat; el repl queda como módulo accesible (`require("repl")`, `repl.eval`) pero inerte como UI. Con solo `repl` activo (G21), abre el REPL. En headless, ninguno monta UI. Además, `Chat:quit` (y `ctrl+c`) emiten `core:shutdown`: **cerrar el chat apaga el binario** en vez de devolver al usuario a una capa inferior.
+
+**Problema.** Aflora al *usar* el producto, no en pseudocódigo. ADR-015 fijó el conjunto oficial como "las siete embebidas menos `example`", incluido `repl`, razonando **solo el caso headless** ("chat/repl se auto-gatean con `nu.has("ui")` y quedan inertes sin UI, así que activarlos juntos no estorba"). Pero **con TTY** —la experiencia real del producto— los `init.lua` de chat *y* de repl se suscriben a `core:ready` y **ambos** montan una `toolkit.app` a pantalla completa sobre el mismo compositor. Se solapan; y como el chat no apagaba el runtime al salir, cerrar el chat dejaba el REPL de Lua montado debajo: la sensación, descrita por el usuario, de "salir de la extensión de chat y luego del intérprete de lua". El razonamiento de ADR-015 tenía un hueco: *activarlos en headless* no estorba, pero *activarlos juntos en TTY* sí.
+
+**Impacto.** Es la primera impresión del producto terminado: en vez de una TUI única y pulida, el usuario percibe capas que hay que ir cerrando. Barato de cerrar sobre la Lua de las extensiones (el repl mira el registro del loader ya existente) sin tocar la API sagrada ni el conjunto de ADR-015 (el repl sigue en él, instalado y accesible; solo no compite por la pantalla).
+
+**Por qué el repl cede y no se saca del conjunto.** Sacar `repl` de `officialProductSet` lo desinstalaría del producto (no estaría disponible para activarse suelto desde una sesión con el conjunto oficial). El repl es valioso como herramienta del autor de extensiones (G21); lo que sobra no es su *presencia* sino su *competencia por la pantalla*. Cederla —el patrón "una sola extensión posee la UI primaria"— preserva ADR-015 y resuelve el solape. El chat, la UI del harness, es quien manda cuando está presente.
+
+## G37 · `blitBlock` invierte el signo del offset X respecto a Y y al contrato de `Region:blit` — `api.md` §9.1 / `compositor.go` — **RESUELTO**
+
+**Resolución** (aplicada en `compositor.go`; sin cambio en api.md —corrige la *implementación* para que cumpla el contrato ya documentado): `blitBlock` estampa el origen del Block en `(ox, oy)` con el **mismo** signo en ambos ejes. El eje X pasa de `lx = col - ox` a `lx = col + ox`, igual que el eje Y ya hacía con `by = ly - oy` (un `oy` negativo recorta el borde inicial). El test horizontal de viewport (G28) se corrige a la semántica coherente: `blit(-2,0)` recorta el inicio ("CDEF…"), `blit(+2,0)` desplaza a la derecha ("  AB").
+
+**Problema.** [api.md](api.md) §9.1 documenta `Region:blit(x, y, block)` como un viewport simétrico: "`x/y` pueden ser **negativos** y recortan el borde *inicial* del bloque (`blit(0,-3,doc)` muestra `doc` desde su cuarta fila)". El eje Y lo cumplía; el X estaba **invertido** (`lx = col - ox`: era el *positivo* el que recortaba el inicio). Nunca se notó porque **ningún widget se blitteaba en x>0**: el chat, la pantalla desnuda y el repl apilaban todo contra el margen izquierdo. Al introducir `padding`/alineación en el toolkit (G36), un widget colocado en x=1 perdía su primera columna (el borde izquierdo de una caja, la viñeta de una línea), porque la app llama `region:blit(ax, ay)` esperando *posicionar* y en X obtenía un *scroll*.
+
+**Impacto.** Latente pero real: bloquea cualquier layout con margen/padding/centrado horizontal —es decir, casi toda la UI de producto (cajas, modales centrados, statusline con padding)—. Se descubrió al construir el primer widget de borde. La corrección alinea la implementación con el contrato; no amplía ni cambia la API (`nu.version.api` no se mueve).

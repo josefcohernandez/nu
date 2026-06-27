@@ -53,8 +53,10 @@ Notas:
 - La API de **ui** es deliberadamente de bajo nivel (ADR-007): el core expone
   celdas/regiones y un compositor; el **toolkit de widgets es una extensión
   Lua oficial** (retenida por dentro: árbol + nodos sucios) que aporta slots,
-  focus, composición entre plugins y el sistema de themes — los nombres
-  semánticos de color se resuelven aquí, no en el core (G22) —, y se
+  focus, composición entre plugins, **decoración** (caja/borde, padding,
+  spinner, texto multi-span — [ADR-018](adr.md)) y el sistema de themes — los
+  nombres semánticos de color se resuelven aquí, no en el core (G22), y el
+  theme cablea su paleta al render de markdown (`Theme:markdown_opts`) —, y se
   versiona aparte de la API sagrada.
   Lua coloca bloques pre-rendidos por `text`, no celdas sueltas, en los
   caminos calientes. Es el patrón de ADR-003 aplicado a la UI: el core no
@@ -138,7 +140,11 @@ recompilación. El contrato del adaptador y el formato del registro están en
   las siete embebidas menos el andamiaje `example` (ADR-015): además del
   harness (agente, chat, providers, MCP, toolkit), un **`repl`** —REPL de
   Lua sobre la API pública, activable solo, el punto de partida del autor
-  de extensiones que no quiere el harness (G21)—.
+  de extensiones que no quiere el harness (G21)—. Con TTY, **una sola UI
+  primaria posee la pantalla**: el repl **cede al chat** (solo auto-monta su
+  UI si el chat no está activo, vía `nu.plugin.list`), así `nu` con el
+  conjunto oficial abre una TUI única y no el chat *y* el REPL solapados
+  ([G36](problemas.md#g36), [ADR-018](adr.md)).
 
 ## Persistencia
 

@@ -26,6 +26,15 @@ de terceros puede hacer todo lo que hace esta.
 Una columna, una sesión visible. Splits y vista multi-sesión: pospuesto
 ([P14](pospuesto.md)).
 
+> ✅ **Pulido de producto** ([ADR-018](adr.md)). La columna se ve acabada, no como
+> un kernel pelado: **bienvenida** al arrancar (banner + modelo + cwd + atajos) en vez
+> de una pantalla en blanco; **input enmarcado** (`toolkit.box`, borde redondeado) con
+> prompt `› ` y placeholder visible; una fila de **actividad** con spinner animado
+> mientras el turno corre; **statusline como barra** (fondo + segmentos coloreados);
+> **tarjetas de tool** con sus argumentos; **modales enmarcados y centrados**. Todo
+> sobre el toolkit (sus widgets `box`/`spinner`/`richtext` y el `Theme:markdown_opts`
+> que colorea el transcript, G22) — sin privilegio de kernel.
+
 Multi-sesión (G3): `chat` pinta solo los eventos cuyo `session` es la
 sesión activa; la actividad de otras (subagentes, sesiones en background)
 se refleja como indicador discreto en la statusline — incluido un contador
@@ -56,9 +65,14 @@ tool de diff pinta diffs con colores y la de tests pinta su tabla, sin que
 
 ## 3. Input
 
-- Editor multilínea: `enter` envía, `shift+enter` (o `alt+enter` según
-  terminal, vía `nu.ui.caps`) inserta línea. Historial con `↑/↓` en el
-  borde del editor. `esc` cancela el turno en curso (`Session:cancel()`).
+- Editor multilínea **enmarcado** ([ADR-018](adr.md)): vive en un `toolkit.box`
+  (borde redondeado, realce de foco) con un prompt `› `; la caja **crece y encoge**
+  con el contenido (hasta un máximo). El **placeholder** (las pistas de uso) se ve
+  aunque el editor tenga el foco (antes se ocultaba justo al arrancar). `enter` envía,
+  `shift+enter` (o `alt+enter` según terminal, vía `nu.ui.caps`) inserta línea.
+  Historial con `↑/↓` en el borde del editor. `esc` cancela el turno en curso
+  (`Session:cancel()`); mientras corre, una fila de **actividad** con spinner lo
+  señala ("Pensando…/Ejecutando <tool>… · esc para interrumpir").
 - **Menciones `@`**: abre picker difuso de ficheros del repo
   (`nu.search.files` + `nu.search.fuzzy`); la mención inyecta la ruta y el
   agente decide leerla (no se incrusta el contenido a ciegas).
@@ -117,10 +131,15 @@ los demás esperan en cola (y se señalan en la statusline).
 
 ## 6. Statusline
 
-Segmentos por defecto: modelo activo · llenado de contexto (% desde
-`Session.usage`, con aviso visual cerca del umbral de compactación) ·
+Se pinta como una **barra** ([ADR-018](adr.md)): un fondo continuo (`bg_surface`)
+y, sobre él, los segmentos como **spans coloreados** por el theme (G22) —no un texto
+gris concatenado—. Cada segmento devuelve `{ text, style }` (un nombre semántico de
+color) o `""` para ocultarse; el chat los separa con un `·` atenuado y alinea el lado
+derecho. Segmentos por defecto: modelo activo · llenado de contexto (% desde
+`Session.usage`, que pasa a color `warn` cerca del umbral de compactación) ·
 coste acumulado de la sesión · razonamiento (🧠, solo si está activo;
-ADR-016) · cwd · modo de permisos. Extensible:
+ADR-016) · cwd (**abreviada**, `~`/dos últimos segmentos) · modo de permisos
+(`auto` resaltado). Extensible:
 
 ```
 chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span[] }
@@ -140,6 +159,18 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
 - `chat` solo se activa en TTY interactivo — el test es `nu.has("ui")`
   ([api.md](api.md) §9, G20); en headless ni se carga (la
   separación motor/UI de [agente.md](agente.md) §1 es la que lo permite).
+- **Bienvenida** ([ADR-018](adr.md)). Mientras la conversación está vacía, el
+  transcript muestra un saludo (identifica el harness, el **modelo** y el **cwd**
+  activos, y recuerda los atajos) en vez de una pantalla en blanco; al primer mensaje
+  lo sustituye la conversación. La calidad de la pantalla de arranque degradado
+  (abajo) deja de ser la excepción.
+- **El chat posee la pantalla y al cerrarse apaga el binario** ([G36](problemas.md#g36)).
+  El conjunto oficial (ADR-015) activa también `repl`, pero el repl **cede**: solo
+  auto-monta su UI si el chat no está activo (lo comprueba con `nu.plugin.list`, sin
+  depender de chat). Y `Chat:quit` (y `ctrl+c`) emiten `core:shutdown`: salir del chat
+  **apaga el runtime** en vez de dejar al usuario en una capa inferior (el REPL/intérprete).
+  Así `nu` con el conjunto oficial abre **una** TUI única; con solo `repl` activo
+  (G21), abre el REPL.
 - Crea la sesión inicial (`agent.session`) con la config resuelta
   (defaults < global < proyecto), o reanuda una existente
   (`agent.session{ resume = id }`, alimentado por el picker de
