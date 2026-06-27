@@ -457,6 +457,43 @@ local function normalize_permissions(opts_perms, cfg)
   }
 end
 
+-- normalize_thinking(value) -> { mode, budget? } | nil. Normaliza la opción de
+-- razonamiento de la sesión (control de razonamiento del agente, ADR-016) a la
+-- forma canónica del request (providers.md §2.1). Acepta:
+--   - una tabla `{ mode?, budget? }` (la forma canónica);
+--   - una cadena de modo ("off"|"adaptive"|"budget") como atajo;
+--   - `{ budget = N }` sin mode → "budget" (compat con la firma vieja del canónico).
+-- Devuelve nil para "off" / ausente (sin razonamiento: el request no lleva
+-- `thinking`). El DIALECTO por-modelo no se decide aquí: es dato del providers.toml
+-- que el adaptador traduce (ADR-016) — la sesión solo elige el modo.
+local function normalize_thinking(value)
+  if value == nil then
+    return nil
+  end
+  local mode, budget
+  if type(value) == "string" then
+    mode = value
+  elseif type(value) == "table" then
+    mode, budget = value.mode, value.budget
+  else
+    einval("thinking debe ser una tabla { mode?, budget? } o una cadena de modo")
+  end
+  if mode == nil and type(budget) == "number" then
+    mode = "budget" -- compat: { budget = N } sin mode
+  end
+  if mode == nil or mode == "off" then
+    return nil
+  end
+  if mode ~= "adaptive" and mode ~= "budget" then
+    einval('thinking.mode debe ser "off", "adaptive" o "budget"')
+  end
+  local out = { mode = mode }
+  if type(budget) == "number" then
+    out.budget = budget
+  end
+  return out
+end
+
 -- ---------------------------------------------------------------------------
 -- System prompt (agente.md §7).
 -- ---------------------------------------------------------------------------
@@ -962,6 +999,10 @@ function Session:_turn_loop()
       tools       = self.tools_for_request,
       max_tokens  = self.max_tokens,
       temperature = self.temperature,
+      -- Control de razonamiento (providers.md §2.1, ADR-016): la opción de la
+      -- sesión viaja al request canónico; el adaptador la traduce por-modelo. nil
+      -- = sin razonamiento (lo de siempre). Un hook request.pre puede retocarla.
+      thinking    = self.thinking,
     }
     local hooked, deny_reason = run_hooks("request.pre", request, { session = self.handle })
     if deny_reason ~= nil then
@@ -1208,6 +1249,26 @@ function Session:set_model(model)
   end
 end
 
+-- Session:set_thinking(value) cambia el control de razonamiento de la sesión en
+-- caliente (ADR-016, agente.md §2). `value`: una tabla `{ mode?, budget? }`, una
+-- cadena de modo ("off"|"adaptive"|"budget"), o nil (= off). Aplica desde el
+-- siguiente request (como set_model: nunca a mitad de un stream). Escribe una
+-- entrada `event` en el transcript.
+function Session:set_thinking(value)
+  self.thinking = normalize_thinking(value)
+  if self.store then
+    self.store:append({ t = "event", ns = "agent",
+      data = { kind = "set_thinking", thinking = self.thinking } })
+  end
+  return self
+end
+
+-- Session:thinking_mode() -> "off"|"adaptive"|"budget" el modo de razonamiento
+-- vigente (para mostrarlo en la UI; chat /think y statusline). "off" si no hay.
+function Session:thinking_mode()
+  return (self.thinking and self.thinking.mode) or "off"
+end
+
 -- Session:allow(pattern) añade `pattern` a la política `allow` de ESTA sesión en
 -- caliente (agente.md §5 / chat.md §5 "permitir siempre", P29). Aplica desde la
 -- siguiente comprobación de permiso. Idempotente (no duplica).
@@ -1361,6 +1422,17 @@ function M.session(opts)
   local compact_threshold = opts.compact_threshold or compact_cfg.threshold or 0.8
   local compact_model = opts.compact_model or compact_cfg.model
 
+  -- Control de razonamiento de la sesión (ADR-016, agente.md §2/§10): el modo por
+  -- defecto de `thinking` que llevará cada request. Orden: opts.thinking (si se
+  -- dio, aunque sea "off") < agent.toml [thinking]. `Session:set_thinking` lo
+  -- cambia en caliente.
+  local thinking
+  if opts.thinking ~= nil then
+    thinking = normalize_thinking(opts.thinking)
+  else
+    thinking = normalize_thinking(cfg.thinking)
+  end
+
   local self = setmetatable({
     model            = model,
     opts             = opts,
@@ -1371,6 +1443,7 @@ function M.session(opts)
     max_turns        = opts.max_turns or cfg.max_turns or DEFAULT_MAX_TURNS,
     max_tokens       = opts.max_tokens,
     temperature      = opts.temperature,
+    thinking         = thinking,
     tools_for_request = tools_for_request,
     closed           = false,
     usage            = { context_tokens = 0, cost_usd = 0, turns = 0 },

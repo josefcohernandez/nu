@@ -109,6 +109,7 @@ function Chat:_update_statusline()
     cwd = self.session.cwd,
     perms_mode = self.perms_mode,
     pending_asks = self.pending_count or 0,
+    thinking = (self.session.thinking_mode and self.session:thinking_mode()) or "off",
   }
   -- une los segmentos de cada lado en un solo texto por label (v1: un label por
   -- lado, separado por " · "). La forma rica (un label por segmento en el hbox) es
