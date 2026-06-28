@@ -75,25 +75,35 @@ local function make_box(kind)
     return nil
   end
 
-  -- container:relayout(x, y, w, h) fija el área del contenedor y reparte entre los
-  -- hijos VISIBLES. Solo recalcula si está sucio o si el área cambió (dirty
-  -- tracking del layout); si no, conserva la geometría de los hijos. Tras
-  -- repartir, propaga `relayout` a los hijos que sean contenedores (un subárbol).
-  function mt:relayout(x, y, w, h)
+  -- container:relayout(x, y, w, h, force) fija el área del contenedor y reparte
+  -- entre los hijos VISIBLES. Solo recalcula si está sucio, si el área cambió o si
+  -- el llamante FUERZA (dirty tracking del layout); si no, conserva la geometría de
+  -- los hijos. Tras repartir, propaga `relayout` a los hijos que sean contenedores.
+  --
+  -- POR QUÉ `force`. El flag `self.dirty` sirve a DOS amos: "recomponer el Block"
+  -- (lo consume `render` al pintar) y "rehacer el reparto" (lo consume aquí). Como
+  -- `mark_dirty` pinta de forma SÍNCRONA (app.lua: `_request_paint`), un cambio
+  -- ESTRUCTURAL —`add`/`remove`/`set_visible`— dispara un paint que limpia `dirty`
+  -- ANTES de que el `relayout` posterior lo lea, y el hijo nuevo se quedaba sin
+  -- geometría (0×0: modal/picker invisible, input multilínea que no crecía). Y un
+  -- cambio de `pref_h` ni siquiera ensucia al PADRE que debe repartir. Por eso un
+  -- `App:relayout()` —siempre EXPLÍCITO: "cambié el árbol, recolócalo"— fuerza el
+  -- reparto completo en vez de fiarse de un `dirty` que el paint ya pudo borrar. El
+  -- coste es solo aritmético (colocar hijos), no recompone Blocks (eso lo decide
+  -- `set_geometry` por cambio de tamaño), así que el ahorro caro del dirty tracking
+  -- —no RECOMPONER— se conserva intacto.
+  function mt:relayout(x, y, w, h, force)
     local area_changed = (x ~= self.x) or (y ~= self.y) or (w ~= self.w) or (h ~= self.h)
     self:set_geometry(x, y, w, h)
-    -- Si nada cambió (ni el área ni la estructura), no rehagas el reparto: solo
-    -- desciende para que los hijos contenedores se recoloquen si ELLOS están
-    -- sucios. Pero si el contenedor está sucio (hijo nuevo/visibilidad), o el
-    -- área cambió, recalcula.
-    if self.dirty or area_changed or self._layout_done ~= true then
+    if force or self.dirty or area_changed or self._layout_done ~= true then
       self:_distribute(w, h)
       self._layout_done = true
     end
-    -- Desciende: un hijo contenedor reparte su propia área (ya asignada arriba).
+    -- Desciende: un hijo contenedor reparte su propia área (ya asignada arriba). El
+    -- `force` se propaga: un reparto forzado recoloca el subárbol entero.
     for _, c in ipairs(self.children) do
       if c.visible and c.relayout then
-        c:relayout(c.x, c.y, c.w, c.h)
+        c:relayout(c.x, c.y, c.w, c.h, force)
       end
     end
   end

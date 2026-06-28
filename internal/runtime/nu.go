@@ -12,7 +12,7 @@ import (
 const (
 	VersionMajor = 0
 	VersionMinor = 1
-	VersionPatch = 2
+	VersionPatch = 3
 	APILevel     = 2
 )
 

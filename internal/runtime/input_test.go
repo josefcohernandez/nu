@@ -159,6 +159,54 @@ func TestInputKeymapSinglePressInstant(t *testing.T) {
 	}
 }
 
+// Un keymap CONSUME por defecto (disparar = atender): una fn que no devuelve nada
+// (nil) se traga la tecla, y el handler crudo de abajo no la ve. Pero una fn que
+// devuelve `false` EXPLÍCITO CEDE: el evento sigue bajando por la pila y lo recibe el
+// handler de abajo (api.md §9.3, "azúcar sobre la pila; quien no consume deja pasar").
+// Blinda el bug por el que el keymap consumía SIEMPRE ignorando el retorno —lo que
+// dejaba colgado el chat: sus atajos `esc`/`enter` devuelven `false` con un modal
+// abierto para que la tecla llegue al picker enfocado, y nunca llegaba—.
+func TestInputKeymapDeclineFallsThrough(t *testing.T) {
+	h := newHarness(t)
+	counts := registerGoCounter(h)
+
+	// Abajo, un handler crudo que marca y consume (simula el on_input de la app que
+	// enruta al widget enfocado). Arriba, dos keymaps: "esc" CEDE (return false),
+	// "enter" CONSUME (return true).
+	h.eval(`
+		nu.ui.on_input(function(ev) mark("raw:"..ev.key); return true end)
+		nu.ui.keymap("esc", function() mark("km:esc"); return false end)
+		nu.ui.keymap("enter", function() mark("km:enter"); return true end)
+		nu.ui.keymap("tab", function() mark("km:tab") end)  -- sin retorno (nil): consume
+	`)
+	in := h.rt.ui.input
+
+	withToken(h.rt, func() {
+		// esc: el keymap dispara pero CEDE → el handler crudo de abajo SÍ la ve.
+		if !feedKey(in, "esc") {
+			t.Fatal("esc debería consumirse abajo (el keymap cedió, el crudo consume)")
+		}
+		// enter: el keymap dispara y CONSUME → el crudo NO la ve.
+		if !feedKey(in, "enter") {
+			t.Fatal("enter debería consumirse (el keymap la consume)")
+		}
+		// tab: sin retorno (nil) consume por defecto → el crudo NO la ve.
+		if !feedKey(in, "tab") {
+			t.Fatal("tab debería consumirse (un keymap sin retorno consume)")
+		}
+	})
+
+	if counts["km:esc"] != 1 || counts["raw:esc"] != 1 {
+		t.Fatalf("esc: el keymap dispara y CEDE al crudo: %v", counts)
+	}
+	if counts["km:enter"] != 1 || counts["raw:enter"] != 0 {
+		t.Fatalf("enter: el keymap CONSUME, el crudo no la ve: %v", counts)
+	}
+	if counts["km:tab"] != 1 || counts["raw:tab"] != 0 {
+		t.Fatalf("tab: un keymap nil CONSUME, el crudo no la ve: %v", counts)
+	}
+}
+
 // Secuencia "g g": dos 'g' seguidas (sin timeout entre medias) disparan la fn. La
 // primera 'g' se retiene (consume) esperando la segunda; la segunda completa.
 func TestInputSequenceGGCompletes(t *testing.T) {

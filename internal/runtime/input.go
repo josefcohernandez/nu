@@ -12,7 +12,11 @@ package runtime
 //   - `nu.ui.keymap(seq, fn, opts?) -> Keymap` — AZÚCAR sobre la pila: registra un
 //     handler que reconoce la notación `"ctrl+k"`, `"alt+enter"` y las SECUENCIAS
 //     `"g g"`. `Keymap:unmap()` lo quita. Conflictos: **la pila manda** (el keymap
-//     más reciente activo gana, como cualquier handler de arriba).
+//     más reciente activo gana, como cualquier handler de arriba). Un keymap CONSUME
+//     por defecto (disparar el atajo es atenderlo), pero su `fn` puede devolver
+//     `false` EXPLÍCITO para CEDER la tecla y que siga bajando por la pila —así el
+//     chat aparta `esc`/`enter` cuando hay un modal abierto y la tecla llega al
+//     widget enfocado—.
 //
 // LA LÓGICA 🔒 (lo que esta sesión debe blindar) es doble:
 //
@@ -401,8 +405,13 @@ func (in *inputState) dispatchFrom(ev inputEvent, top int) bool {
 
 // dispatchKeymap intenta casar `ev` contra las secuencias de un handler de keymap
 // (la lógica 🔒 de secuencias). Devuelve `(consumed, handled)`:
-//   - Si `ev` (un chord) COMPLETA una secuencia de un solo paso → dispara su fn,
-//     consume: `(true, true)`.
+//   - Si `ev` (un chord) COMPLETA una secuencia de un solo paso → dispara su fn. Un
+//     keymap CONSUME por defecto (disparar = atender), salvo que su fn devuelva
+//     EXPLÍCITAMENTE `false`, en cuyo caso CEDE: `(false, false)` para que el evento
+//     siga bajando por la pila (api.md §9.3: "azúcar sobre la pila; quien no consume
+//     deja pasar"). De esto depende el chat: sus atajos `esc`/`enter`/`tab` devuelven
+//     `false` cuando hay un modal/picker abierto, para que la tecla llegue al widget
+//     enfocado en vez de quedar atrapada por el keymap global.
 //   - Si `ev` es el PRIMER paso de alguna secuencia multi-paso (y no completa
 //     ninguna de un paso) → arma la secuencia pendiente con su timer y consume el
 //     evento (lo "retiene" esperando el siguiente paso): `(true, true)`.
@@ -426,8 +435,11 @@ func (in *inputState) dispatchKeymap(h *inputHandler, ev inputEvent) (consumed, 
 			continue
 		}
 		if len(m.steps) == 1 {
-			// Secuencia de un solo paso (`"ctrl+k"`): dispara al instante.
-			in.fireKeymap(m.fn)
+			// Secuencia de un solo paso (`"ctrl+k"`): dispara al instante. Si la fn
+			// CEDE (devuelve false), no se consume y el evento sigue bajando.
+			if !in.fireKeymap(m.fn) {
+				return false, false
+			}
 			return true, true
 		}
 		// Primer paso de una secuencia multi-paso: candidata a pendiente.
@@ -603,15 +615,23 @@ func (in *inputState) callRaw(fn *lua.LFunction, ev inputEvent) bool {
 	return lua.LVAsBool(ret)
 }
 
-// fireKeymap dispara la `fn` de un keymap (sin argumentos). Mismo aislamiento que un
-// handler crudo: thread efímero + `pcall`, un fallo al log. Presupone el token.
-func (in *inputState) fireKeymap(fn *lua.LFunction) {
+// fireKeymap dispara la fn de un keymap y devuelve si CONSUME la tecla. Un keymap
+// consume POR DEFECTO (es un atajo: dispararlo es atenderlo), así que un `nil`/sin
+// retorno consume —compatible con el uso común `keymap("q", function() ... end)`—;
+// solo un `return false` EXPLÍCITO cede la tecla para que siga bajando por la pila
+// (lo usa el chat para apartar `esc`/`enter` con un modal abierto). Un handler que
+// LANZA no consume (deja pasar, ADR-008): un atajo roto no debe tragarse la tecla.
+func (in *inputState) fireKeymap(fn *lua.LFunction) bool {
 	s := in.rt.sched
 	co, _ := s.host.NewThread()
-	if err := co.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}); err != nil {
+	if err := co.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}); err != nil {
 		_ = in.rt.log.write(levelError, in.rt.currentOwner(),
 			"un handler de nu.ui.keymap lanzó: "+errString(raisedValue(err)))
+		return false
 	}
+	ret := co.Get(-1)
+	co.Pop(1)
+	return ret != lua.LFalse
 }
 
 // eventTable construye la tabla Lua `ev` (§9.3) de un `inputEvent`, sobre el thread

@@ -146,6 +146,10 @@ func TestChatFilePicker(t *testing.T) {
 	h.expectEval(`return tostring(PICKER)`, "true")
 	// hay candidatos (los ficheros del repo).
 	h.expectEval(`return tostring(NCAND >= 3)`, "true")
+	// el modal RENDERIZA: su marco recibió geometría real (no 0×0). Blinda el bug por
+	// el que el picker se añadía a la capa modal pero `relayout` no lo repartía, así
+	// que quedaba invisible y atrapaba el foco (chat colgado al teclear `@`).
+	h.expectEval(`return tostring(C._modal_frame ~= nil and C._modal_frame.w > 0 and C._modal_frame.h > 0)`, "true")
 	// teclear "alpha" filtra y enter inyecta la ruta.
 	h.eval(`
 		for c in ("alpha"):gmatch(".") do

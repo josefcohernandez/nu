@@ -350,6 +350,35 @@ func TestToolkitVboxLayoutReparte(t *testing.T) {
 	h.expectEval(`return tostring(BODY.w)`, "20")
 }
 
+// Un hijo añadido a un contenedor DESPUÉS del primer layout (con el árbol ya pintado
+// y "limpio") recibe geometría real tras `app:relayout()`. Blinda el bug por el que
+// un `App:relayout()` se fiaba del flag `dirty` del contenedor —que el paint SÍNCRONO
+// disparado por `add()` ya había borrado—, dejando al hijo nuevo en 0×0: invisible y,
+// si era un modal/picker focusable, atrapando el foco con el chat colgado. Es
+// exactamente la capa modal del chat: un `stack` con un `vbox` centrado vacío al que
+// se le añade el panel al vuelo.
+func TestToolkitRelayoutAfterDynamicAdd(t *testing.T) {
+	h := bootToolkit(t, 80, 24)
+	h.eval(`
+		local tk = require("toolkit")
+		local root = tk.stack{}
+		root:add(tk.label{ text = "fondo" })          -- la "columna" de fondo
+		LAYER = tk.vbox{ justify = "center", align = "center" }  -- capa modal, vacía
+		root:add(LAYER)
+		APP = tk.app{ root = root, w = 80, h = 24 }    -- primer layout + paint: árbol limpio
+		-- al vuelo, como open_modal: panel con tamaño preferido, añadido a la capa ya limpia.
+		PANEL = tk.box{ id = "panel", child = tk.label{ text = "modal" }, border = "rounded" }
+		PANEL.pref_w = 40
+		PANEL.pref_h = 6
+		LAYER:add(PANEL)
+		APP:relayout()
+	`)
+	// El panel recibe su tamaño preferido (40×6) y queda CENTRADO en 80×24:
+	// x = (80-40)/2 = 20, y = (24-6)/2 = 9. Sin el fix se quedaba en 0×0.
+	h.expectEval(`return tostring(PANEL.w), tostring(PANEL.h)`, "40", "6")
+	h.expectEval(`return tostring(PANEL.x), tostring(PANEL.y)`, "20", "9")
+}
+
 // TestToolkitTextScrollViewport: un `text` desplazable (scroll>0) bajo otro
 // widget pinta su contenido recortado a SU banda, sin sangrar sobre el de arriba
 // (api.md §9.1: una región por viewport). Verifica el viewport del scroll: con

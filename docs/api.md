@@ -252,7 +252,7 @@ core.
 | Firma | Semántica |
 |---|---|
 | `nu.ui.on_input(fn) -> InputHandle` | Apila un handler síncrono `fn(ev) -> boolean` (true = consumido). `ev`: `{type: "key"\|"mouse"\|"paste", key?, mods?, x?, y?, text?, path?}`. `InputHandle:pop()`. |
-| `nu.ui.keymap(seq: string, fn, opts?) -> Keymap` | Azúcar sobre la pila: `seq` en notación `"ctrl+k"`, `"alt+enter"`, secuencias `"g g"`. `Keymap:unmap()`. Resolución de secuencias con timeout en el core. Conflictos: la pila manda — el registro más reciente activo gana (y el `init.lua` del usuario se carga el último, §14). |
+| `nu.ui.keymap(seq: string, fn, opts?) -> Keymap` | Azúcar sobre la pila: `seq` en notación `"ctrl+k"`, `"alt+enter"`, secuencias `"g g"`. `Keymap:unmap()`. Resolución de secuencias con timeout en el core. Conflictos: la pila manda — el registro más reciente activo gana (y el `init.lua` del usuario se carga el último, §14). **Consumo:** un keymap consume la tecla por defecto (disparar el atajo es atenderlo); su `fn` puede devolver `false` EXPLÍCITO para **ceder** la tecla y que siga bajando por la pila (lo usa el chat para apartar `esc`/`enter` cuando hay un modal abierto y la tecla llegue al widget enfocado). |
 
 Pegar una imagen (G30): cuando el portapapeles trae contenido **no-texto**
 (una imagen), el core lo vuelca a un fichero temporal de la sesión

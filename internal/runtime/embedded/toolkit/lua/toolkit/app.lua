@@ -115,7 +115,13 @@ function App:relayout(w, h)
     h = h or s.h
   end
   self.w, self.h = w, h
-  self.root:relayout(0, 0, w, h)
+  -- FORZAMOS el reparto (último arg): un `App:relayout()` es una petición explícita
+  -- de "el árbol cambió, recolócalo" y no debe fiarse del flag `dirty` del
+  -- contenedor —el paint síncrono pudo borrarlo, y un cambio de `pref_h` ni ensucia
+  -- al padre—. Sin esto, un modal/picker recién añadido se quedaba en 0×0 (invisible
+  -- y atrapando el foco: chat colgado) y el input multilínea no crecía. Ver el
+  -- comentario de `relayout` en layout.lua.
+  self.root:relayout(0, 0, w, h, true)
   -- si no hay foco aún y hay focusables, enfoca el primero (un layout con un input
   -- arranca con el cursor donde corresponde).
   if self.focused == nil then

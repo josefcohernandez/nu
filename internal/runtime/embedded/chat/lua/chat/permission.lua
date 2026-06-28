@@ -30,9 +30,17 @@ local Dialog = widget.derive()
 
 -- split_lines(s) -> string[]: parte por "\n" (los args multilínea). Helper local
 -- usado por `compose` para volcar el resumen de args línea a línea.
+--
+-- OJO con el idioma: el texto se asigna a un LOCAL antes del `:gmatch`. Llamar el
+-- método directamente sobre `(tostring(s) .. "\n"):gmatch(...)` —método sobre una
+-- expresión entre paréntesis que contiene una llamada (`tostring`) seguida de una
+-- concatenación— dispara un nil-deref en el VM de gopher-lua (un fallo de su
+-- generación de código, no del patrón). El local lo evita y es lo que ya hacen el
+-- resto de splits del repo (p. ej. chat.input).
 local function split_lines(s)
   local out = {}
-  for l in (tostring(s) .. "\n"):gmatch("(.-)\n") do
+  local text = tostring(s) .. "\n"
+  for l in text:gmatch("(.-)\n") do
     out[#out + 1] = l
   end
   return out
