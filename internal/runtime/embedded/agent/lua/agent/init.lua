@@ -965,6 +965,30 @@ function Session:_turn_loop()
 
   emit(self.handle.id, "turn.start", {})
   self._final_message = nil
+
+  -- El cuerpo del turno corre bajo pcall (frontera robusta): un error NORMAL del
+  -- turno —el adaptador/provider lanza (p. ej. 401 por API key ausente o inválida),
+  -- un hook request.pre veta, o se agota max_turns— se EMITE como `agent:error` para
+  -- que la UI lo pinte, en vez de morir EN SILENCIO (antes la task del turno moría y
+  -- `send` devolvía nil como si se hubiera CANCELADO: el turno fallaba sin avisar al
+  -- usuario). Un ABORTO por `Session:cancel` NO es capturable por pcall (S08): se
+  -- propaga al `cleanup`, que cierra como cancelado —cancelar no es un error a pintar—.
+  local ok, turn_err = pcall(function() self:_run_turn_body() end)
+  if ok then
+    self:_finish_turn(false)
+    return
+  end
+  local msg = (type(turn_err) == "table" and turn_err.message) or tostring(turn_err)
+  local code = (type(turn_err) == "table" and turn_err.code) or nil
+  emit(self.handle.id, "error", { message = msg, code = code })
+  self:_finish_turn(false)
+end
+
+-- Session:_run_turn_body() es el cuerpo del turno (agente.md §2 pasos 2-6): la
+-- secuencia de peticiones al provider y la ejecución de tools en orden. Corre bajo
+-- el pcall de `_turn_loop`, que convierte cualquier error en un `agent:error` visible
+-- y cierra el turno; por eso aquí no se captura nada (deja propagar).
+function Session:_run_turn_body()
   local turns = 0
 
   -- Autocompactación en el LÍMITE del turno (P25): comprime el prefijo viejo
@@ -980,7 +1004,8 @@ function Session:_turn_loop()
 
     turns = turns + 1
     if turns > self.max_turns then
-      emit(self.handle.id, "error", { message = "max_turns agotado", max_turns = self.max_turns })
+      -- el `eagent` lanza; el pcall de `_turn_loop` lo convierte en un agent:error
+      -- (no emitimos aquí para no duplicarlo).
       eagent(string.format("se agotó max_turns (%d) sin que el modelo terminara", self.max_turns),
         { reason = "max_turns" })
     end
@@ -1068,8 +1093,6 @@ function Session:_turn_loop()
     end
     -- vuelve al while (re-pide al provider).
   end
-
-  self:_finish_turn(false)
 end
 
 -- Session:cancel() cancela el turno en vuelo (agente.md §2 P22). NO vacía la cola

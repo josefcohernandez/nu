@@ -132,6 +132,15 @@ Dos mecanismos, deliberadamente separados:
 es el namespace del plugin `agent`, protegido por la unicidad del nombre de
 plugin como cualquier otro (G26, [api.md](api.md) §4).
 
+**Garantía de error visible.** Cualquier fallo del turno —el adaptador/provider
+lanza (p. ej. HTTP 401 por API key ausente o inválida, red caída), un hook
+`request.pre` veta, o se agota `max_turns`— se emite SIEMPRE como `agent:error`
+(con `message` y, si lo trae, `code`) antes de cerrar el turno. El cuerpo del turno
+corre bajo `pcall`, así que un error nunca mata la task en silencio: la UI lo pinta
+y `Session:send` retorna (no se cuelga). La única excepción es un `Session:cancel`
+(aborto S08, no capturable por `pcall`): no es un error, así que cierra el turno
+como **cancelado** (`turn.end { canceled = true }`) sin emitir `agent:error`.
+
 **Atribución obligatoria (G3)**: todo payload `agent:*` lleva `session`
 (id de la sesión emisora; los subagentes emiten con el suyo — su
 `meta.parent` enlaza al padre). La extensión emite a través de un helper

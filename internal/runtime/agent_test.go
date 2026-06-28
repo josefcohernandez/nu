@@ -176,6 +176,58 @@ func TestAgentTurnoCompleto(t *testing.T) {
 	h.expectEval(`return tostring(HIST)`, "4")
 }
 
+// providersTomlErrStub: un provider cuyo adaptador "errstub" LANZA en `stream`
+// (simula un 401 por API key ausente/ inválida o un provider caído).
+const providersTomlErrStub = `
+[providers.test]
+adapter  = "errstub"
+base_url = "http://localhost/unused"
+
+[[providers.test.models]]
+id      = "m1"
+aliases = ["m"]
+`
+
+// registerErrStub registra un adaptador que falla al primer contacto con el
+// provider (como haría el anthropic/openai-compat ante un 401).
+const registerErrStub = `
+local providers = require("providers")
+providers.register_adapter("errstub", {
+  name = "errstub",
+  caps = { tools = true, system = true, usage = true },
+  stream = function(req, provider)
+    error({ code = "EPROVIDER", message = "provider boom (HTTP 401: API key inválida)" })
+  end,
+})
+`
+
+// TestAgentTurnoErrorSeEmite: si el adaptador LANZA durante el turno (p. ej. 401 por
+// API key ausente o inválida), el agente lo EMITE como `agent:error` —no muere en
+// silencio— y `send` retorna (sin colgar). Blinda el fix del bug "si envías un
+// mensaje sin API key no avisa del error": antes la task del turno moría y el future
+// resolvía como cancelado, así que `send` devolvía nil y la UI no pintaba nada.
+func TestAgentTurnoErrorSeEmite(t *testing.T) {
+	h, _ := bootAgent(t, providersTomlErrStub, false)
+	h.eval(`
+		ERRMSG, SENT, RET = nil, false, "sentinel"
+		nu.task.spawn(function()
+			local agent = require("agent")
+			` + registerErrStub + `
+			local sub = nu.events.on("agent:error", function(p) ERRMSG = p.message end)
+			local s = agent.session{ model = "test/m", no_store = true }
+			RET = s:send("hola")   -- el turno falla; send DEBE retornar (no colgar)
+			SENT = true
+			sub:cancel(); s:close()
+		end)`)
+	// send retornó (no se quedó colgado esperando el future).
+	h.expectEval(`return tostring(SENT)`, "true")
+	// se emitió agent:error con el mensaje del adaptador.
+	h.expectEval(`return tostring(ERRMSG ~= nil)`, "true")
+	h.expectEval(`return tostring(ERRMSG:find("provider boom", 1, true) ~= nil)`, "true")
+	// el turno falló: send devuelve nil (no un mensaje).
+	h.expectEval(`return tostring(RET == nil)`, "true")
+}
+
 // TestAgentPermisoDenegado (§5): una tool que muta, SIN allow, en headless (sin
 // UI) produce un error ACCIONABLE. El turno NO se rompe: el error va al modelo
 // como tool_result is_error, y el loop continúa hasta el done final. El texto del
