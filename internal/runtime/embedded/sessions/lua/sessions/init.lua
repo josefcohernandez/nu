@@ -69,6 +69,23 @@ local function project_dir(cwd)
   return sessions_root() .. "/" .. slug(cwd)
 end
 
+-- ---------------------------------------------------------------------------
+-- Superficie pública de rutas (G38). El slug es PARTE DEL FORMATO (sesiones.md
+-- §2): el algoritmo está especificado para que las herramientas externas
+-- compongan rutas sin nu; estas funciones puras son la comodidad para plugins
+-- (nadie reimplementa la codificación — única fuente Lua de verdad).
+-- ---------------------------------------------------------------------------
+
+-- sessions.slug(cwd) -> string. La codificación cwd→clave de agrupación.
+function M.slug(cwd)
+  return slug(cwd)
+end
+
+-- sessions.dir(cwd) -> string. data_dir()/sessions/<slug> (sesiones.md §2).
+function M.dir(cwd)
+  return project_dir(cwd)
+end
+
 -- gen_id() -> string. Id de sesión = timestamp UTC ordenable + sufijo aleatorio
 -- (§2: ordenación lexicográfica = ordenación temporal). El timestamp en ms va en
 -- hex de ancho fijo para que ordene; el sufijo evita colisiones en el mismo ms.

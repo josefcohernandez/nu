@@ -461,9 +461,11 @@ func sessionPath(t *testing.T, dataDir, cwd, id string) string {
 	return path
 }
 
-// slug replica la codificación de cwd→directorio de la extensión sessions
-// (sesiones.md §2): no-alfanumérico/`-`/`.` → `_`, recorta `_` de los bordes, vacío
-// → "root". Debe coincidir con `slug` de sessions/init.lua para hallar el fichero.
+// slug replica la ESPECIFICACIÓN del formato (sesiones.md §2, G38): todo carácter
+// fuera de [A-Za-z0-9.-] → `_`, recorte de `_` en los bordes, vacío → "root".
+// Desde G38 el algoritmo es parte del contrato, no un detalle de
+// sessions/init.lua: esta copia en Go —inevitable, Go no llama a Lua— replica la
+// espec, no el código. La fuente Lua única es la función pública `sessions.slug`.
 func slug(cwd string) string {
 	var sb strings.Builder
 	for _, r := range cwd {

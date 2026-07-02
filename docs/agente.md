@@ -225,15 +225,17 @@ estructurado
 
 ```
 { id, tool, args?,
-  source = "deny" | "hook" | "default" | "headless",
+  source = "deny" | "hook" | "default" | "headless" | "user",
   pattern?,      -- el patrón de la lista deny que mordió (source = "deny")
   suggested? }   -- el allow exacto que arreglaría la denegación
 ```
 
-con dos destinos para dos consumidores distintos: se emite como
+(`source = "user"` es el rechazo en el diálogo interactivo: "toda
+denegación" incluye la humana) con dos destinos para dos consumidores
+distintos: se emite como
 `agent:permission.denied` (observadores **vivos** — drivers, telemetría,
 UIs — con la atribución de G3), y va además en el `meta` del `tool_result`
-denegado ([providers.md](providers.md) §2.2), que
+denegado, bajo la clave `denied` ([providers.md](providers.md) §2.2), que
 [sesiones.md](sesiones.md) §3 persiste intacto — la denegación **viaja con
 el transcript**, y un controlador que lea la sesión a posteriori (incluso
 en otra máquina) la extrae sin parsear prosa. Es la pieza del bucle de

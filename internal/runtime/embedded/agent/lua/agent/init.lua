@@ -332,9 +332,11 @@ end
 --        - mode = "ask" Y hay UI (`nu.has("ui")`, G20) → se emite
 --          `agent:permission.asked` y se ESPERA la respuesta (future, sin timeout);
 --        - mode = "ask" SIN UI (headless, CI) → DEFAULT DENY (agente.md §5).
--- Devuelve true (concedido) o (false, razon_accionable). La razón nombra el
--- patrón EXACTO a añadir (amortiguador 2): "denegado `bash:npm install`; añade
--- allow = {\"bash:npm *\"}".
+-- Devuelve true (concedido) o (false, razon_accionable, denial). La razón nombra
+-- el patrón EXACTO a añadir (amortiguador 2): "denegado `bash:npm install`; añade
+-- allow = {\"bash:npm *\"}". `denial` es el objeto estructurado de G40 — la prosa
+-- es PRESENTACIÓN, no el portador: { tool, source, pattern?, suggested? } (el
+-- llamante le añade id/args); source ∈ "deny"|"hook"|"default"|"headless"|"user".
 local function check_permission(session, tool, args)
   local perms = session.permissions
   local name = tool.name
@@ -349,7 +351,8 @@ local function check_permission(session, tool, args)
   -- 2. deny de la política corta (agente.md §5: deny → allow → hooks).
   local denied = matches_any(perms.deny, name, atext)
   if denied then
-    return false, string.format("permiso denegado por `deny = {%q}` para la tool %q", denied, name)
+    return false, string.format("permiso denegado por `deny = {%q}` para la tool %q", denied, name),
+      { tool = name, source = "deny", pattern = denied }
   end
 
   -- 3. allow de la política concede.
@@ -363,7 +366,8 @@ local function check_permission(session, tool, args)
   local payload, deny_reason = run_hooks("permission",
     { tool = name, args = args, arg_text = atext }, { session = session.handle })
   if deny_reason ~= nil then
-    return false, string.format("permiso denegado por un hook `permission`: %s", deny_reason)
+    return false, string.format("permiso denegado por un hook `permission`: %s", deny_reason),
+      { tool = name, source = "hook" }
   end
   if type(payload) == "table" and payload.grant == true then
     return true
@@ -377,7 +381,8 @@ local function check_permission(session, tool, args)
   local action = string.format("denegado %q; concédelo con allow = {%q} (o ejecuta con --auto-permissions)", name, suggested)
 
   if tool.default == "deny" then
-    return false, "la tool está registrada con default = \"deny\"; " .. action
+    return false, "la tool está registrada con default = \"deny\"; " .. action,
+      { tool = name, source = "default", suggested = suggested }
   end
 
   if perms.mode == "auto" then
@@ -385,8 +390,11 @@ local function check_permission(session, tool, args)
   end
 
   -- mode = "ask". En headless (sin UI, G20) no hay quien responda: default DENY.
+  -- Este es el `suggested` del bucle de escalado de la ronda 8: denegación →
+  -- enmienda de la política → re-run.
   if not nu.has("ui") then
-    return false, "permiso requerido en modo headless (sin UI): " .. action
+    return false, "permiso requerido en modo headless (sin UI): " .. action,
+      { tool = name, source = "headless", suggested = suggested }
   end
 
   -- Hay UI: se pregunta y se ESPERA la respuesta (future, sin timeout, G3).
@@ -399,7 +407,8 @@ local function check_permission(session, tool, args)
   if granted then
     return true
   end
-  return false, "permiso denegado por el usuario: " .. action
+  return false, "permiso denegado por el usuario: " .. action,
+    { tool = name, source = "user", suggested = suggested }
 end
 
 -- ---------------------------------------------------------------------------
@@ -509,10 +518,11 @@ local BASE_SYSTEM = "Eres un agente de codificación que opera sobre un reposito
 -- `data_dir/trust.json`. Sin decisión afirmativa (incluido headless), no se
 -- inyecta. El contenido del USUARIO (`config.dir()/skills/`) es suyo: confiable.
 
+-- La clave por repo reusa la codificación cwd→slug de la extensión sessions,
+-- que desde G38 es parte del formato y su única fuente Lua de verdad
+-- (sesiones.md §2) — antes vivía aquí un duplicado literal.
 local function trust_slug(cwd)
-  local s = (cwd or ""):gsub("[^%w%-%.]", "_"):gsub("^_+", ""):gsub("_+$", "")
-  if s == "" then return "root" end
-  return s
+  return sessions.slug(cwd)
 end
 
 local function trust_path()
@@ -693,14 +703,21 @@ local function run_tool(session, call)
   local sid = session.handle.id
   local tool = tools[call.name]
 
-  local function err_result(text)
+  -- err_result(text, denial?) -> tool_result is_error. Si `denial` viene (G40),
+  -- el objeto estructurado viaja en el meta del bloque (clave `denied`), que
+  -- sesiones.md §3 persiste intacto: la denegación acompaña al transcript.
+  local function err_result(text, denial)
     emit(sid, "tool.end", { id = call.id, name = call.name, is_error = true, error = text })
-    return {
+    local block = {
       type = "tool_result",
       id = call.id,
       content = { { type = "text", text = text } },
       is_error = true,
     }
+    if denial ~= nil then
+      block.meta = { denied = denial }
+    end
+    return block
   end
 
   if tool == nil then
@@ -710,10 +727,16 @@ local function run_tool(session, call)
   emit(sid, "tool.start", { id = call.id, name = call.name, args = call.args })
 
   -- Permisos (agente.md §5). Denegar produce un error ACCIONABLE devuelto al
-  -- modelo como tool_result is_error (el turno no se rompe).
-  local granted, reason = check_permission(session, tool, call.args)
+  -- modelo como tool_result is_error (el turno no se rompe) Y el objeto
+  -- estructurado de G40 por sus dos destinos: el evento (observadores vivos) y
+  -- el meta del tool_result (el registro; viaja con el JSONL).
+  local granted, reason, denial = check_permission(session, tool, call.args)
   if not granted then
-    return err_result(reason)
+    denial = denial or { tool = call.name, source = "deny" }
+    denial.id = call.id
+    denial.args = call.args
+    emit(sid, "permission.denied", denial)
+    return err_result(reason, denial)
   end
 
   -- Hooks tool.pre (vetar / reescribir args, agente.md §4).
@@ -1055,6 +1078,16 @@ function Session:_run_turn_body()
       self.last_usage = usage
       -- Recuerda los input_tokens para el disparo de autocompactación (P25).
       self._last_input_tokens = usage.input_tokens or self._last_input_tokens
+      -- Coste acumulado (agente.md §2: usage.cost_usd). El `cost` del modelo en
+      -- providers.toml es USD por MILLÓN de tokens (providers.md §1); sin `cost`
+      -- declarado no se acumula nada (no se inventa una tarifa). Fuente de
+      -- verdad: el usage del PROVEEDOR, nunca conteo local (providers.md §5).
+      local cost = provider_config.model.cost
+      if type(cost) == "table" then
+        self.usage.cost_usd = self.usage.cost_usd
+          + ((usage.input_tokens or 0) * (cost.input or 0)
+          + (usage.output_tokens or 0) * (cost.output or 0)) / 1e6
+      end
     end
     self.usage.turns = self.usage.turns + 1
     emit(self.handle.id, "message", { message = assistant, usage = usage, stop_reason = done.stop_reason })
@@ -1113,16 +1146,23 @@ function Session:clear_queue()
   for _, it in ipairs(q) do it.fut:set({ canceled = true }) end
 end
 
--- Session:fork(at?) -> Session (agente.md §2 / sesiones.md §5, P22). Bifurca: una
--- sesión NUEVA cuyo `meta.parent` apunta a esta y a la entrada `at` (default: el
--- final del historial), con el prefijo copiado. El original queda intacto; el
--- árbol de variantes es navegable por los `meta.parent` (sesiones.md §5).
+-- Session:fork(at?, opts?) -> Session (agente.md §2 G39 / sesiones.md §5, P22).
+-- Bifurca Y RE-ALOJA: una sesión NUEVA cuyo `meta.parent` apunta a esta y a la
+-- entrada `at` (default: el final del historial de mensajes VIGENTE — tras una
+-- compactación, el vigente arranca en el resumen), con el prefijo COPIADO — la
+-- hija es AUTOCONTENIDA (sesiones.md §5): su replay no sigue la cadena de
+-- padres y su fichero viaja solo. El original queda intacto; el árbol de
+-- variantes es navegable por los `meta.parent`.
 --
--- DESVIACIÓN (documentada): el contrato describe el replay del fork "leyendo del
--- padre hasta ese punto"; esta v1 COPIA el prefijo al transcript del hijo (más
--- simple y autocontenido: el hijo resume sin seguir la cadena del padre). El
--- puntero `parent` se escribe igual, así que el árbol sigue siendo navegable.
-function Session:fork(at)
+-- Herencia (G39): la hija hereda TODOS los opts efímeros del padre en su estado
+-- VIGENTE (model tras set_model, thinking tras set_thinking, permisos tras
+-- allow/deny/set_permission_mode) salvo los que `opts` sobreescriba — con la
+-- excepción de seguridad: los permisos solo RECORTAN (el deny vigente del padre
+-- se conserva siempre; el primer deny gana en el pipeline de §5, así que la
+-- hija jamás puede lo que el padre tenía denegado). Los `opts` son efímeros
+-- como en resume (G18): no se persisten ni reescriben historia. Es la pieza del
+-- fork-como-replicación (ronda 8): cada variante en su worktree vía opts.cwd.
+function Session:fork(at, opts)
   if self.closed then
     eagent("la sesión está cerrada")
   end
@@ -1131,22 +1171,48 @@ function Session:fork(at)
   if type(at) ~= "number" then
     einval("Session:fork espera un índice de historial (entero) o nil")
   end
+  if opts ~= nil and type(opts) ~= "table" then
+    einval("Session:fork espera opts como tabla (los de agent.session)")
+  end
+  opts = opts or {}
   if at < 0 then at = 0 end
   if at > n then at = n end
   local prefix = {}
   for i = 1, at do prefix[i] = self.history[i] end
 
-  return M.session({
-    model       = self.model,
-    cwd         = self.cwd,
-    system      = self.opts.system,
-    permissions = self.opts.permissions,
-    max_turns   = self.max_turns,
-    tools       = self.opts.tools,
-    no_store    = self.opts.no_store,
-    parent      = { id = self.handle.id, entry = at },
-    _fork_prefix = prefix,
-  })
+  local child = {
+    model             = self.model,
+    cwd               = self.cwd,
+    system            = self.opts.system,
+    permissions       = self:permissions_view(),
+    skills            = self.opts.skills,
+    thinking          = self.thinking,
+    max_turns         = self.max_turns,
+    max_tokens        = self.max_tokens,
+    temperature       = self.temperature,
+    tools             = self.opts.tools,
+    no_store          = self.opts.no_store,
+    no_base           = self.opts.no_base,
+    compact_threshold = self.compact_threshold,
+    compact_model     = self.compact_model,
+  }
+  for k, v in pairs(opts) do
+    child[k] = v
+  end
+  if opts.permissions ~= nil then
+    -- Solo recortar: la política del llamante sustituye mode/allow, pero el
+    -- deny vigente del padre se le suma SIEMPRE (nunca ampliados, §9/§11).
+    local p = {}
+    for k, v in pairs(opts.permissions) do p[k] = v end
+    local deny = {}
+    for _, v in ipairs(self.permissions.deny or {}) do deny[#deny + 1] = v end
+    for _, v in ipairs(opts.permissions.deny or {}) do deny[#deny + 1] = v end
+    p.deny = deny
+    child.permissions = p
+  end
+  child.parent = { id = self.handle.id, entry = at }
+  child._fork_prefix = prefix
+  return M.session(child)
 end
 
 -- Session:compact(opts?) ⏸ (agente.md §8 P22/P25). Compactación MANUAL: resume el

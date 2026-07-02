@@ -174,6 +174,9 @@ local function build_index(decoded)
         max_output = model.max_output,
         cost       = model.cost,
         aliases    = model.aliases,
+        -- El dialecto de razonamiento (ADR-016) forma parte del ModelInfo (§3):
+        -- las dos vías (list y resolve) entregan la misma forma.
+        thinking   = model.thinking,
       }
       models[#models + 1] = info
 
