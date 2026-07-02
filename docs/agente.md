@@ -31,10 +31,11 @@ agent.session(opts) -> Session
 
 Session:send(content: string|Block[]) ⏸ -> Message  -- ejecuta el turno completo
 Session:cancel()                                     -- cancela el turno en curso
-Session:fork(at?: integer) -> Session                -- sesiones.md §5
+Session:fork(at?: integer, opts?: tabla) -> Session  -- bifurca y re-aloja (G39; sesiones.md §5)
 Session:compact() ⏸                                  -- compactación manual
 Session:set_model(model: string)                     -- cambio en caliente (G19)
 Session:set_thinking(thinking)                        -- razonamiento en caliente (ADR-016)
+Session:close()                                      -- suelta el lock de escritor (G39)
 Session.id / Session.usage -> { context_tokens, cost_usd, turns }
 ```
 
@@ -43,6 +44,8 @@ Session.id / Session.usage -> { context_tokens, cost_usd, turns }
 > **P22**, resuelto). El turno corre en una task **propia de la sesión** (la que
 > `cancel` cancela); `send` espera el resultado por un future, no por la task, así
 > que cancelar el turno no cancela a quien llamó (su `send` devuelve nil).
+> ⏳ Pendiente de construcción (G39): el `opts?` de `fork` y su regla de herencia
+> completa — la v1 hereda una lista parcial que pierde `skills` y `thinking`.
 
 **El turno** (`send`) es el corazón del contrato:
 
@@ -81,6 +84,24 @@ contra el registro de providers, escribe una entrada `event` en el
 transcript ([sesiones.md](sesiones.md) §3) y aplica desde el siguiente
 request; con un turno en vuelo, al ensamblar la siguiente iteración (como
 la cola de G4), nunca a mitad de un stream.
+
+**Fork y cierre (G39)**: `Session:fork(at?, opts?)` bifurca la historia en
+una sesión nueva **autocontenida** — el prefijo se **copia** al transcript
+de la hija y `meta.parent = { id, entry = at }` queda como enlace
+navegacional ([sesiones.md](sesiones.md) §5). `at` indexa el **historial de
+mensajes vigente** (por defecto, el final; tras una compactación, el
+historial vigente arranca en el resumen). La hija **hereda todos los opts
+efímeros del padre** (model, cwd, system, permissions, skills, thinking,
+max_turns, tools...) salvo los que `opts` sobreescriba, con la regla de
+`spawn` (§9, §11): los permisos **solo recortan**, nunca amplían. Los
+`opts` son efímeros como en `resume` (G18): no se persisten ni reescriben
+historia. Es la pieza del *fork-como-replicación* (pseudocódigo, ronda 8):
+K variantes que comparten el prefijo exacto, cada una re-alojada en su
+worktree vía `opts.cwd`. `Session:close()` suelta el lock de escritor
+([sesiones.md](sesiones.md) §6) y marca la sesión cerrada (idempotente;
+los métodos posteriores fallan con error accionable). La regla de la casa:
+quien abre sesiones las cierra (`nu.task.cleanup`); el GC como red de
+seguridad no determinista, igual que los `Proc` de [api.md](api.md) §6.
 
 **Control de razonamiento ([ADR-016](adr.md#adr-016--modelo-canónico-de-thinking-con-mode-y-traducción-por-modelo-en-el-adaptador))**:
 `opts.thinking` (o el default de `agent.toml [thinking]`, §10) fija el modo de
@@ -125,7 +146,7 @@ Dos mecanismos, deliberadamente separados:
 **Notificaciones** (fire-and-forget, bus del core `nu.events`, namespace
 `agent:`): `session.start`, `session.end`, `turn.start`, `turn.end`,
 `delta`, `message`, `tool.start`, `tool.progress`, `tool.end`, `compact`,
-`error`, `permission.asked`. Para pintar, loggear, observar. *(El evento
+`error`, `permission.asked`, `permission.denied` (G40, §5). Para pintar, loggear, observar. *(El evento
 `compact` solo se emitirá cuando exista la compactación automática:
 [pospuesto.md](pospuesto.md) **P25**.)* El namespace
 `agent:` no es una reserva del core (el core no sabe de agentes, ADR-003):
@@ -196,6 +217,33 @@ deny**, con tres amortiguadores que eliminan casi toda la fricción:
 Razón del default: headless (CI, scripts) es exactamente el contexto sin
 supervisión y el más expuesto a prompt injection; un allowlist declarado
 además documenta qué puede hacer el script, auditable de un vistazo.
+
+**La denegación viaja como dato (G40).** La prosa accionable es
+*presentación*, no el portador (coherente con los errores estructurados de
+[api.md](api.md) §1.4): toda denegación produce, una sola vez, un objeto
+estructurado
+
+```
+{ id, tool, args?,
+  source = "deny" | "hook" | "default" | "headless",
+  pattern?,      -- el patrón de la lista deny que mordió (source = "deny")
+  suggested? }   -- el allow exacto que arreglaría la denegación
+```
+
+con dos destinos para dos consumidores distintos: se emite como
+`agent:permission.denied` (observadores **vivos** — drivers, telemetría,
+UIs — con la atribución de G3), y va además en el `meta` del `tool_result`
+denegado ([providers.md](providers.md) §2.2), que
+[sesiones.md](sesiones.md) §3 persiste intacto — la denegación **viaja con
+el transcript**, y un controlador que lea la sesión a posteriori (incluso
+en otra máquina) la extrae sin parsear prosa. Es la pieza del bucle de
+escalado asíncrono validado en la ronda 8 de pseudocódigo (escenario 36):
+denegación → enmienda de la política por un humano → re-run. El texto
+accionable del amortiguador 2 no cambia: sigue siendo lo que el modelo ve
+y el humano lee. Y queda especificado lo que el escenario 36 encontró
+ambiguo: **`tool.end` se emite también para calls denegadas** (todo
+`tool.start` tiene su `tool.end`), con `is_error = true` — es el canal
+*genérico* de fallo; `permission.denied` es el *específico* de permisos.
 
 Concurrencia de asks (G3): varias sesiones pueden tener asks pendientes a
 la vez; cada una espera su `future` **sin timeout** (un timeout→deny
