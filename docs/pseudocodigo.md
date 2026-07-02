@@ -1404,8 +1404,13 @@ copia del prefijo — la hija autocontenida hace viajar los transcripts
 El deny de política corta antes de los hooks `permission`, `permission.asked`
 es solo del flujo interactivo, `tool.end` no especifica si se emite para calls
 denegadas, y el error accionable de §5 es prosa. Un orquestador headless no
-puede convertir denegaciones en enmiendas de Role sin parsear texto. Registrada
-en [problemas.md](problemas.md#g40).
+puede convertir denegaciones en enmiendas de Role sin parsear texto.
+**Resuelto**: toda denegación produce un objeto estructurado
+(`{ id, tool, args?, source, pattern?, suggested? }`) con dos destinos — el
+evento `agent:permission.denied` para observadores vivos y el `meta` del
+`tool_result` para que la denegación viaje con el transcript —, y `tool.end`
+queda especificado también para denegaciones ([agente.md](agente.md) §4/§5).
+Detalle en [problemas.md](problemas.md#g40).
 
 Confirmaciones (sin API nueva): el **claim distribuido** es un push atómico de
 ref y el heartbeat un `--force-with-lease` — CAS dos veces, todo con `nu.proc`

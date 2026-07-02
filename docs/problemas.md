@@ -9,16 +9,18 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 38 registradas, 37 resueltas — 1 PENDIENTE (G40)** (G38-G40
+**Estado: 38 registradas, TODAS resueltas** (G38-G40
 añadidas 2026-07-02 desde la ronda 8 de pseudocódigo — una malla distribuida de
-agentes sobre git, con specs Role+Job y fork-como-replicación: G38, el slug de
-`sessions/<proyecto>/` sin especificar — **resuelta el mismo día**: el
+agentes sobre git, con specs Role+Job y fork-como-replicación — y resueltas el
+mismo día: G38, el slug de
+`sessions/<proyecto>/` sin especificar — el
 algoritmo pasa a ser parte del formato y la extensión expone
 `sessions.slug/dir`; G39, `Session:fork` sin `opts` y con
-`at` sin unidad — **resuelta el mismo día**: `fork(at?, opts?)` y `close()`
+`at` sin unidad — `fork(at?, opts?)` y `close()`
 entran en el contrato, la herencia queda especificada y se bendice la copia
 del prefijo (hija autocontenida); G40, denegaciones de permisos no
-observables como dato;
+observables como dato — evento `agent:permission.denied` + el mismo objeto
+en el `meta` del `tool_result`, y `tool.end` especificado para denegaciones;
 G36 y G37 añadidas 2026-06-28 al pulir la
 UI/UX de las extensiones oficiales para que parezcan producto: G36, el doble
 auto-montaje de chat+repl; G37, un bug latente del eje X de `blitBlock`; G35 añadida
@@ -982,7 +984,16 @@ Nota para la sesión de construcción: implementar el `opts?` de `fork` y la her
 
 **Opciones.** (a) `fork(at?, opts?)` con la misma semántica efímera que `resume` (los opts son estado del proceso: no se persisten ni reescriben historia; los permisos solo recortan, como en `spawn`); (b) bendecir el rodeo: añadir `Session:close()` a la firma del contrato y documentar el patrón fork→close→resume-con-opts; (c) ambas — `fork(at?, opts?)` como camino directo y `close` en el contrato porque ya existe de facto y otros flujos lo necesitan. En cualquier caso: especificar que `at` indexa **entradas del transcript** (la unidad de `meta.parent.entry`) y qué hereda el fork en ausencia de opts.
 
-## G40 · Las denegaciones de permisos no son observables como dato — `agente.md` §4/§5 — **PENDIENTE**
+## G40 · Las denegaciones de permisos no son observables como dato — `agente.md` §4/§5 — **RESUELTO**
+
+**Resolución** (aplicada en [agente.md](agente.md) §4 —el evento nuevo en la lista de notificaciones— y §5 —párrafo "La denegación viaja como dato"—): la opción (c) más la sub-decisión (d). El principio: la prosa accionable es *presentación*, no el portador (coherente con los errores estructurados de api.md §1.4). Toda denegación produce **una sola vez** el objeto `{ id, tool, args?, source = "deny"|"hook"|"default"|"headless", pattern?, suggested? }` con dos destinos para dos consumidores distintos:
+
+1. **Evento `agent:permission.denied`** (simétrico de `permission.asked`, atribución G3): para observadores **vivos** — el driver del nodo, telemetría, UIs que agreguen denegaciones.
+2. **El mismo objeto en el `meta` del `tool_result` denegado** (providers.md §2.2), que sesiones.md §3 persiste intacto: la denegación **viaja con el transcript**, y un controlador que lea la sesión a posteriori — incluso en otra máquina, leyendo la rama-resultado de la ronda 8 — la extrae sin parsear prosa. Un evento solo no bastaba (no viaja); un `meta` solo tampoco (obliga a los observadores vivos a leer transcripts).
+
+Además queda especificado lo que el escenario 36 encontró ambiguo y la implementación ya hacía: **`tool.end` se emite también para calls denegadas** (todo `tool.start` tiene su `tool.end`; las UIs emparejan), con `is_error = true` — canal *genérico* de fallo, mientras `permission.denied` es el *específico*. La prosa del amortiguador 2 de §5 no cambia: sigue siendo lo que el modelo ve y el humano lee.
+
+La implementación hizo el mejor argumento a favor: el dato **existía y se descartaba en la frontera** — `check_permission` calcula `suggested` (`agent/init.lua:377`) y lo formatea dentro del string; `permission.asked` ya emitía `{ id, tool, args, suggested }` como dato (línea 397) mientras la denegación —el mismo cruce con la otra salida— emitía prosa; y las cuatro fuentes de denegación producían cuatro formatos de prosa distintos. Nota para la sesión de construcción: rellenar el payload del evento y el `meta` del `tool_result` desde `check_permission`/`err_result` (que `check_permission` devuelva el objeto además de la razón); la emisión de `tool.end` en denegaciones ya cumple.
 
 **Problema.** En headless con default deny (§5) la denegación de una tool call solo existe como **prosa**: el `tool_result` con `is_error` lleva el error accionable ("denegado `bash:npm install`; añade `allow = [\"bash:npm *\"]`") — perfecto para un humano, inservible para un programa. Las tres vías de observación estructurada fallan: el pipeline es deny → allow → hooks, así que un deny de política **corta antes** de llegar a los hooks `permission` (invisible para ellos); `agent:permission.asked` es solo del flujo interactivo (un deny de política no pregunta); y no está especificado siquiera si `agent:tool.end` se emite para una call denegada cuyo handler nunca corrió (ni su payload llevaría el patrón). Aflorada en la ronda 8 ([pseudocodigo.md](pseudocodigo.md), escenario 36): el bucle de escalado asíncrono —denegación → enmienda del Role por un humano → re-run idempotente— convierte el default deny de fricción en mecanismo, pero necesita el patrón denegado **como dato** y hoy tendría que parsearlo de la prosa.
 

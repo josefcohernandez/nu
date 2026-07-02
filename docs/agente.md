@@ -146,7 +146,7 @@ Dos mecanismos, deliberadamente separados:
 **Notificaciones** (fire-and-forget, bus del core `nu.events`, namespace
 `agent:`): `session.start`, `session.end`, `turn.start`, `turn.end`,
 `delta`, `message`, `tool.start`, `tool.progress`, `tool.end`, `compact`,
-`error`, `permission.asked`. Para pintar, loggear, observar. *(El evento
+`error`, `permission.asked`, `permission.denied` (G40, §5). Para pintar, loggear, observar. *(El evento
 `compact` solo se emitirá cuando exista la compactación automática:
 [pospuesto.md](pospuesto.md) **P25**.)* El namespace
 `agent:` no es una reserva del core (el core no sabe de agentes, ADR-003):
@@ -217,6 +217,33 @@ deny**, con tres amortiguadores que eliminan casi toda la fricción:
 Razón del default: headless (CI, scripts) es exactamente el contexto sin
 supervisión y el más expuesto a prompt injection; un allowlist declarado
 además documenta qué puede hacer el script, auditable de un vistazo.
+
+**La denegación viaja como dato (G40).** La prosa accionable es
+*presentación*, no el portador (coherente con los errores estructurados de
+[api.md](api.md) §1.4): toda denegación produce, una sola vez, un objeto
+estructurado
+
+```
+{ id, tool, args?,
+  source = "deny" | "hook" | "default" | "headless",
+  pattern?,      -- el patrón de la lista deny que mordió (source = "deny")
+  suggested? }   -- el allow exacto que arreglaría la denegación
+```
+
+con dos destinos para dos consumidores distintos: se emite como
+`agent:permission.denied` (observadores **vivos** — drivers, telemetría,
+UIs — con la atribución de G3), y va además en el `meta` del `tool_result`
+denegado ([providers.md](providers.md) §2.2), que
+[sesiones.md](sesiones.md) §3 persiste intacto — la denegación **viaja con
+el transcript**, y un controlador que lea la sesión a posteriori (incluso
+en otra máquina) la extrae sin parsear prosa. Es la pieza del bucle de
+escalado asíncrono validado en la ronda 8 de pseudocódigo (escenario 36):
+denegación → enmienda de la política por un humano → re-run. El texto
+accionable del amortiguador 2 no cambia: sigue siendo lo que el modelo ve
+y el humano lee. Y queda especificado lo que el escenario 36 encontró
+ambiguo: **`tool.end` se emite también para calls denegadas** (todo
+`tool.start` tiene su `tool.end`), con `is_error = true` — es el canal
+*genérico* de fallo; `permission.denied` es el *específico* de permisos.
 
 Concurrencia de asks (G3): varias sesiones pueden tener asks pendientes a
 la vez; cada una espera su `future` **sin timeout** (un timeout→deny
