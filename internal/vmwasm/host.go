@@ -151,8 +151,17 @@ func (p *Pool) preludio() string {
 	b.WriteString(preludioMonta)
 	b.WriteString(preludioSched)
 	b.WriteString(preludioTask)
-	b.WriteString(preludioEvents)
-	b.WriteString(preludioInput)
+	b.WriteString(preludioWorkerCommon)
+	if p.isWorker {
+		// Un worker (M12) es un mini-runtime: su propio scheduler (nu.task) y su
+		// canal con el padre (nu.worker.parent), pero SIN nu.ui, SIN nu.events (bus
+		// principal) y SIN nu.worker.spawn (no hay workers anidados) — api.md §13.
+		b.WriteString(preludioWorkerParent)
+	} else {
+		b.WriteString(preludioEvents)
+		b.WriteString(preludioInput)
+		b.WriteString(preludioWorkerHost)
+	}
 	return b.String()
 }
 
@@ -325,6 +334,14 @@ _G.nu = nu
 -- que la metatable de handles usa.
 _G.__hcall = nu.__handle_call
 _G.__hcall_s = nu.__handle_call_s
+
+-- nu.has(cap): detección de capacidades (api.md §1). Presente siempre (también en
+-- workers). Mínimo por ahora: "ui" según haya backend (headless G20); el catálogo
+-- completo (net.tcp, images...) llega con la integración del Runtime (M13).
+function nu.has(cap)
+  if cap == "ui" then return nu.ui ~= nil end
+  return false
+end
 -- exporta el codec para los tests de la frontera (no forma parte de nu.*).
 _G.__wire = { enc_list = __enc_list, dec_list = __dec_list, NULL = NULL }
 `
@@ -727,12 +744,96 @@ if nu.ui then
     local m = nu.ui._block(lines)
     return setmetatable({ __id = m.id, width = m.width, height = m.height }, __handle_mt)
   end
-end
-
--- nu.has(cap): detección de capacidades (api.md §1). M11: mínimo — "ui" según
--- haya backend (headless G20); el catálogo completo (net.tcp, images...) llega
--- con la integración del Runtime (M13).
-function nu.has(cap)
-  if cap == "ui" then return nu.ui ~= nil end
-  return false
 end`
+
+// preludioWorkerCommon: el chequeo de serializabilidad de mensajes (§13), común al
+// lado padre y al lado worker. Un mensaje debe ser JSON-able; un function/thread o
+// un handle (userdata/Block) → EINVAL, ANTES de ceder, para que el error sea
+// limpio y capturable por pcall (no un fallo del codec a mitad de camino).
+const preludioWorkerCommon = `
+local function __check_msg(v, seen)
+  local t = type(v)
+  if t == "function" or t == "thread" then
+    error({ code = "EINVAL", message = "worker: un valor de tipo " .. t .. " no es serializable" })
+  elseif t == "table" then
+    if getmetatable(v) == __handle_mt then
+      error({ code = "EINVAL", message = "worker: un handle (userdata/Block) no cruza a un worker" })
+    end
+    seen = seen or {}
+    if not seen[v] then
+      seen[v] = true
+      for k, val in pairs(v) do __check_msg(k, seen); __check_msg(val, seen) end
+    end
+  end
+end
+_G.__check_msg = __check_msg
+`
+
+// preludioWorkerHost: el lado PADRE (§13). nu.worker.spawn devuelve un Worker con
+// send/recv/on_message/terminate. La exclusión recv/on_message (G8) vive en campos
+// del Worker, serializada por el estado principal single-thread (el "token" de
+// esta casa) — las tres reglas lanzan EINVAL en el acto. Sólo en el estado
+// principal (un worker no crea workers).
+const preludioWorkerHost = `
+function nu.worker.spawn(module, opts)
+  local wid = nu.worker._spawn(module, opts)
+  local W = { __wid = wid, _recvPending = 0, _onMsg = false }
+
+  function W:send(msg)
+    __check_msg(msg)
+    return nu.worker._send(self.__wid, msg)
+  end
+
+  function W:recv()
+    if self._onMsg then
+      error({ code = "EINVAL", message = "Worker:recv: hay un on_message registrado sobre este worker (excluyentes, G8)" })
+    end
+    self._recvPending = self._recvPending + 1
+    local ok, m = pcall(nu.worker._recv, self.__wid)
+    self._recvPending = self._recvPending - 1
+    if not ok then error(m) end
+    return m
+  end
+
+  function W:on_message(fn)
+    if self._recvPending > 0 then
+      error({ code = "EINVAL", message = "Worker:on_message: hay un Worker:recv pendiente sobre este worker (excluyentes, G8)" })
+    end
+    if self._onMsg then
+      error({ code = "EINVAL", message = "Worker:on_message: ya hay un on_message sobre este worker (uno a la vez, G8)" })
+    end
+    self._onMsg = true
+    local sub = { live = true }
+    local wself = self
+    nu.task.spawn(function()
+      while sub.live do
+        local ok, m = pcall(nu.worker._recv, wself.__wid)
+        if not ok then break end        -- worker terminó
+        if m == nil then break end       -- fin de canal
+        if sub.live then pcall(fn, m) end -- cada handler bajo pcall (ADR-008)
+      end
+    end)
+    return { cancel = function() sub.live = false; wself._onMsg = false end }
+  end
+
+  function W:terminate()
+    nu.worker._terminate(self.__wid)
+  end
+
+  return W
+end
+`
+
+// preludioWorkerParent: el lado WORKER del canal con el padre (§13). Mismas colas
+// acotadas; sin spawn (no hay anidamiento). Sólo en el estado de un worker.
+const preludioWorkerParent = `
+nu.worker = nu.worker or {}
+nu.worker.parent = nu.worker.parent or {}
+function nu.worker.parent.send(msg)
+  __check_msg(msg)
+  return nu.worker.parent._send(msg)
+end
+function nu.worker.parent.recv()
+  return nu.worker.parent._recv()
+end
+`

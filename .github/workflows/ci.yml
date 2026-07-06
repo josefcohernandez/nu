@@ -198,9 +198,11 @@ jobs:
         run: go test ./internal/vmwasm/
 
       - name: Tests de concurrencia del backend wasm (-race dirigido)
-        # El driver del scheduler (goroutines de fondo) es lo que -race audita; se
-        # corre sobre los tests que lo ejercen, sin OOM (subconjunto acotado).
-        run: go test -race -run 'TestSched|TestPrim|TestTask|TestTrampolinMultiInstancia' ./internal/vmwasm/
+        # El driver del scheduler y los workers (goroutines de fondo, canales) son
+        # lo que -race audita; se corre sobre los tests que lo ejercen, sin OOM
+        # (subconjunto acotado). TestWorker (M12) cubre el aislamiento entre
+        # instancias, la mensajería acotada y terminate.
+        run: go test -race -run 'TestSched|TestPrim|TestTask|TestTrampolinMultiInstancia|TestWorker' ./internal/vmwasm/
 
       - name: Suite DUAL (NU_VM=wasm)
         # Patrón estrangulador (migracion-vm.md §3): la suite completa corre también

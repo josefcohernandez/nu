@@ -45,6 +45,14 @@ type Pool struct {
 	compiled wazero.CompiledModule
 	reg      *hostRegistry
 	ui       UIBackend // backend de compositor (M11); nil = headless (G20)
+
+	isWorker bool // true en el Pool de un worker (M12): preludio sin ui/events/spawn
+
+	// Registro de workers vivos de este Pool (M12), para _send/_recv/_terminate y
+	// para el apagado ordenado. Sólo lo usa el Pool principal.
+	workerMu   sync.Mutex
+	workers    map[int64]*worker
+	workerNext int64
 }
 
 // El runtime wazero y el módulo compilado se COMPARTEN a nivel de proceso: el
@@ -66,7 +74,13 @@ var (
 func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 	sharedOnce.Do(func() {
 		ctx := context.Background()
-		sharedRT = wazero.NewRuntime(ctx)
+		// WithCloseOnContextDone: wazero comprueba la cancelación del ctx del Call
+		// e interrumpe un Call en vuelo cuando el ctx se cancela. Es lo que permite
+		// que worker:terminate corte un bucle de CPU puro (`while true do end`) sin
+		// watchdog (M12) y la base del watchdog por época (DM4). El trampolín
+		// Snapshot/Restore sigue funcionando con este config (comprobado). Cerrar el
+		// módulo NO basta: no interrumpe un Call ya en curso.
+		sharedRT = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
 		wasi_snapshot_preview1.MustInstantiate(ctx, sharedRT)
 		if _, err := sharedRT.NewHostModuleBuilder("nu").
 			NewFunctionBuilder().WithFunc(hostTry).Export("host_try").
@@ -84,15 +98,26 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 	return sharedRT, sharedCompiled, sharedErr
 }
 
-// NewPool prepara un Pool con su registro de primitivas propio, sobre el runtime
-// wazero compartido del proceso.
-func NewPool() (*Pool, error) {
+// newBarePool crea un Pool sobre el runtime compartido, sin más primitivas que
+// las que registre el llamante. Base común del Pool principal y del de un worker.
+func newBarePool() (*Pool, error) {
 	rt, compiled, err := sharedRuntime()
 	if err != nil {
 		return nil, err
 	}
-	p := &Pool{rt: rt, compiled: compiled, reg: newHostRegistry()}
+	return &Pool{rt: rt, compiled: compiled, reg: newHostRegistry(), workers: make(map[int64]*worker)}, nil
+}
+
+// NewPool prepara el Pool PRINCIPAL: despacho de handles (M10) y el host de
+// workers (M12: nu.worker.spawn y sus primitivas). El backend de UI se añade
+// aparte con SetUIBackend (M11).
+func NewPool() (*Pool, error) {
+	p, err := newBarePool()
+	if err != nil {
+		return nil, err
+	}
 	p.registerHandleDispatch() // primitivas genéricas de despacho de métodos (M10)
+	p.registerWorkerHost()     // nu.worker.spawn/_send/_recv/_terminate (M12)
 	return p, nil
 }
 
@@ -118,9 +143,10 @@ type tryFrame struct {
 // para uso concurrente: como el estado principal de nu, un solo hilo lo maneja
 // (el scheduler de M06 lo serializa; un worker de M12 tiene su propia Instance).
 type Instance struct {
-	pool *Pool
-	mod  api.Module
-	ctx  context.Context
+	pool   *Pool
+	mod    api.Module
+	ctx    context.Context
+	cancel context.CancelFunc // cancela el ctx del Call (worker:terminate, M12)
 
 	tries       []tryFrame // pila LIFO de LUAI_TRY activos
 	dispatch    Dispatcher
@@ -136,6 +162,7 @@ type Instance struct {
 
 	dispatchHandle Handle           // handle en despacho síncrono (M11: self-free)
 	pendingInput   []map[string]any // cola de eventos de input crudos (M11, FeedInput)
+	workerChans    *workerChannels  // canales con el padre, si esta Instance es un worker (M12)
 
 	mu sync.Mutex // sólo protege contra reentrada accidental en tests, no concurrencia real
 }
@@ -146,9 +173,12 @@ type Instance struct {
 // lo sustituye (M05).
 func (p *Pool) NewInstance() (*Instance, error) {
 	inst := &Instance{pool: p, handles: newHandleTable()}
-	// ctx con el snapshotter (lo exige el trampolín) y la propia instancia.
+	// ctx con el snapshotter (lo exige el trampolín), cancelable (worker:terminate,
+	// M12) y con la propia instancia.
 	base := experimental.WithSnapshotter(context.Background())
-	inst.ctx = context.WithValue(base, instanceKey{}, inst)
+	cctx, cancel := context.WithCancel(base)
+	inst.cancel = cancel
+	inst.ctx = context.WithValue(cctx, instanceKey{}, inst)
 
 	mod, err := p.rt.InstantiateModule(inst.ctx, p.compiled,
 		wazero.NewModuleConfig().WithName(""))
@@ -192,8 +222,13 @@ func (p *Pool) NewInstance() (*Instance, error) {
 // SetDispatcher instala el manejador de primitivas host (M05).
 func (inst *Instance) SetDispatcher(d Dispatcher) { inst.dispatch = d }
 
-// Close destruye el estado (su memoria muere con el módulo).
-func (inst *Instance) Close() error { return inst.mod.Close(context.Background()) }
+// Close destruye el estado (su memoria muere con el módulo) y cancela su ctx.
+func (inst *Instance) Close() error {
+	if inst.cancel != nil {
+		inst.cancel()
+	}
+	return inst.mod.Close(context.Background())
+}
 
 // writeBuf copia datos al buffer compartido; devuelve error si no cabe.
 func (inst *Instance) writeBuf(data []byte) error {
