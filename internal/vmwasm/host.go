@@ -38,9 +38,10 @@ func (e *StructuredError) Error() string { return e.Code + ": " + e.Message }
 // primitivas son las mismas para todas; el estado por-instancia lo lleva el
 // *Instance que recibe el HostFn.
 type hostRegistry struct {
-	fns    []HostFn // indexado por id
-	names  []string // id→nombre (para diagnósticos y el preludio)
-	byName map[string]int32
+	fns        []HostFn // indexado por id
+	names      []string // id→nombre (para diagnósticos y el preludio)
+	byName     map[string]int32
+	suspending []bool // id→¿suspende? (M09): su thunk cede al scheduler
 }
 
 func newHostRegistry() *hostRegistry {
@@ -49,21 +50,33 @@ func newHostRegistry() *hostRegistry {
 
 // register añade una primitiva y devuelve su id. Nombre único (un duplicado es
 // error de programación del kernel).
-func (r *hostRegistry) register(name string, fn HostFn) int32 {
+func (r *hostRegistry) register(name string, fn HostFn, suspends bool) int32 {
 	if _, dup := r.byName[name]; dup {
 		panic("vmwasm: primitiva duplicada: " + name)
 	}
 	id := int32(len(r.fns))
 	r.fns = append(r.fns, fn)
 	r.names = append(r.names, name)
+	r.suspending = append(r.suspending, suspends)
 	r.byName[name] = id
 	return id
 }
 
-// Register expone el registro de primitivas al kernel (lo usa M09+). Debe
-// llamarse antes de instanciar (el preludio se arma con el catálogo completo).
+// Register expone el registro de una primitiva SÍNCRONA (§10/§12: codecs, text,
+// sys...). Su thunk llama al dispatch directo (M05). Debe llamarse antes de
+// instanciar (el preludio se arma con el catálogo completo).
 func (p *Pool) Register(name string, fn HostFn) int32 {
-	return p.reg.register(name, fn)
+	return p.reg.register(name, fn, false)
+}
+
+// RegisterSuspending expone el registro de una primitiva ⏸ (§5/§6/§8/§11: fs,
+// proc, http, ws, search). Su thunk CEDE al scheduler (op "hostcall") para que
+// otras tasks corran mientras el trabajo bloqueante ocurre en una goroutine de
+// fondo. Contrato: un HostFn suspendente **no debe tocar el *Instance** (corre en
+// otra goroutine); recibe args, hace el trabajo, devuelve valores. La asignación
+// de handles (M10) y demás toques a la instancia van en primitivas síncronas.
+func (p *Pool) RegisterSuspending(name string, fn HostFn) int32 {
+	return p.reg.register(name, fn, true)
 }
 
 // dispatch resuelve el id, deserializa los args, llama al HostFn y serializa el
@@ -125,6 +138,13 @@ func (p *Pool) preludio() string {
 	b.WriteString("\nlocal __catalogo = {\n")
 	for id, name := range p.reg.names {
 		fmt.Fprintf(&b, "  [%q] = %d,\n", name, id)
+	}
+	b.WriteString("}\n")
+	b.WriteString("local __suspending = {\n")
+	for id, s := range p.reg.suspending {
+		if s {
+			fmt.Fprintf(&b, "  [%d] = true,\n", id)
+		}
 	}
 	b.WriteString("}\n")
 	b.WriteString(preludioMonta)
@@ -265,7 +285,17 @@ for name, id in pairs(__catalogo) do
     t = t[parts[i]]
   end
   local myid = id
-  t[parts[#parts]] = function(...) return __call_host(myid, ...) end
+  if __suspending[myid] then
+    -- primitiva ⏸ (M09): cede al scheduler; el driver Go la cumple en una
+    -- goroutine de fondo y reanuda con el resultado.
+    t[parts[#parts]] = function(...)
+      local r = coroutine.yield({ op = "hostcall", id = myid, args = { ... } })
+      if r.ok == false then error(r.err) end
+      return table.unpack(r.values, 1, r.n or #r.values)
+    end
+  else
+    t[parts[#parts]] = function(...) return __call_host(myid, ...) end
+  end
 end
 
 nu.json = nu.json or {}

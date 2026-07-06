@@ -77,7 +77,7 @@ func (inst *Instance) RunTasks(ctx context.Context) error {
 		// Despacha cada petición de trabajo externo en una goroutine de fondo.
 		for _, p := range pending {
 			outstanding++
-			go performRequest(ctx, p, ch)
+			go inst.performRequest(ctx, p, ch)
 		}
 
 		if outstanding == 0 {
@@ -139,8 +139,8 @@ func decodePending(wire []byte) ([]pendingReq, error) {
 }
 
 // performRequest cumple una petición de trabajo externo y manda el resultado por
-// el canal. M06 conoce "sleep"; M09 añade fs/http/... como nuevas op.
-func performRequest(ctx context.Context, p pendingReq, ch chan<- asyncResult) {
+// el canal. M06: "sleep"; M09: "hostcall" (una primitiva ⏸).
+func (inst *Instance) performRequest(ctx context.Context, p pendingReq, ch chan<- asyncResult) {
 	switch p.op {
 	case "sleep":
 		ms, _ := p.request["ms"].(int64)
@@ -153,11 +153,53 @@ func performRequest(ctx context.Context, p pendingReq, ch chan<- asyncResult) {
 		case <-t.C:
 			ch <- asyncResult{id: p.id, result: nil}
 		case <-ctx.Done():
-			ch <- asyncResult{id: p.id, result: "ECANCELED", isErr: true}
+			ch <- asyncResult{id: p.id, result: map[string]any{"code": "ECANCELED", "message": "cancelada"}, isErr: true}
 		}
+	case "hostcall":
+		// Una primitiva ⏸: corre su HostFn en ESTA goroutine de fondo (no toca la
+		// VM; contrato de RegisterSuspending) y reanuda con {ok, values} o {ok=false, err}.
+		inst.performHostcall(p, ch)
 	default:
 		ch <- asyncResult{id: p.id, result: "op de scheduler desconocida: " + p.op, isErr: true}
 	}
+}
+
+// performHostcall ejecuta el HostFn de una primitiva suspendente y empaqueta el
+// resultado (o el error estructurado) para reanudar la task.
+func (inst *Instance) performHostcall(p pendingReq, ch chan<- asyncResult) {
+	idF, _ := p.request["id"].(int64)
+	if idFl, ok := p.request["id"].(float64); ok {
+		idF = int64(idFl)
+	}
+	id := int32(idF)
+	var args []any
+	if a, ok := p.request["args"].([]any); ok {
+		args = a
+	}
+	reg := inst.pool.reg
+	if id < 0 || int(id) >= len(reg.fns) {
+		ch <- asyncResult{id: p.id, result: map[string]any{"ok": false, "err": map[string]any{"code": "EINVAL", "message": "id de primitiva fuera de rango"}}}
+		return
+	}
+	rets, callErr := reg.fns[id](inst, args)
+	if callErr != nil {
+		ch <- asyncResult{id: p.id, result: map[string]any{"ok": false, "err": errToMap(callErr)}}
+		return
+	}
+	// {ok=true, values=[...], n=len} para que el thunk desempaquete con nils.
+	ch <- asyncResult{id: p.id, result: map[string]any{"ok": true, "values": rets, "n": int64(len(rets))}}
+}
+
+// errToMap traduce un error de HostFn a la tabla estructurada del contrato (§1.4).
+func errToMap(callErr error) map[string]any {
+	if se, ok := callErr.(*StructuredError); ok {
+		m := map[string]any{"code": se.Code, "message": se.Message}
+		if se.Detail != nil {
+			m["detail"] = se.Detail
+		}
+		return m
+	}
+	return map[string]any{"code": "EIO", "message": callErr.Error()}
 }
 
 // resultMap empaqueta un asyncResult para el wire de inyección.
