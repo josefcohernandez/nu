@@ -5,14 +5,18 @@ Evidencia técnica y números: [spike/lua-wasm/INFORME.md](../spike/lua-wasm/INF
 (el spike es la semilla de las sesiones M02-M03 y el detector anti-caducidad).
 Rama de la migración: **`claude/migracion-vm-wasm`**.
 
-> **▶ Próxima sesión: `M13b` (en curso)** — catálogo real de primitivas. Ya están
-> probados TODOS los mecanismos del backend (M05-M12), el loader curado (M13a) y
-> **codecs, re, fs, sys, log, text (width/truncate), http.request, http.stream, ws,
-> search y proc** del catálogo, más el **despacho de métodos-de-handle ⏸ validado**
-> (desbloquea Proc/Ws/Stream). Faltan: text-Blocks (M13c). El patrón está
-> fijado (ver M13b): el catálogo wasm vive en `internal/runtime` (junto a sus
-> gemelos gopher, reusando las mismas librerías Go), en ficheros con **prefijo**
-> `vmwasm_<módulo>.go` — NUNCA sufijo `_wasm.go` (ver el ⚠️ de abajo).
+> **▶ Próxima sesión: `M13d`** — integración con el Runtime: `Runtime.New` ramifica
+> por backend a wasm, carga las 8 extensiones vía el loader, **cablea el input real
+> del tty a `FeedInput`** (necesita el Runtime arrancando: el driver de TTY convierte
+> teclas en eventos y los inyecta) y la suite pasa con `NU_VM=wasm` (skips → VACÍA).
+> Pendiente arrastrado: watchdog por época (DM4). El **catálogo M13b está COMPLETO**:
+> codecs, re, fs, sys, log, text (width/truncate **+ wrap/markdown/highlight/diff**,
+> M13c), http.request, http.stream, ws, search y proc, más el **despacho de
+> métodos-de-handle ⏸ validado** y el **compositor real + Blocks de nu.text enchufados
+> a `UIBackend`** (M13c). El patrón está fijado (ver M13b): el catálogo wasm vive en
+> `internal/runtime` (junto a sus gemelos gopher, reusando las mismas librerías Go),
+> en ficheros con **prefijo** `vmwasm_<módulo>.go` — NUNCA sufijo `_wasm.go` (ver el
+> ⚠️ de abajo).
 >
 > **⚠️ Gotcha de Go (documentado, importante):** un fichero llamado `*_wasm.go`
 > recibe una **restricción de build implícita `GOARCH=wasm`** (igual que `_linux`,
@@ -212,6 +216,7 @@ queda detrás del selector), se registra, y decide el humano.
 
 | Fecha | Sesión | Resumen |
 |---|---|---|
+| 2026-07-06 | **M13c** | Compositor REAL enchufado a `vmwasm.UIBackend` + los Blocks de `nu.text` (§9-§10). Cierra M13b: el catálogo queda COMPLETO. `vmwasm_ui.go`: `compositorBackend` envuelve el `*compositor` (el de `rt.ui.comp`) e implementa `UIBackend` reusando el compositor REAL (no reimplementa nada) —`Size`/`Caps` (por `detectColors`, como gopher)/`NewBlock` (parser VM-agnóstico `parseLinesWasm`/`parseStyleWasm`/`normalizeColorWasm`, espejo de parseLine/parseStyle/normalizeColor desde `[]any`)/`NewRegion` (`comp.addRegion`)/`ClipboardSet`/`ClipboardGet` (OSC 52, reusa `encodeOSC52*`/`readOSC52Reply`)—; y `regionAdapter` traduce los 11 métodos de `RegionObj` a los reales de `*uiRegion` (`move`/`resizeRegion`/`raise`/`lower`/`show`/`hide`/`release`, `content.blitBlock`/`fill`, `setCursor` con `off = !show`). `registerUIWasm(p, rt)` instala el backend SÓLO si `rt.ui != nil` (gating headless G20). **Único toque al gopher (adición pura):** `*block` gana `Dims() (int,int)` (block.go) para satisfacer `vmwasm.BlockObj` —así el handle "Block" resuelve a su `*block` y `Region:blit` copia su ventana (G28)—; no cambia el camino de gopher. `vmwasm_text.go`: `wrap`/`markdown`/`highlight`/`diff` como HostFn síncronos que reusan ÍNTEGRO el núcleo Go (`wrapText`, `renderMarkdownBlocks`, `highlightToBlock`, `computeDiff`/`renderDiffBlock`) y devuelven el Block vía `inst.AllocHandle("Block", blk)` como `{id,width,height}`; un wrapper Lua (AddPreludio) lo envuelve como handle opaco con `.width`/`.height` (misma forma que `nu.ui.block`, usando `__handle_mt` del preludio base). `diff` devuelve `{hunks, block?}` (`opts.render`); themes de markdown/diff parseados con `applyMarkdownThemeWasm`/`applyDiffThemeWasm` reusando `parseStyleWasm`. **Decisión anotada:** `RegionObj.Fill`/`Resize` (interfaz M11) no tienen canal de error, así que un estilo mal formado se degrada a nil y un tamaño negativo se clampa a 0 —a diferencia del `Region:fill`/`resize` de gopher que lanzan EINVAL—; es una limitación del binding M11, no de esta sesión. 18 tests (`vmwasm_ui_test.go` + añadidos a `vmwasm_text_test.go`) con el compositor REAL: size/caps reales, region+blit observando la rejilla compuesta (`composeRow`), ciclo de vida (move/resize/raise/lower/hide/show/destroy→ECLOSED, región descolgada del compositor), cursor último-gana (secuencia ANSI del frame), **blit de un Block de `text.wrap`** (round-trip del handle "Block"), **G28 offset negativo recorta sin panic**, la tubería REAL de pintado (`paint`→ANSI con el glifo), fill con color literal (SGR truecolor en el frame), y smokes de wrap/markdown/highlight/diff (dims coherentes, EINVAL de wrap/markdown, forma de diff con/sin render). Verde con `-race`; suite gopher completa y `internal/vmwasm` siguen verdes. **Pendiente para M13d:** el input REAL del tty→`FeedInput` (necesita el Runtime arrancando: el driver convierte teclas en eventos). Puntero → M13d. |
 | 2026-07-03 | — (plan) | Nace este plan (ejecuta ADR-019; rama `claude/migracion-vm-wasm`). Puntero en M01. |
 | 2026-07-03 | **M01** | Censo de la frontera VM cerrado: `tools/censo-vm.sh` (resumen/`--files`/`--check`) + [migracion-vm-censo.md](migracion-vm-censo.md) con las 6 categorías (C1 valores/marshaling, C2 host functions, C3 puente ⏸, C4 errores/desenrollado, C5 userdata/handles, C6 libs/baseline) y el mapa fichero→categoría→sesión. La guardia `--check` cableada en CI (trinquete: ningún símbolo gopher-lua nuevo). Hallazgo confirmado del censo: C4 no se traduce, se **borra** (cancel.go + blindaje G41 existen solo por defectos de gopher-lua). Sin código de producción. Puntero → M02. |
 | 2026-07-03 | **M02** | Blob productivo `internal/vmwasm`: shim consolidado (`shim/nu_shim.c`, renombrado de `spike_*` a `nu_*`, dispatch host genérico en vez de los host functions de benchmark del spike), `build.sh` reproducible (honra `$CC`), `nu.wasm` (477 KB) **comiteado** + `go:embed`, nota de licencia MIT (compatible Apache-2.0, ADR-013) y `.gitignore` de las fuentes de Lua. Cargador Go: `Pool` (compila una vez) + `Instance` (N instancias, **memoria aislada** — base de los workers M12), trampolín Snapshot/Restore heredado del spike, y `Dispatcher` pluggable (la costura que M05 rellena; en M02 rechaza). 7 tests: boot 5.4, libs del baseline, recuperación de errores, **G41 semántica de referencia sin blindaje** 🔒, **yield a través de pcall** 🔒, multi-instancia aislada, costura del dispatcher. Job de CI `vmblob` (reconstruye y verifica que el blob no derivó, DM1). wazero pasa a dependencia directa. Puntero → M03. |

@@ -79,6 +79,12 @@ type block struct {
 	height int // número de líneas
 }
 
+// Dims devuelve las dimensiones cacheadas del Block en celdas (ancho, alto). Es lo
+// que exige `vmwasm.BlockObj` (M13c): el binding wasm expone el Block como handle
+// opaco cuyo objeto Go es este `*block`, y `Region:blit` lo resuelve para copiar su
+// ventana. Adición pura para el backend wasm; no toca el camino de gopher.
+func (b *block) Dims() (int, int) { return b.width, b.height }
+
 // lineWidth calcula el ancho en celdas de una línea (la suma de los anchos de sus
 // spans). Reusa la lógica de `text.width` (uniseg) span a span; concatenar los
 // textos y medir una vez daría el mismo resultado salvo en el borde patológico de
