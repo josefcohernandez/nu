@@ -108,6 +108,11 @@ func handleCallFn(bool) HostFn {
 		if !ok {
 			return nil, &StructuredError{Code: "EINVAL", Message: "método desconocido: " + key}
 		}
+		// Expone el handle en despacho para que un método liberador (destroy/close/
+		// cancel) pueda soltar su propio handle con inst.FreeHandle(inst.dispatchHandle).
+		// Sólo es válido en el despacho SÍNCRONO (hilo principal); los métodos
+		// suspendentes no deben tocar la Instance (contrato de RegisterSuspending).
+		inst.dispatchHandle = Handle(hid)
 		return fn(inst, val, args[2:])
 	}
 }

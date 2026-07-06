@@ -44,6 +44,7 @@ type Pool struct {
 	rt       wazero.Runtime
 	compiled wazero.CompiledModule
 	reg      *hostRegistry
+	ui       UIBackend // backend de compositor (M11); nil = headless (G20)
 }
 
 // El runtime wazero y el módulo compilado se COMPARTEN a nivel de proceso: el
@@ -132,6 +133,9 @@ type Instance struct {
 	resultLen   api.Function
 	schedStepFn api.Function // nu_sched_step, perezoso (M06)
 	handles     *handleTable // tabla de objetos vivos tras los handles (M10, C5)
+
+	dispatchHandle Handle           // handle en despacho síncrono (M11: self-free)
+	pendingInput   []map[string]any // cola de eventos de input crudos (M11, FeedInput)
 
 	mu sync.Mutex // sólo protege contra reentrada accidental en tests, no concurrencia real
 }

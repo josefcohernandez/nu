@@ -152,6 +152,7 @@ func (p *Pool) preludio() string {
 	b.WriteString(preludioSched)
 	b.WriteString(preludioTask)
 	b.WriteString(preludioEvents)
+	b.WriteString(preludioInput)
 	return b.String()
 }
 
@@ -615,3 +616,123 @@ function nu.task.every(ms, fn)
   return { stop = function() stopped = true; nu.task.cancel(id) end }
 end
 `
+
+// preludioInput: la pila de input y la resolución de secuencias de teclas (M11,
+// api.md §9.3). Como los handlers son funciones Lua, la pila vive en el preludio
+// (igual que el bus de eventos), no Go-side; Go sólo inyecta eventos crudos
+// (FeedInput → __ui_dispatch_input) y, en M13, dispara el timeout con un timer.
+// El catálogo nu.ui.* (size/region/block/caps/clipboard) lo montan las primitivas
+// (ui.go); aquí se añaden on_input/keymap/block y el despacho. Si no hay backend
+// de UI (headless, G20), `nu.ui` no existe y este bloque no lo crea.
+//
+// Aproximación anotada (M11): el resolver de secuencias usa progreso POR handler
+// (cada keymap recuerda cuántos acordes lleva), no el buffer global único de
+// input.go. Prueba consumo/cesión/secuencia/timeout; la paridad fina de input.go
+// (re-inyección del prefijo abortado, generaciones del timer) se completa al
+// cablear el driver real en M13.
+const preludioInput = `
+if nu.ui then
+  local __stack = {}   -- pila: { live, raw=fn } (on_input) o { live, seq, pos, fn } (keymap)
+
+  local function __purge()
+    local kept = {}
+    for _, h in ipairs(__stack) do if h.live then kept[#kept+1] = h end end
+    __stack = kept
+  end
+
+  -- nu.ui.on_input(fn) -> InputHandle. Apila un handler crudo; fn(ev)->bool.
+  function nu.ui.on_input(fn)
+    local h = { live = true, raw = fn }
+    __stack[#__stack+1] = h
+    return { pop = function() h.live = false end }
+  end
+
+  -- Parseo de la notación de teclas: "ctrl+k" -> {key="k", mods={ctrl=true}};
+  -- "g g" (separado por espacios) -> lista de acordes (una secuencia).
+  local __modnames = { ctrl = true, alt = true, shift = true, meta = true }
+  local function __parse_chord(tok)
+    local mods, key = {}, nil
+    for part in string.gmatch(tok, "[^+]+") do
+      if __modnames[part] then mods[part] = true else key = part end
+    end
+    return { key = key, mods = mods }
+  end
+  local function __parse_seq(seq)
+    local chords = {}
+    for tok in string.gmatch(seq, "%S+") do chords[#chords+1] = __parse_chord(tok) end
+    return chords
+  end
+
+  -- nu.ui.keymap(seq, fn, opts?) -> Keymap. Azúcar sobre la pila (§9.3): la más
+  -- reciente activa gana. Consume por defecto; fn puede devolver false EXPLÍCITO
+  -- para ceder la tecla (que siga bajando por la pila).
+  function nu.ui.keymap(seq, fn, opts)
+    local h = { live = true, seq = __parse_seq(seq), pos = 0, fn = fn }
+    __stack[#__stack+1] = h
+    return { unmap = function() h.live = false end }
+  end
+
+  local function __mods_eq(a, b)
+    a = a or {}; b = b or {}
+    for m in pairs(__modnames) do
+      if (a[m] or false) ~= (b[m] or false) then return false end
+    end
+    return true
+  end
+  local function __chord_matches(ev, c)
+    return ev.type == "key" and ev.key == c.key and __mods_eq(ev.mods, c.mods)
+  end
+  local function __reset_seqs()
+    for _, h in ipairs(__stack) do if h.seq then h.pos = 0 end end
+  end
+
+  -- __ui_timeout(): el prefijo de secuencia pendiente caducó. Go lo dispara con
+  -- un timer (M13); en M11 lo llama el test. Resetea todo progreso de secuencia.
+  _G.__ui_timeout = function() __reset_seqs() end
+
+  -- __ui_dispatch_input(ev) -> consumed. Despacha de arriba a abajo (§9.3): el
+  -- handler superior que consuma corta la propagación.
+  _G.__ui_dispatch_input = function(ev)
+    if ev == nil then return false end
+    __purge()
+    for i = #__stack, 1, -1 do
+      local h = __stack[i]
+      if h.live then
+        if h.raw then
+          if h.raw(ev) == true then return true end
+        elseif h.seq then
+          local nextc = h.seq[h.pos + 1]
+          if nextc and __chord_matches(ev, nextc) then
+            h.pos = h.pos + 1
+            if h.pos >= #h.seq then
+              h.pos = 0
+              local r = h.fn(ev)
+              if r ~= false then __reset_seqs(); return true end
+              -- r == false: cede explícito, deja pasar al siguiente handler
+            else
+              return true   -- match parcial: consume la tecla (secuencia en curso)
+            end
+          elseif h.pos > 0 then
+            h.pos = 0        -- una tecla que no continúa la secuencia la aborta
+          end
+        end
+      end
+    end
+    return false
+  end
+
+  -- nu.ui.block(lines) -> Block. Envuelve el id que da nu.ui._block como handle
+  -- con los campos read-only .width/.height (api.md §9.2).
+  function nu.ui.block(lines)
+    local m = nu.ui._block(lines)
+    return setmetatable({ __id = m.id, width = m.width, height = m.height }, __handle_mt)
+  end
+end
+
+-- nu.has(cap): detección de capacidades (api.md §1). M11: mínimo — "ui" según
+-- haya backend (headless G20); el catálogo completo (net.tcp, images...) llega
+-- con la integración del Runtime (M13).
+function nu.has(cap)
+  if cap == "ui" then return nu.ui ~= nil end
+  return false
+end`
