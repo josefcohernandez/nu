@@ -130,6 +130,7 @@ func (p *Pool) preludio() string {
 	b.WriteString(preludioMonta)
 	b.WriteString(preludioSched)
 	b.WriteString(preludioTask)
+	b.WriteString(preludioEvents)
 	return b.String()
 }
 
@@ -485,5 +486,80 @@ end
 -- suspende: corre en el próximo paso del bucle).
 function nu.task.defer(fn)
   nu.task.spawn(fn)
+end
+`
+
+// preludioEvents: el bus de eventos nu.events (M08, api.md §4) con la semántica
+// de G10 (foto de suscriptores al emitir, cancelar surte efecto inmediato, subs
+// nuevos solo ven eventos futuros, emits anidados encolados por ANCHURA), y los
+// timers periódicos nu.task.every. Todo síncrono y en Lua (emit no suspende).
+const preludioEvents = `
+local __ev_subs = {}         -- name -> lista de { fn, live, once }
+local __ev_queue = {}        -- emits pendientes { name, payload }
+local __ev_dispatching = false
+
+nu.events = nu.events or {}
+
+function nu.events.on(name, fn)
+  __ev_subs[name] = __ev_subs[name] or {}
+  local sub = { fn = fn, live = true, once = false }
+  __ev_subs[name][#__ev_subs[name]+1] = sub
+  return { cancel = function() sub.live = false end }
+end
+
+function nu.events.once(name, fn)
+  local subs = __ev_subs[name] or {}
+  __ev_subs[name] = subs
+  local sub = { fn = fn, live = true, once = true }
+  subs[#subs+1] = sub
+  return { cancel = function() sub.live = false end }
+end
+
+local function __ev_dispatch(name, payload)
+  local subs = __ev_subs[name]
+  if not subs then return end
+  -- G10: foto de suscriptores tomada al emitir; los subs añadidos durante el
+  -- despacho no corren (no están en la foto), y cancelar surte efecto inmediato
+  -- (se comprueba live antes de cada uno).
+  local snap = {}
+  for i = 1, #subs do snap[i] = subs[i] end
+  for _, s in ipairs(snap) do
+    if s.live then
+      if s.once then s.live = false end
+      pcall(s.fn, payload)   -- cada handler bajo pcall (ADR-008)
+    end
+  end
+  -- compacta los muertos (once consumidos, cancelados)
+  local kept = {}
+  for _, s in ipairs(subs) do if s.live then kept[#kept+1] = s end end
+  __ev_subs[name] = kept
+end
+
+function nu.events.emit(name, payload)
+  __ev_queue[#__ev_queue+1] = { name = name, payload = payload }
+  if __ev_dispatching then return end   -- G10: anidado → encolado, no recursión
+  __ev_dispatching = true
+  local guard = 0
+  while #__ev_queue > 0 do
+    guard = guard + 1
+    if guard > 1000000 then __ev_dispatching = false; error("nu.events: ping-pong infinito") end
+    local e = table.remove(__ev_queue, 1)
+    __ev_dispatch(e.name, e.payload)
+  end
+  __ev_dispatching = false
+end
+
+-- nu.task.every(ms, fn) -> { stop } (§3). Timer periódico: una task que repite
+-- sleep+fn hasta que se para.
+function nu.task.every(ms, fn)
+  local stopped = false
+  local id = nu.task.spawn(function()
+    while not stopped do
+      nu.task.sleep(ms)
+      if stopped then break end
+      pcall(fn)
+    end
+  end)
+  return { stop = function() stopped = true; nu.task.cancel(id) end }
 end
 `
