@@ -6,9 +6,13 @@ package runtime
 // exacta de directivas—; el HostFn recibe el string final y lo escribe con el
 // logger del Runtime (best-effort: un fallo de disco no se propaga, §15).
 //
-// Owner (M13b): por ahora "user". El seguimiento del plugin dueño (ownerStack,
-// §14) llega con el loader de extensiones (M13d); hasta entonces todo el log wasm
-// se anota como "user", igual que un chunk de -e o el init del usuario.
+// Owner (M13d-ext): se anota `rt.currentOwner()` —el tope del `ownerStack` que el
+// arranque de extensiones (vmwasm_loader.go) empuja alrededor de cada `init.lua`—.
+// Durante el init de una extensión el log queda a su nombre; fuera de todo init
+// (una task que corre luego, el chunk de `-e`, el init del usuario) la pila está
+// vacía y el owner es "user", idéntico al backend gopher. El HostFn es SÍNCRONO y
+// corre en línea (mismo goroutine que el `Eval`/paso del scheduler), así que la
+// lectura del `ownerStack` es single-thread, sin candado (ADR-004).
 
 import (
 	"github.com/dbareagimeno/nu/internal/vmwasm"
@@ -17,7 +21,7 @@ import (
 func registerLogWasm(p *vmwasm.Pool, rt *Runtime) {
 	reg := func(name string, level logLevel) {
 		p.Register(name, func(inst *vmwasm.Instance, args []any) ([]any, error) {
-			_ = rt.log.write(level, "user", argString(args, 0))
+			_ = rt.log.write(level, rt.currentOwner(), argString(args, 0))
 			return nil, nil
 		})
 	}

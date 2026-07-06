@@ -438,6 +438,7 @@ func (rt *Runtime) registerWasmCatalog(p *vmwasm.Pool) {
 	registerSearchWasm(p, rt) // nu.search (§11)
 	registerProcWasm(p, rt)   // nu.proc (§6)
 	registerUIWasm(p, rt)     // nu.ui (§9) — sólo si rt.ui != nil (G20)
+	registerPluginWasm(p, rt) // nu.plugin (current/list) + nu.config (§14)
 }
 
 // currentOwner devuelve el nombre del plugin en cuyo contexto corre el código
@@ -505,6 +506,13 @@ func (rt *Runtime) Boot() error {
 	// cambios. En headless el pintado solo construye el buffer ANSI en memoria (no
 	// hay TTY hasta S32); el timer se corta en `Close`.
 	rt.armPainter()
+	// Ramificación del estrangulador (M13d-ext): con el backend wasm, las 8
+	// extensiones oficiales se cargan sobre la Instance wasm (BootWasm reusa la
+	// misma discovery/topología que Boot; ver vmwasm_loader.go). Sólo bajo VMWasm;
+	// en gopher (default hasta M16) el arranque no cambia.
+	if rt.vmBackend == VMWasm {
+		return rt.ldr.BootWasm()
+	}
 	return rt.ldr.Boot()
 }
 
