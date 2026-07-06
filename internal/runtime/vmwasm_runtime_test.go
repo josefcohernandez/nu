@@ -9,15 +9,17 @@ package runtime
 // real (nu.fs por disco), red real (nu.http contra httptest) y la concurrencia del
 // scheduler wasm (nu.task).
 //
-// NO hay bucles de CPU: el watchdog por época (DM4) es una sesión aparte, así que un
-// `while true do end` colgaría (esperado). Por eso la suite dual completa
-// (`NU_VM=wasm go test ./...`) sigue sin correr entera; este test es el sondeo
-// dedicado que prueba la integración sin depender del watchdog.
+// El watchdog por slice (DM4) ya está cableado: un bucle de CPU en una task wasm se
+// aborta con EBUDGET (ver TestRuntimeWasmWatchdogEBUDGET) en vez de colgar. Lo que
+// aún impide correr la suite dual completa (`NU_VM=wasm go test ./...`) es cargar las
+// 8 extensiones oficiales sobre el estado wasm (M13d-ext); hasta entonces estos tests
+// son el sondeo dedicado del stack real por el Runtime.
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"path/filepath"
 )
@@ -168,5 +170,47 @@ func TestRuntimeWasmTaskStructuredError(t *testing.T) {
 	}
 	if se.Code != CodeENOENT {
 		t.Fatalf("code = %q, esperado ENOENT", se.Code)
+	}
+}
+
+// M13d/DM4: el watchdog por slice corta un bucle de CPU en una task wasm por el
+// Runtime REAL. Una sub-task con `while true do end` se aborta con EBUDGET tras el
+// slice; la task del CLI la ESPERA y observa el EBUDGET (capturable por el awaiter,
+// como en gopher), que EvalTaskString devuelve como *StructuredError. Cierra el
+// hallazgo de M13a (un bucle de CPU por el Runtime wasm ya no cuelga). Se acota con
+// un tope de wall-clock: un watchdog roto sería un FALLO, no un cuelgue del CI.
+func TestRuntimeWasmWatchdogEBUDGET(t *testing.T) {
+	rt := New(
+		WithVMBackend(VMWasm),
+		WithDataDir(t.TempDir()),
+		WithConfigDir(t.TempDir()),
+		WithSliceBudget(30*time.Millisecond),
+	)
+	t.Cleanup(rt.Close)
+	if rt.wasmErr != nil {
+		t.Fatalf("buildWasmState: %v", rt.wasmErr)
+	}
+	type res struct {
+		out []string
+		err error
+	}
+	ch := make(chan res, 1)
+	go func() {
+		out, err := rt.EvalTaskString(`
+			local w = nu.task.spawn(function() while true do end end)
+			return nu.task.await(w)`)
+		ch <- res{out, err}
+	}()
+	select {
+	case r := <-ch:
+		se, ok := r.err.(*StructuredError)
+		if !ok {
+			t.Fatalf("esperaba EBUDGET estructurado; got out=%v err=%T %v", r.out, r.err, r.err)
+		}
+		if se.Code != CodeEBUDGET {
+			t.Fatalf("code = %q, esperado EBUDGET", se.Code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("EvalTaskString colgó: el watchdog wasm no cortó el bucle de CPU")
 	}
 }

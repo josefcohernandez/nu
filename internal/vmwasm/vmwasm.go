@@ -15,6 +15,7 @@ import (
 	_ "embed"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -50,6 +51,7 @@ type Pool struct {
 	modules       map[string]string // fuentes de módulo por nombre para require (M13, DM5)
 	apiVersion    int               // nivel de nu.version.api que inyecta el preludio (M13, lo fija el Runtime)
 	extraPreludio []string          // snippets Lua que aporta el catálogo (M13b: wrappers finos)
+	sliceBudget   time.Duration     // presupuesto por slice del watchdog (DM4); ≤0 lo desactiva (workers, G15)
 
 	// Registro de workers vivos de este Pool (M12), para _send/_recv/_terminate y
 	// para el apagado ordenado. Sólo lo usa el Pool principal.
@@ -89,6 +91,7 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 			NewFunctionBuilder().WithFunc(hostTry).Export("host_try").
 			NewFunctionBuilder().WithFunc(hostThrow).Export("host_throw").
 			NewFunctionBuilder().WithFunc(hostDispatch).Export("host_dispatch").
+			NewFunctionBuilder().WithFunc(hostOverBudget).Export("nu_over_budget").
 			Instantiate(ctx); err != nil {
 			sharedErr = fmt.Errorf("vmwasm: registrar módulo host: %w", err)
 			return
@@ -109,7 +112,8 @@ func newBarePool() (*Pool, error) {
 		return nil, err
 	}
 	p := &Pool{rt: rt, compiled: compiled, reg: newHostRegistry(), workers: make(map[int64]*worker), modules: make(map[string]string)}
-	p.registerLoader() // require curado (M13): presente en todo Pool, también en workers
+	p.registerLoader()   // require curado (M13): presente en todo Pool, también en workers
+	p.registerWatchdog() // __reset_budget del watchdog (DM4): presente en todo Pool
 	return p, nil
 }
 
@@ -130,6 +134,14 @@ func NewPool() (*Pool, error) {
 // el Runtime al construir el estado wasm (M13), con su APILevel. Debe llamarse
 // antes de NewInstance (el preludio se arma con él).
 func (p *Pool) SetAPIVersion(v int) { p.apiVersion = v }
+
+// SetSliceBudget fija el presupuesto por slice del watchdog (DM4, api.md §1.3):
+// el tiempo máximo que una task puede correr Lua de forma continua sin ceder
+// antes de que el count-hook la aborte con EBUDGET (no capturable). Lo llama el
+// Runtime con su `sliceBudget` (100 ms por defecto). Un valor ≤0 DESACTIVA el
+// watchdog —igual que en gopher— y es lo que usan los workers (G15: un worker es
+// un mini-runtime cuyo trabajo es quemar CPU). Debe llamarse antes de NewInstance.
+func (p *Pool) SetSliceBudget(d time.Duration) { p.sliceBudget = d }
 
 // AddPreludio añade un snippet Lua que se ejecuta al final del preludio, cuando la
 // tabla `nu` ya está montada. Es el punto de extensión con el que un módulo del
@@ -181,6 +193,13 @@ type Instance struct {
 	pendingInput   []map[string]any // cola de eventos de input crudos (M11, FeedInput)
 	workerChans    *workerChannels  // canales con el padre, si esta Instance es un worker (M12)
 
+	// Watchdog por slice (DM4). `sliceBudget` (copiado del Pool en NewInstance) es
+	// el presupuesto; `taskDeadline` lo fija `__reset_budget` ANTES de reanudar cada
+	// task, y lo lee `nu_over_budget` (el import del count-hook). Ambos los toca sólo
+	// el goroutine que conduce el Call —síncrono, sin goroutine de fondo—: race-free.
+	sliceBudget  time.Duration
+	taskDeadline time.Time
+
 	mu sync.Mutex // sólo protege contra reentrada accidental en tests, no concurrencia real
 }
 
@@ -189,7 +208,7 @@ type Instance struct {
 // libs del baseline. El dispatcher arranca en el que rechaza todo; SetDispatcher
 // lo sustituye (M05).
 func (p *Pool) NewInstance() (*Instance, error) {
-	inst := &Instance{pool: p, handles: newHandleTable()}
+	inst := &Instance{pool: p, handles: newHandleTable(), sliceBudget: p.sliceBudget}
 	// ctx con el snapshotter (lo exige el trampolín), cancelable (worker:terminate,
 	// M12) y con la propia instancia.
 	base := experimental.WithSnapshotter(context.Background())
@@ -370,6 +389,28 @@ func hostThrow(ctx context.Context) {
 	inst.tries = inst.tries[:len(inst.tries)-1]
 	inst.mod.ExportedGlobal("__stack_pointer").(api.MutableGlobal).Set(top.sp)
 	top.snap.Restore([]uint64{1})
+}
+
+// hostOverBudget implementa el import `nu_over_budget` que el count-hook del
+// watchdog (DM4, nu_shim.c) invoca cada WD_COUNT instrucciones de una task.
+// Devuelve 1 si el slice en curso rebasó su deadline —el hook cede entonces (0
+// valores) y el scheduler Lua aborta la task con EBUDGET no capturable—, o 0 si
+// aún tiene presupuesto. Un `sliceBudget <= 0` desactiva el watchdog (siempre 0),
+// como en gopher y como en los workers (G15).
+//
+// RACE-FREE: `taskDeadline` lo fija `__reset_budget` en el MISMO goroutine que
+// conduce el Call, ANTES de reanudar la task; este import se invoca síncronamente
+// DENTRO de ese Call (el hook corre en el hilo Lua, no en una goroutine de fondo).
+// Ninguna goroutine de `performRequest` toca estos campos ni la memoria wasm.
+func hostOverBudget(ctx context.Context) int32 {
+	inst := instanceOf(ctx)
+	if inst.sliceBudget <= 0 {
+		return 0 // watchdog desactivado
+	}
+	if time.Now().After(inst.taskDeadline) {
+		return 1
+	}
+	return 0
 }
 
 // hostDispatch implementa la costura Lua→Go: lee `len` bytes de args del buffer,

@@ -384,6 +384,12 @@ function nu.task.spawn(fn, ...)
   local packed = table.pack(...)
   local id = __next_id; __next_id = __next_id + 1
   local co = coroutine.create(function()
+    -- Watchdog (DM4): instala el count-hook en ESTA corrutina (un hilo nuevo no
+    -- hereda el hook del padre en 5.4). A partir de aquí, cada WD_COUNT
+    -- instrucciones se comprueba el presupuesto del slice; si lo rebasa, el hook
+    -- cede y el scheduler aborta la task con EBUDGET. Con el watchdog desactivado
+    -- (sliceBudget<=0) el hook nunca cede (nu_over_budget siempre 0).
+    __wd_arm()
     return fn(table.unpack(packed, 1, packed.n))
   end)
   __tasks[id] = { co = co, done = false, awaiters = {} }
@@ -441,6 +447,9 @@ local function __resume(id, arg, iserr, pending)
     return
   end
   local prev = __current; __current = id
+  -- Watchdog (DM4): reinicia el deadline del slice que va a correr; el count-hook
+  -- de esta corrutina (armado en spawn) lo comparará cada WD_COUNT instrucciones.
+  nu.__reset_budget()
   local ok, yielded
   if iserr then
     ok, yielded = coroutine.resume(t.co, { __err = true, msg = arg })
@@ -452,6 +461,17 @@ local function __resume(id, arg, iserr, pending)
     t.done = true; t.ok = false; t.result = yielded; __finish(t)
   elseif coroutine.status(t.co) == "dead" then
     t.done = true; t.ok = true; t.result = yielded; __finish(t)
+  elseif yielded == nil then
+    -- Aborto por WATCHDOG (DM4, §1.3): el count-hook cedió al rebasar el
+    -- presupuesto del slice. Un yield del hook NO lleva valor (Lua 5.4 restaura el
+    -- top tras el hook), así que yielded == nil es la firma inequívoca del aborto
+    -- por budget (todos los ⏸ normales ceden una tabla op=...). El pcall interno
+    -- de la task no lo capturó (fue un yield, no un error): NO capturable, gemelo
+    -- del aborto por cancelación pero con EBUDGET. La task NO se reencola; corren
+    -- sus cleanups (LIFO) y el estado sigue vivo para el resto de tasks.
+    t.done = true; t.ok = false
+    t.result = { code = "EBUDGET", message = "una task excedió el presupuesto de slice (watchdog)" }
+    __finish(t)
   elseif yielded.op == "await" then
     local target = __tasks[yielded.id]
     if target and target.done then

@@ -115,6 +115,54 @@ static int l_await(lua_State *L) {
   return lua_yield(L, lua_gettop(L));
 }
 
+/* --- watchdog por conteo de instrucciones (DM4) -----------------------------
+ * El watchdog del backend wasm. En wazero cancelar el ctx de un Call mata el
+ * MÓDULO ENTERO (el estado), no una task; para abortar SÓLO la task que quema CPU
+ * (`while true do end`) sin matar el estado, la única palanca es el propio bucle
+ * del intérprete: un count-hook de PUC-Lua que, cada N instrucciones, pregunta a
+ * Go si el slice en curso rebasó su presupuesto y, si es así, CEDE.
+ *
+ * VERIFICADO EN FASE 0: un count-hook de Lua 5.4 SÍ puede ceder a través del
+ * trampolín Snapshot/Restore (M03) y de un pcall —el yield del hook es un
+ * luaD_throw(LUA_YIELD) idéntico al de un coroutine.yield normal, que ya
+ * atraviesa el pcall (base yieldable, CIST_YPCALL) sin frame de try intermedio—.
+ * Por eso el aborto es NO capturable: el pcall del usuario nunca lo ve.
+ *
+ * SIN VALORES: un count-hook NO puede ceder valores —luaD_hook restaura el `top`
+ * de la pila tras ejecutar el hook, así que cualquier valor empujado se pierde—.
+ * Por eso `lua_yield(L, 0)`: el scheduler Lua reconoce el aborto por budget
+ * porque coroutine.resume devuelve un yield con `yielded == nil` (todos los ⏸
+ * normales ceden una tabla {op=...}, jamás nil). */
+
+/* nu_over_budget(): import host (Go). Devuelve 1 si el slice de la task en curso
+ * rebasó su deadline (fijado por __reset_budget antes de reanudar la task). Es
+ * race-free: mismo goroutine que conduce el Call, invocación síncrona. */
+__attribute__((import_module("nu"), import_name("nu_over_budget")))
+extern int nu_over_budget(void);
+
+/* WD_COUNT: instrucciones entre chequeos. Compromiso entre granularidad del corte
+ * (rebasar el deadline como mucho ~WD_COUNT instrucciones) y coste (una llamada
+ * host por cada tramo). El chequeo es barato (una comparación de tiempos en Go). */
+#define WD_COUNT 10000
+
+/* wd_hook: el count-hook. Cada WD_COUNT instrucciones pregunta a Go; si el slice
+ * rebasó el presupuesto, cede (0 valores) — el scheduler lo aborta con EBUDGET. */
+static void wd_hook(lua_State *L, lua_Debug *ar) {
+  (void)ar;
+  if (nu_over_budget()) {
+    lua_yield(L, 0);
+  }
+}
+
+/* __wd_arm(): instala wd_hook en el HILO que la llama (la corrutina de la task).
+ * El preludio la invoca al principio del cuerpo de cada task. Como el baseline NO
+ * abre la lib debug, esta función C global es la única vía de lua_sethook; se
+ * instala por-corrutina (un hilo nuevo NO hereda el hook del padre en 5.4). */
+static int l_wd_arm(lua_State *L) {
+  lua_sethook(L, wd_hook, LUA_MASKCOUNT, WD_COUNT);
+  return 0;
+}
+
 /* --- ciclo de vida del estado ---------------------------------------------- */
 
 __attribute__((export_name("nu_new")))
@@ -130,6 +178,7 @@ int nu_new(void) {
   /* costuras del kernel (no son de la stdlib): el dispatch host y el ⏸ */
   lua_register(GL, "__nu_host", l_nu_host);
   lua_register(GL, "nu_await", l_await);
+  lua_register(GL, "__wd_arm", l_wd_arm); /* watchdog DM4: instala el count-hook */
   return 0;
 }
 

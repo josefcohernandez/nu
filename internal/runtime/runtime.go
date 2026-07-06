@@ -389,8 +389,9 @@ func New(opts ...Option) *Runtime {
 // catálogo reusa rt.fs/rt.http/rt.sys/rt.ui/rt.log/rt.sched, que `New` ya construyó).
 // Un fallo aquí NO rompe la firma de `New` (que no devuelve error): se guarda en
 // `rt.wasmErr` y lo propagan `EvalString`/`EvalTaskString` al primer eval. El
-// watchdog por época (DM4) y la carga de las 8 extensiones oficiales (M13d-ext) son
-// sesiones aparte: aquí sólo se cablea el arranque y el catálogo síncrono/⏸.
+// watchdog por slice (DM4) ya está cableado (`SetSliceBudget`); la carga de las 8
+// extensiones oficiales (M13d-ext) es sesión aparte: aquí se cablea el arranque, el
+// catálogo síncrono/⏸ y el presupuesto del watchdog.
 func (rt *Runtime) buildWasmState() {
 	p, err := vmwasm.NewPool()
 	if err != nil {
@@ -400,6 +401,11 @@ func (rt *Runtime) buildWasmState() {
 	// El nivel de nu.version.api que el preludio inyecta (api.md §2): el mismo que
 	// el estado gopher (APILevel). Debe fijarse antes de NewInstance.
 	p.SetAPIVersion(APILevel)
+	// Presupuesto del watchdog por slice (DM4): el mismo `sliceBudget` que rige el
+	// estado gopher (rt.sched.budget, ya resuelto por precedencia Option>nu.toml>
+	// default). Un bucle de CPU en una task wasm se aborta con EBUDGET tras el slice,
+	// idéntico a gopher. Debe fijarse antes de NewInstance (el preludio arma el hook).
+	p.SetSliceBudget(rt.sched.budget)
 	rt.registerWasmCatalog(p)
 	inst, err := p.NewInstance()
 	if err != nil {

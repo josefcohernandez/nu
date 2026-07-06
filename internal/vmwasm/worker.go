@@ -185,9 +185,11 @@ func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven
 // módulo entero ("fs") o la función exacta ("fs.read"), deny-by-default.
 func workerGrants(name string, caps map[string]bool, capsGiven bool) bool {
 	if hasPrefix(name, "ui.") || hasPrefix(name, "worker.") || hasPrefix(name, "loader.") ||
-		name == "__handle_call" || name == "__handle_call_s" {
-		// ui/worker no cruzan; loader._source ya lo registra el Pool del worker; las
-		// primitivas de despacho de handles las re-registra registerHandleDispatch.
+		name == "__handle_call" || name == "__handle_call_s" || name == "__reset_budget" {
+		// ui/worker no cruzan; loader._source y __reset_budget (watchdog, DM4) ya los
+		// registra el propio Pool del worker (registerLoader/registerWatchdog en
+		// newBarePool); las primitivas de despacho de handles las re-registra
+		// registerHandleDispatch. Copiarlas aquí sería una doble-registración (panic).
 		return false
 	}
 	if !capsGiven {
