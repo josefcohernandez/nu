@@ -96,15 +96,16 @@ type Instance struct {
 	mod  api.Module
 	ctx  context.Context
 
-	tries      []tryFrame // pila LIFO de LUAI_TRY activos
-	dispatch   Dispatcher
-	bufPtr     uint32
-	bufCap     uint32
-	callPfunc  api.Function
-	evalFn     api.Function
-	coSpawnFn  api.Function
-	coResumeFn api.Function
-	resultLen  api.Function
+	tries       []tryFrame // pila LIFO de LUAI_TRY activos
+	dispatch    Dispatcher
+	bufPtr      uint32
+	bufCap      uint32
+	callPfunc   api.Function
+	evalFn      api.Function
+	coSpawnFn   api.Function
+	coResumeFn  api.Function
+	resultLen   api.Function
+	schedStepFn api.Function // nu_sched_step, perezoso (M06)
 
 	mu sync.Mutex // sólo protege contra reentrada accidental en tests, no concurrencia real
 }

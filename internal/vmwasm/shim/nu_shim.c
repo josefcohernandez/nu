@@ -149,6 +149,28 @@ int nu_eval(int len) {
   return 0;
 }
 
+/* nu_sched_step(len): el puente Go↔bucle de scheduler (ADR-020, M06). Pasa
+ * BUF[0..len] (los resultados de trabajo externo ya completado, wire de M05) al
+ * scheduler Lua global `__sched_step`, y deja en BUF lo que devuelve (las nuevas
+ * peticiones de trabajo externo pendientes, wire). Devuelve la longitud del
+ * retorno, o -1 si `__sched_step` no existe o falla (mensaje en BUF). Corre bajo
+ * el pcall que `__sched_step` establece; los errores de las tasks no escapan aquí
+ * (el scheduler Lua los captura por task). */
+__attribute__((export_name("nu_sched_step")))
+int nu_sched_step(int len) {
+  lua_getglobal(GL, "__sched_step");
+  if (!lua_isfunction(GL, -1)) { lua_pop(GL, 1); RESULT_LEN = 0; return -1; }
+  lua_pushlstring(GL, BUF, (size_t)len);
+  if (lua_pcall(GL, 1, 1, 0) != LUA_OK) { set_result(GL, -1); lua_pop(GL, 1); return -1; }
+  size_t n = 0;
+  const char *s = lua_tolstring(GL, -1, &n);
+  if (n > BUF_CAP - 1) n = BUF_CAP - 1;
+  if (s) memcpy(BUF, s, n);
+  RESULT_LEN = (int)n;
+  lua_pop(GL, 1);
+  return (int)n;
+}
+
 /* nu_selftest_trap: provoca un TRAP wasm real (no un error de Lua). Lo usa el
  * test 🔒 de M03 para verificar que el trampolín distingue un trap del motor
  * (que DEBE propagarse como fallo duro a Go) de un LUAI_THROW (que se captura).

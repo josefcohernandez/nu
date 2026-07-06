@@ -128,6 +128,7 @@ func (p *Pool) preludio() string {
 	}
 	b.WriteString("}\n")
 	b.WriteString(preludioMonta)
+	b.WriteString(preludioSched)
 	return b.String()
 }
 
@@ -271,4 +272,105 @@ nu.json.NULL = NULL
 _G.nu = nu
 -- exporta el codec para los tests de la frontera (no forma parte de nu.*).
 _G.__wire = { enc_list = __enc_list, dec_list = __dec_list, NULL = NULL }
+`
+
+// preludioSched: el scheduler de tasks por corrutinas nativas (ADR-020, M06). El
+// bucle vive en Go (scheduler.go, driver `RunTasks`); aquí está la lógica Lua:
+// tasks como `coroutine`, ⏸ como `coroutine.yield` de una petición de trabajo
+// externo, y `__sched_step` como el paso que Go conduce. La semántica observable
+// es la de api.md §1.3 (await implícito, código secuencial).
+const preludioSched = `
+local __tasks = {}      -- id -> { co, done, ok, result, awaiters }
+local __ready = {}      -- lista de { id, arg, iserr } a reanudar en el próximo step
+local __next_id = 1
+
+nu.task = nu.task or {}
+
+local function __enqueue(id, arg, iserr)
+  __ready[#__ready+1] = { id = id, arg = arg, iserr = iserr }
+end
+
+-- nu.task.spawn(fn, ...) -> id. Crea una corrutina y la encola lista.
+function nu.task.spawn(fn, ...)
+  local packed = table.pack(...)
+  local id = __next_id; __next_id = __next_id + 1
+  local co = coroutine.create(function()
+    return fn(table.unpack(packed, 1, packed.n))
+  end)
+  __tasks[id] = { co = co, done = false, awaiters = {} }
+  __enqueue(id, nil, false)
+  return id
+end
+
+-- nu.task.sleep(ms). Cede una petición de sleep; el driver Go la cumple y
+-- reanuda tras ms.
+function nu.task.sleep(ms)
+  coroutine.yield({ op = "sleep", ms = ms })
+end
+
+-- nu.task.await(id) -> resultado. Si la task ya terminó, devuelve su resultado
+-- (o relanza su error); si no, cede una petición de await que el scheduler
+-- resuelve cuando la task termine.
+function nu.task.await(id)
+  local t = __tasks[id]
+  if not t then error("nu.task.await: id de task desconocido") end
+  if t.done then
+    if t.ok then return t.result else error(t.result) end
+  end
+  local r = coroutine.yield({ op = "await", id = id })
+  if r.ok then return r.result else error(r.result) end
+end
+
+-- resume una task lista; procesa el resultado (done/error/nueva petición).
+local function __resume(id, arg, iserr, pending)
+  local t = __tasks[id]
+  if not t or t.done then return end
+  local ok, yielded
+  if iserr then
+    ok, yielded = coroutine.resume(t.co, { __err = true, msg = arg })
+  else
+    ok, yielded = coroutine.resume(t.co, arg)
+  end
+  if not ok then
+    t.done = true; t.ok = false; t.result = yielded
+    for _, aw in ipairs(t.awaiters) do __enqueue(aw, { ok = false, result = yielded }, false) end
+  elseif coroutine.status(t.co) == "dead" then
+    t.done = true; t.ok = true; t.result = yielded
+    for _, aw in ipairs(t.awaiters) do __enqueue(aw, { ok = true, result = yielded }, false) end
+  else
+    if yielded.op == "await" then
+      local target = __tasks[yielded.id]
+      if target and target.done then
+        __enqueue(id, { ok = target.ok, result = target.result }, false)
+      elseif target then
+        target.awaiters[#target.awaiters+1] = id
+      else
+        __enqueue(id, { ok = false, result = "await: id desconocido" }, false)
+      end
+    else
+      pending[#pending+1] = { id = id, request = yielded }
+    end
+  end
+end
+
+-- __sched_step(injected) -> pending: reanuda las tasks listas (más las que se
+-- vuelvan listas por await/spawn durante el paso), inyectando primero los
+-- resultados de trabajo externo completado, y devuelve las nuevas peticiones.
+function __sched_step(injected)
+  local arr = __wire.dec_list(injected)
+  if arr then
+    for _, item in ipairs(arr) do
+      __enqueue(item.id, item.result, item.iserr == true)
+    end
+  end
+  local pending = {}
+  local guard = 0
+  while #__ready > 0 do
+    guard = guard + 1
+    if guard > 1000000 then error("nu.task: bucle de scheduler sin fin") end
+    local r = table.remove(__ready, 1)
+    __resume(r.id, r.arg, r.iserr, pending)
+  end
+  return __wire.enc_list(pending)
+end
 `
