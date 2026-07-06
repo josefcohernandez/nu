@@ -5,7 +5,7 @@ Evidencia técnica y números: [spike/lua-wasm/INFORME.md](../spike/lua-wasm/INF
 (el spike es la semilla de las sesiones M02-M03 y el detector anti-caducidad).
 Rama de la migración: **`claude/migracion-vm-wasm`**.
 
-> **▶ Próxima sesión: `M02`.** · Bitácora al final del documento.
+> **▶ Próxima sesión: `M03`.** · Bitácora al final del documento.
 > Censo de la frontera (M01, cerrado): [migracion-vm-censo.md](migracion-vm-censo.md).
 
 ---
@@ -175,3 +175,4 @@ queda detrás del selector), se registra, y decide el humano.
 |---|---|---|
 | 2026-07-03 | — (plan) | Nace este plan (ejecuta ADR-019; rama `claude/migracion-vm-wasm`). Puntero en M01. |
 | 2026-07-03 | **M01** | Censo de la frontera VM cerrado: `tools/censo-vm.sh` (resumen/`--files`/`--check`) + [migracion-vm-censo.md](migracion-vm-censo.md) con las 6 categorías (C1 valores/marshaling, C2 host functions, C3 puente ⏸, C4 errores/desenrollado, C5 userdata/handles, C6 libs/baseline) y el mapa fichero→categoría→sesión. La guardia `--check` cableada en CI (trinquete: ningún símbolo gopher-lua nuevo). Hallazgo confirmado del censo: C4 no se traduce, se **borra** (cancel.go + blindaje G41 existen solo por defectos de gopher-lua). Sin código de producción. Puntero → M02. |
+| 2026-07-03 | **M02** | Blob productivo `internal/vmwasm`: shim consolidado (`shim/nu_shim.c`, renombrado de `spike_*` a `nu_*`, dispatch host genérico en vez de los host functions de benchmark del spike), `build.sh` reproducible (honra `$CC`), `nu.wasm` (477 KB) **comiteado** + `go:embed`, nota de licencia MIT (compatible Apache-2.0, ADR-013) y `.gitignore` de las fuentes de Lua. Cargador Go: `Pool` (compila una vez) + `Instance` (N instancias, **memoria aislada** — base de los workers M12), trampolín Snapshot/Restore heredado del spike, y `Dispatcher` pluggable (la costura que M05 rellena; en M02 rechaza). 7 tests: boot 5.4, libs del baseline, recuperación de errores, **G41 semántica de referencia sin blindaje** 🔒, **yield a través de pcall** 🔒, multi-instancia aislada, costura del dispatcher. Job de CI `vmblob` (reconstruye y verifica que el blob no derivó, DM1). wazero pasa a dependencia directa. Puntero → M03. |

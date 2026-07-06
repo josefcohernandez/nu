@@ -154,3 +154,40 @@ jobs:
         # -shuffle=on baraja el orden de los tests: caza dependencias de orden
         # ocultas a coste cero.
         run: go test -race -shuffle=on ./...
+
+  # Blob de la VM wasm (migracion-vm.md M02, DM1): reconstruye nu.wasm desde las
+  # fuentes pineadas de Lua + el shim, y verifica que el artefacto comiteado no ha
+  # derivado. Sólo en Linux (la toolchain wasm de Ubuntu basta; el blob es
+  # portable). Se retira junto a gopher-lua en M17 cuando wasm sea la única VM.
+  vmblob:
+    name: Blob de la VM (nu.wasm reproducible)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Toolchain wasm (clang 18 + wasi-libc)
+        run: sudo apt-get update && sudo apt-get install -y clang-18 lld-18 wasi-libc libclang-rt-18-dev-wasm32
+
+      - name: Reconstruir nu.wasm y verificar que el blob comiteado no derivó
+        # build.sh clona Lua pineado (v5.4.7) y recompila. Si el resultado difiere
+        # del nu.wasm comiteado, o fuentes o shim cambiaron sin regenerar el blob:
+        # el diff falla y hay que correr build.sh y comitear el nuevo artefacto.
+        run: |
+          hash_antes=$(sha256sum internal/vmwasm/nu.wasm | cut -d' ' -f1)
+          CC=clang-18 internal/vmwasm/build.sh
+          hash_despues=$(sha256sum internal/vmwasm/nu.wasm | cut -d' ' -f1)
+          echo "comiteado: $hash_antes"
+          echo "rebuild:   $hash_despues"
+          git diff --exit-code internal/vmwasm/nu.wasm || {
+            echo "nu.wasm derivó de sus fuentes: corre internal/vmwasm/build.sh y comitea el blob" >&2
+            exit 1
+          }
+
+      - name: Tests del backend wasm
+        run: go test ./internal/vmwasm/

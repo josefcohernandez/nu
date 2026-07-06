@@ -1,0 +1,3 @@
+# Fuentes de Lua: MIT de terceros, clonadas pineadas por build.sh (no se
+# versionan, CLAUDE.md). El artefacto nu.wasm SÍ se comitea (DM1).
+lua-5.4.7/
