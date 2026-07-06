@@ -783,9 +783,18 @@ func grepResultToLua(L *lua.LState, res grepResult) lua.LValue {
 // el `cleanup` de la task (al cancelarse/terminar) y `Runtime.Close` (red de
 // seguridad). Cancelar el contexto desbloquea el repartidor y las goroutines, que
 // terminan; la cerradora cierra `results`.
+//
+// El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: el backend gopher
+// siempre lo pasa (`newGrepIter(rt.sched, ...)`), pero el backend wasm (M13b,
+// vmwasm_search.go) reusa este mismo iterador con `s == nil` cuando el Runtime de
+// pruebas es mínimo — igual que `luaWs.close` sólo desregistra si hay scheduler.
+// Cancelar el contexto (el núcleo VM-agnóstico) siempre ocurre; sólo el rastreo
+// para `Runtime.Close` es opcional. Para gopher el comportamiento es idéntico.
 func (it *grepIter) close() {
 	it.closeOnce.Do(func() {
 		it.cancel()
-		it.s.untrackGrep(it)
+		if it.s != nil {
+			it.s.untrackGrep(it)
+		}
 	})
 }
