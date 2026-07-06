@@ -149,6 +149,13 @@ int nu_eval(int len) {
   return 0;
 }
 
+/* nu_selftest_trap: provoca un TRAP wasm real (no un error de Lua). Lo usa el
+ * test 🔒 de M03 para verificar que el trampolín distingue un trap del motor
+ * (que DEBE propagarse como fallo duro a Go) de un LUAI_THROW (que se captura).
+ * No forma parte de la superficie del kernel; existe para blindar esa frontera. */
+__attribute__((export_name("nu_selftest_trap")))
+void nu_selftest_trap(void) { __builtin_trap(); }
+
 /* --- corrutinas (el puente ⏸, M06) ----------------------------------------- */
 
 /* crea una corrutina desde BUF[0..len]; la ancla en el registry y devuelve su
