@@ -206,7 +206,10 @@ local function __enc(v, out)
     -- un handle opaco (C5): cruza como su índice, no como tabla.
     out[#out+1] = string.char(W_HANDLE) .. string.pack("<I4", v.__id)
   elseif t == "table" then
-    -- ¿secuencia (array) o mapa? Heurística: #v cubre 1..n contiguos.
+    -- ¿secuencia (array) o mapa? Heurística: #v cubre 1..n contiguos. Una tabla
+    -- vacía cruza como ARRAY (lo asume el scheduler para la lista de pendientes
+    -- vacía); la ambigüedad []/{} de los codecs (§12: vacío → objeto) la resuelve
+    -- el propio codec al ver un array vacío, no el wire.
     local n = #v
     local isArray = true
     local count = 0
