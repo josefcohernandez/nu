@@ -10,9 +10,9 @@
 -- ADR-003: el core NO sabe lo que es un REPL; todo es Lua puro sobre la API pública
 -- congelada ([api.md](../../../../docs/api.md)), SIN privilegio de kernel. El
 -- `plugin.toml` NO declara `requires`: el repl se activa SOLO (G21), sin arrastrar
--- el harness. La EVALUACIÓN de Lua arbitrario la dan `load`/`loadstring` del
--- baseline (el sandbox de S01 retiró `dofile`/`loadfile` —disco— pero no estas
--- —memoria—): la API pública BASTA, sin primitiva nueva (corolario de completitud
+-- el harness. La EVALUACIÓN de Lua arbitrario la da `load` del baseline 5.4
+-- (que absorbió al `loadstring` de 5.1; el sandbox de S01 retiró `dofile`/`loadfile`
+-- —disco— pero no `load` —memoria—): la API pública BASTA, sin primitiva nueva (corolario de completitud
 -- satisfecho; APILevel sigue en 2, api.md intacto). El detalle, en el módulo.
 --
 -- El `init.lua` CABLEA el módulo (accesible por `require("repl")`) y, si hay TTY,

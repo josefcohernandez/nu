@@ -151,6 +151,15 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
 
 ## 8. Compatibilidad
 
+- **El intérprete es Lua 5.4** (PUC-Lua oficial compilado a WebAssembly sobre
+  wazero; ver [api.md](api.md) §1.2). Si vienes de Lua 5.1 —o de scripts hechos
+  para el antiguo backend gopher-lua—, la biblioteca estándar cambió: `loadstring(s)`
+  se absorbió en `load(s)` (acepta el string directamente), `unpack` es ahora
+  `table.unpack`, `setfenv`/`getfenv` desaparecen (el entorno es el upvalue léxico
+  `_ENV`), y se fueron `table.getn`/`string.gfind`/`math.mod`/`math.log10`. A cambio
+  ganas enteros de verdad (división entera `//`, `%` entero), operadores de bits
+  nativos (`&`, `|`, `~`, `<<`, `>>`) y `goto`. No detectes la versión a mano:
+  escribe Lua 5.4 y ya.
 - Detecta capacidades con `nu.has()` y `nu.ui.caps()`, nunca mirando
   versiones.
 - Declara dependencias de otros plugins en `plugin.toml` (`requires`) — el
@@ -170,3 +179,4 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
 - [ ] Regiones e input handlers limpiados también en errores.
 - [ ] Solo colores semánticos; keymaps remapeables.
 - [ ] Escribo solo en mi directorio; mis eventos llevan mi namespace.
+- [ ] API de Lua 5.4 (nada de `loadstring`/`unpack`/`setfenv`/`getfenv` de 5.1).
