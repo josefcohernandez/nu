@@ -187,17 +187,22 @@ func TestUIRegionIdentidad(t *testing.T) {
 	}
 }
 
-// M11.5: Region:destroy libera su handle → reusarlo da ECLOSED (M10, api.md §6).
-func TestUIRegionDestroyECLOSED(t *testing.T) {
+// M11.5: Region:destroy destruye la región en el backend y es IDEMPOTENTE; un método
+// sobre la región ya destruida da EINVAL "ya destruida" —PARIDAD con el backend gopher
+// (ui.go, checkRegion/regionDestroy), no ECLOSED—. El envoltorio Lua de nu.ui.region
+// (host.go, preludioInput) lleva la aliveness: la Region muerta sigue siendo un handle
+// válido que responde el error de uso accionable, en vez de un ECLOSED del handle crudo.
+func TestUIRegionDestroyEINVAL(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	out := evalUI(t, inst, `
 		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
 		r:destroy()
+		r:destroy()   -- idempotente (§9.1): destruir dos veces es inocuo
 		local ok, e = pcall(function() return r:move(1, 1) end)
 		out = tostring(ok) .. ":" .. tostring(e.code)`)
-	if out != "false:ECLOSED" {
-		t.Fatalf("destroy no dio ECLOSED al reusar: got %q", out)
+	if out != "false:EINVAL" {
+		t.Fatalf("método tras destroy debía dar EINVAL (paridad gopher): got %q", out)
 	}
 	if u.regions[0].alive {
 		t.Fatal("la región no se destruyó en el backend")

@@ -46,6 +46,27 @@ func registerUIWasm(p *vmwasm.Pool, rt *Runtime) {
 		return // headless (G20): sin compositor no hay nu.ui
 	}
 	p.SetUIBackend(newCompositorBackend(rt.ui.comp, rt.ui.clipWriter, rt.ui.clipReader))
+
+	// nu.ui._check_style(style): valida un Style literal (§9.2, G22) SIN aplicarlo,
+	// devolviendo EINVAL si el color no es del core (un nombre semántico, un hex mal
+	// formado, un índice fuera de rango). Lo consulta el envoltorio Lua de
+	// `nu.ui.region` antes de `Region:fill`, porque `RegionObj.Fill` (M11) es void y no
+	// tiene canal de error: gopher (regionFill) lanza EINVAL ante un estilo inválido, y
+	// esta primitiva restaura esa paridad sin cambiar la interfaz del binding. Un
+	// `style` nil (fill sin estilo, equivalente a clear) es válido.
+	p.Register("ui._check_style", func(inst *vmwasm.Instance, args []any) ([]any, error) {
+		if len(args) == 0 || args[0] == nil {
+			return nil, nil
+		}
+		styleMap, ok := args[0].(map[string]any)
+		if !ok {
+			return nil, &vmwasm.StructuredError{Code: string(CodeEINVAL), Message: "Region:fill: `style` debe ser una tabla"}
+		}
+		if _, err := parseStyleWasm(styleMap); err != nil {
+			return nil, &vmwasm.StructuredError{Code: string(CodeEINVAL), Message: "Region:fill: " + err.Error()}
+		}
+		return nil, nil
+	})
 }
 
 // compositorBackend adapta el `*compositor` real a `vmwasm.UIBackend`. Envuelve el

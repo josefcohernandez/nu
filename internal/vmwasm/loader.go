@@ -33,6 +33,19 @@ func (p *Pool) RegisterModule(name, source string) error {
 	return nil
 }
 
+// SetModule registra o SOBRESCRIBE la fuente Lua de un módulo, sin el chequeo de
+// unicidad de RegisterModule. Es la vía del reload (G2): al recargar un plugin, sus
+// módulos `lua/` se releen del disco (pueden haber cambiado) y se reemplazan aquí,
+// de modo que un `require` posterior —tras vaciar la caché del preludio— sirva la
+// versión nueva. No es un error de carga: el módulo ya existía y se actualiza a
+// propósito.
+func (p *Pool) SetModule(name, source string) {
+	if p.modules == nil {
+		p.modules = make(map[string]string)
+	}
+	p.modules[name] = source
+}
+
 // registerLoader instala la primitiva que sirve fuentes de módulo al `require` del
 // preludio. Se registra en todo Pool (newBarePool) para que también los workers
 // tengan require (api.md §13: las rutas del loader están disponibles en el worker).

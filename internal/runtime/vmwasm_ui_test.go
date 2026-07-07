@@ -66,8 +66,12 @@ func TestUIWasmRegionBlit(t *testing.T) {
 }
 
 // M13c.3: el ciclo de vida de la región (move/resize/raise/hide/show/destroy) no
-// panica, muta el compositor real, y destroy la descuelga + libera el handle
-// (reusar → ECLOSED, api.md §6, M10).
+// panica, muta el compositor real, y destroy la descuelga del compositor. Tras
+// destroy, un método sobre la región muerta da EINVAL "ya destruida" —PARIDAD con el
+// backend gopher (ui.go, checkRegion/regionDestroy), no ECLOSED del handle crudo—: el
+// envoltorio Lua de nu.ui.region (host.go, preludioInput) lleva la aliveness y hace
+// destroy idempotente, de modo que la Region muerta sigue siendo un handle válido que
+// responde el error de uso accionable, igual que una región gopher con alive=false.
 func TestUIWasmRegionLifecycle(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
@@ -80,10 +84,11 @@ func TestUIWasmRegionLifecycle(t *testing.T) {
 		r:hide()
 		r:show()
 		r:destroy()
+		r:destroy()   -- idempotente (§9.1): destruir dos veces es inocuo
 		local ok, e = pcall(function() return r:move(0, 0) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
-	if out != "false:ECLOSED" {
-		t.Fatalf("ciclo de vida: reusar tras destroy debía dar ECLOSED, got %q", out)
+	if out != "false:EINVAL" {
+		t.Fatalf("ciclo de vida: método tras destroy debía dar EINVAL (paridad gopher), got %q", out)
 	}
 	if len(comp.regions) != 0 {
 		t.Fatalf("destroy no descolgó la región del compositor: quedan %d", len(comp.regions))
