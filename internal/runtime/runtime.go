@@ -401,6 +401,10 @@ func (rt *Runtime) buildWasmState() {
 	// El nivel de nu.version.api que el preludio inyecta (api.md §2): el mismo que
 	// el estado gopher (APILevel). Debe fijarse antes de NewInstance.
 	p.SetAPIVersion(APILevel)
+	// nu.version.major/minor/patch (api.md §1): las mismas constantes que el estado
+	// gopher expone en registerNu, para que las extensiones (p. ej. el banner del
+	// chat) formateen la versión completa. Debe fijarse antes de NewInstance.
+	p.SetVersion(VersionMajor, VersionMinor, VersionPatch)
 	// Presupuesto del watchdog por slice (DM4): el mismo `sliceBudget` que rige el
 	// estado gopher (rt.sched.budget, ya resuelto por precedencia Option>nu.toml>
 	// default). Un bucle de CPU en una task wasm se aborta con EBUDGET tras el slice,

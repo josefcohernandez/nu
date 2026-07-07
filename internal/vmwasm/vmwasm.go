@@ -50,6 +50,9 @@ type Pool struct {
 	isWorker      bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
 	modules       map[string]string // fuentes de módulo por nombre para require (M13, DM5)
 	apiVersion    int               // nivel de nu.version.api que inyecta el preludio (M13, lo fija el Runtime)
+	verMajor      int               // nu.version.major/minor/patch (api.md §1); los fija el Runtime
+	verMinor      int
+	verPatch      int
 	extraPreludio []string          // snippets Lua que aporta el catálogo (M13b: wrappers finos)
 	sliceBudget   time.Duration     // presupuesto por slice del watchdog (DM4); ≤0 lo desactiva (workers, G15)
 
@@ -134,6 +137,13 @@ func NewPool() (*Pool, error) {
 // el Runtime al construir el estado wasm (M13), con su APILevel. Debe llamarse
 // antes de NewInstance (el preludio se arma con él).
 func (p *Pool) SetAPIVersion(v int) { p.apiVersion = v }
+
+// SetVersion fija major/minor/patch de nu.version (api.md §1), además del api que
+// pone SetAPIVersion. Lo llama el Runtime con sus constantes de versión. Debe
+// llamarse antes de NewInstance.
+func (p *Pool) SetVersion(major, minor, patch int) {
+	p.verMajor, p.verMinor, p.verPatch = major, minor, patch
+}
 
 // SetSliceBudget fija el presupuesto por slice del watchdog (DM4, api.md §1.3):
 // el tiempo máximo que una task puede correr Lua de forma continua sin ceder
