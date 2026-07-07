@@ -164,6 +164,78 @@ func (l *loader) runInitWasm(p *pluginInfo) {
 	l.emitLoadedWasm(p)
 }
 
+// reloadWasm recarga un plugin ya cargado sobre la Instance wasm (api.md §14, G2).
+// Es el gemelo de `loader.reload` (loader.go) para el backend wasm y sigue sus
+// MISMOS pasos, en el MISMO orden (best-effort, G2 — deshace lo que el core sabe
+// deshacer). Lo invoca el HostFn SUSPENDENTE `nu.plugin.reload` (vmwasm_plugin.go),
+// que corre en la goroutine de fondo del scheduler: por eso puede llamar a
+// `l.rt.wasm.Eval` (re-entra la VM tomando `inst.mu`, que en ese punto está libre).
+//
+// Un nombre que no corresponde a ningún plugin cargado es `EINVAL` accionable que lo
+// nombra: no se puede recargar lo que no está (el gate ⏸ —fuera de una task— lo
+// aplica antes el thunk suspendente del preludio, con `__current`).
+func (l *loader) reloadWasm(name string) error {
+	p := l.find(name)
+	if p == nil {
+		return &StructuredError{Code: CodeEINVAL,
+			Message: fmt.Sprintf("no se puede recargar el plugin %q: no está cargado (nu.plugin.reload es para plugins ya cargados, §14)", name)}
+	}
+
+	// 1. `core:plugin.unload {name}` ANTES de soltar nada: las extensiones enganchadas
+	//    limpian sus propios registros (tools, comandos...) —cosas que el core no
+	//    conoce y no puede soltar por ellas (filosofía §1)—.
+	l.emitCoreEventWasm("core:plugin.unload", map[string]string{"name": p.Name})
+
+	// 2. Suelta TODOS los handles del plugin (registro por dueño del preludio,
+	//    __release_owner): cancela sus suscripciones (`on`/`once`) y para sus timers
+	//    (`every`). Tras esto los viejos no disparan: "reload no deja handlers
+	//    huérfanos" (G2).
+	l.releaseOwnerHandlesWasm(p.Name)
+
+	// 3. Relee del disco los módulos `lua/` del plugin (pueden haber cambiado) y vacía
+	//    su caché de `require`: un módulo modificado debe re-ejecutarse, no servirse
+	//    cacheado (paridad con clearRequireCache de gopher, que re-lee de package.path).
+	l.reloadModulesWasm(p)
+
+	// 4. Re-ejecuta su `init.lua` con su contexto empujado al `ownerStack` (como en el
+	//    arranque, §14): lo que registre queda de nuevo etiquetado por dueño. runInitWasm
+	//    aísla un init que lanza (ADR-008) y emite `core:plugin.loaded`.
+	l.runInitWasm(p)
+	return nil
+}
+
+// releaseOwnerHandlesWasm suelta todos los handles del dueño `owner` invocando el
+// registro Lua del preludio (__release_owner, preludioReload). Best-effort: un fallo
+// del Eval no debe tumbar el reload (se ignora, como emitCoreEventWasm).
+func (l *loader) releaseOwnerHandlesWasm(owner string) {
+	_, _, _ = l.rt.wasm.Eval("__release_owner(" + luaStringLit(owner) + ")")
+}
+
+// reloadModulesWasm relee del disco las fuentes de los módulos `lua/` del plugin,
+// las reemplaza en el registro del Pool (Pool.SetModule) y las olvida de la caché de
+// `require` del preludio (__loader_forget), de modo que un `require` desde el
+// `init.lua` re-ejecutado vuelva a CARGAR la versión nueva. Un módulo ilegible se
+// omite (best-effort). Espejo de clearRequireCache (loader.go), que en gopher se
+// apoya en que `require` re-lee de package.path; aquí la fuente vive en el Pool, así
+// que hay que releerla y reemplazarla explícitamente.
+func (l *loader) reloadModulesWasm(p *pluginInfo) {
+	luaDir := filepath.Join(p.Dir, "lua")
+	var forget strings.Builder
+	for _, m := range moduleFiles(luaDir) {
+		src, err := os.ReadFile(m.path)
+		if err != nil {
+			continue // un módulo ilegible: se deja la versión previa (best-effort)
+		}
+		l.rt.wasmPool.SetModule(m.name, string(src))
+		forget.WriteString("__loader_forget(")
+		forget.WriteString(luaStringLit(m.name))
+		forget.WriteString(")\n")
+	}
+	if forget.Len() > 0 {
+		_, _, _ = l.rt.wasm.Eval(forget.String())
+	}
+}
+
 // runUserInitWasm ejecuta `config.dir()/init.lua` —el último del arranque canónico
 // (§14)— sobre la Instance wasm, con owner "user" (pila de plugins vacía). Ausente
 // es lo normal; un error se aísla igual que el de un plugin.

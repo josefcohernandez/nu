@@ -162,6 +162,7 @@ func (p *Pool) preludio() string {
 		// principal) y SIN nu.worker.spawn (no hay workers anidados) — api.md §13.
 		b.WriteString(preludioWorkerParent)
 	} else {
+		b.WriteString(preludioReload)
 		b.WriteString(preludioEvents)
 		b.WriteString(preludioInput)
 		b.WriteString(preludioWorkerHost)
@@ -793,7 +794,97 @@ function nu.task.every(ms, fn)
   -- contara, RunTasks/waitIdle no volvería jamás). Se cancela con :stop().
   local tid = __task_id_of(h)
   if tid and __tasks[tid] then __tasks[tid].bg = true end
-  return { stop = function() stopped = true; nu.task.cancel(h) end }
+  -- Etiqueta el timer por dueño (G2), SÓLO en el estado principal (en un worker
+  -- __track_handle no existe: no hay reload). release para el timer (idempotente);
+  -- :stop() a mano lo desregistra además, para no dejar basura en el registro.
+  local oh
+  local function __stop()
+    stopped = true; nu.task.cancel(h)
+    if oh and _G.__untrack_handle then _G.__untrack_handle(oh) end
+  end
+  if _G.__track_handle then
+    oh = { release = function() stopped = true; nu.task.cancel(h) end }
+    _G.__track_handle(oh)
+  end
+  return { stop = __stop }
+end
+`
+
+// preludioReload: el registro de handles por dueño (G2, paridad con handles.go del
+// backend gopher). SOLO en el estado principal (no en workers: allí no hay
+// concepto de plugin ni de reload). Es la pieza que hace que `nu.plugin.reload`
+// "suelte TODOS los handles del plugin" sin dejar huérfanos: cada handle persistente
+// que el core entrega y que sobrevive a un reload —una suscripción de eventos
+// (`nu.events.on/once`), un timer periódico (`nu.task.every`)— se etiqueta, al
+// crearse, con el DUEÑO vigente y se suelta al recargar su plugin.
+//
+// El dueño vigente se lee de Go (`nu.plugin._owner`, que devuelve `rt.currentOwner()`
+// del ownerStack) en el momento de crear el handle: durante el `init.lua` de un
+// plugin (arranque o reload) es ese plugin; fuera de todo init (chunk del usuario,
+// una task cualquiera) es "user". Es la MISMA fuente de verdad que gopher (un solo
+// ownerStack Go-side), no una copia en Lua.
+//
+// Espejo de handles.go: `__track_handle`/`__untrack_handle` (registrar/desregistrar
+// al crear y al soltar a mano) y `__release_owner` (soltar todos los de un dueño en
+// el reload). Un handle es `{ release, owner }`; `release` es idempotente y NO toca
+// el registro (el desregistro lo orquesta quien llama, igual que en gopher).
+const preludioReload = `
+local __owner_handles = {}   -- owner -> lista de handles { release, owner }
+
+-- __owner_now(): el dueño vigente, leído del ownerStack de Go. Fuera del catálogo
+-- de plugin (tests aislados de vmwasm sin nu.plugin) o ante cualquier fallo, "user".
+local function __owner_now()
+  if nu.plugin and nu.plugin._owner then
+    local ok, o = pcall(nu.plugin._owner)
+    if ok and type(o) == "string" then return o end
+  end
+  return "user"
+end
+
+-- __track_handle(h): etiqueta h con el dueño vigente y lo registra bajo él. Lo llaman
+-- __new_sub (eventos) y nu.task.every al entregar el handle.
+_G.__track_handle = function(h)
+  h.owner = __owner_now()
+  local list = __owner_handles[h.owner]
+  if not list then list = {}; __owner_handles[h.owner] = list end
+  list[#list+1] = h
+end
+
+-- __untrack_handle(h): quita h de la lista de su dueño cuando se suelta A MANO
+-- (Sub:cancel, Timer:stop) o al auto-consumirse un once. Idempotente (quitar uno que
+-- ya no está no hace nada); no llama a release (desregistro y liberación son pasos
+-- separados, como en handles.go).
+_G.__untrack_handle = function(h)
+  local list = h.owner and __owner_handles[h.owner]
+  if not list then return end
+  for i = 1, #list do
+    if list[i] == h then
+      list[i] = list[#list]
+      list[#list] = nil
+      break
+    end
+  end
+  if #list == 0 then __owner_handles[h.owner] = nil end
+end
+
+-- __release_owner(owner): suelta TODOS los handles de un dueño y vacía su lista. Lo
+-- llama el reload (vmwasm_loader.go) tras emitir core:plugin.unload. Copia la lista
+-- antes de iterar (un release podría, en teoría, tocar el registro) y borra la
+-- entrada al final. Cada release bajo pcall (best-effort, ADR-008).
+_G.__release_owner = function(owner)
+  local list = __owner_handles[owner]
+  if not list then return end
+  __owner_handles[owner] = nil
+  local snap = {}
+  for i = 1, #list do snap[i] = list[i] end
+  for _, h in ipairs(snap) do pcall(h.release) end
+end
+
+-- __count_owner(owner): cuántos handles vivos hay registrados para owner (sonda de
+-- los tests 🔒 del etiquetado por dueño).
+_G.__count_owner = function(owner)
+  local list = __owner_handles[owner]
+  return list and #list or 0
 end
 `
 
@@ -819,6 +910,9 @@ local __sub_mt = {
         error({ code = "EINVAL", message = "Sub:cancel: el receptor no es un Sub" })
       end
       self.__sub.live = false
+      -- Desregistra del registro de handles por dueño (G2): un cancel a mano no debe
+      -- dejar basura que un reload posterior intente re-soltar (paridad untrack).
+      if _G.__untrack_handle and self.__sub.__oh then _G.__untrack_handle(self.__sub.__oh) end
     end,
   },
 }
@@ -826,6 +920,13 @@ local function __new_sub(name, fn, once)
   __ev_subs[name] = __ev_subs[name] or {}
   local sub = { fn = fn, live = true, once = once }
   __ev_subs[name][#__ev_subs[name]+1] = sub
+  -- Etiqueta la suscripción por dueño (G2): sobrevive a un reload, así que se
+  -- registra para poder soltarla al recargar su plugin. release marca la sub muerta.
+  if _G.__track_handle then
+    local oh = { release = function() sub.live = false end }
+    sub.__oh = oh
+    _G.__track_handle(oh)
+  end
   return setmetatable({ __sub = sub }, __sub_mt)
 end
 
@@ -842,7 +943,13 @@ local function __ev_dispatch(name, payload)
   for i = 1, #subs do snap[i] = subs[i] end
   for _, s in ipairs(snap) do
     if s.live then
-      if s.once then s.live = false end
+      if s.once then
+        s.live = false
+        -- Un once que se dispara se auto-consume: sácalo también del registro de
+        -- handles por dueño (G2), o un dueño de vida larga que use once repetidamente
+        -- acumularía handles muertos (fuga que viola "sin fuga en el registro").
+        if _G.__untrack_handle and s.__oh then _G.__untrack_handle(s.__oh) end
+      end
       -- cada handler bajo pcall (ADR-008); si lanza, best-effort al log (como gopher)
       local ok, err = pcall(s.fn, payload)
       if not ok and nu.log and nu.log.error then
@@ -981,6 +1088,64 @@ if nu.ui then
   function nu.ui.block(lines)
     local m = nu.ui._block(lines)
     return setmetatable({ __id = m.id, width = m.width, height = m.height }, __handle_mt)
+  end
+
+  -- nu.ui.region(opts) -> Region (§9.1, S30). El CICLO DE VIDA en Lua, en paridad con
+  -- el backend gopher (ui.go: checkRegion/regionDestroy). El handle crudo del
+  -- compositor (nu.ui._region, el thunk del catálogo) se ENVUELVE en una tabla que:
+  --   * valida los argumentos de creación (w/h enteros no negativos), como gopher;
+  --   * controla la ALIVENESS: un método sobre una región ya destruida es EINVAL
+  --     accionable ("la región ya fue destruida"), NO un ECLOSED del handle crudo —en
+  --     wasm el handle se libera al destruir, así que sin este envoltorio la segunda
+  --     llamada daría ECLOSED; aquí la Region muerta sigue respondiendo EINVAL, como
+  --     una región gopher con alive=false—;
+  --   * hace destroy IDEMPOTENTE: libera el handle del compositor UNA vez (la segunda
+  --     es no-op, sin re-tocar el handle ya liberado).
+  local __raw_region = nu.ui.region
+  local function __region_dead()
+    error({ code = "EINVAL", message = "Region: la región ya fue destruida" })
+  end
+  local __region_methods = {
+    blit = function(self, x, y, blk) if self.__dead then __region_dead() end self.__rh:blit(x, y, blk) end,
+    fill = function(self, style)
+      if self.__dead then __region_dead() end
+      -- valida el color literal (§9.2, G22): EINVAL si no es del core. La validación
+      -- vive en Go (parseStyleWasm) y la expone nu.ui._check_style, que registra la
+      -- integración del Runtime (vmwasm_ui.go). En un backend desnudo de test que no la
+      -- registra no se pre-valida (esos tests usan estilos válidos); el fill real la lleva.
+      if nu.ui._check_style then nu.ui._check_style(style) end
+      self.__rh:fill(style)
+    end,
+    clear = function(self) if self.__dead then __region_dead() end self.__rh:clear() end,
+    move = function(self, x, y) if self.__dead then __region_dead() end self.__rh:move(x, y) end,
+    resize = function(self, w, h)
+      if self.__dead then __region_dead() end
+      if type(w) ~= "number" or type(h) ~= "number" or w < 0 or h < 0 then
+        error({ code = "EINVAL", message = "Region:resize: w y h no pueden ser negativos" })
+      end
+      self.__rh:resize(w, h)
+    end,
+    raise = function(self) if self.__dead then __region_dead() end self.__rh:raise() end,
+    lower = function(self) if self.__dead then __region_dead() end self.__rh:lower() end,
+    show = function(self) if self.__dead then __region_dead() end self.__rh:show() end,
+    hide = function(self) if self.__dead then __region_dead() end self.__rh:hide() end,
+    cursor = function(self, x, y) if self.__dead then __region_dead() end self.__rh:cursor(x, y) end,
+    destroy = function(self)
+      if self.__dead then return end   -- idempotente (§9.1): destruir dos veces es inocuo
+      self.__dead = true
+      self.__rh:destroy()              -- descuelga del compositor y libera el handle (una vez)
+    end,
+  }
+  local __region_mt = { __index = __region_methods }
+  function nu.ui.region(opts)
+    opts = opts or {}
+    if type(opts.w) ~= "number" or type(opts.h) ~= "number" then
+      error({ code = "EINVAL", message = "nu.ui.region: opts necesita w y h enteros" })
+    end
+    if opts.w < 0 or opts.h < 0 then
+      error({ code = "EINVAL", message = "nu.ui.region: w y h no pueden ser negativos" })
+    end
+    return setmetatable({ __rh = __raw_region(opts), __dead = false }, __region_mt)
   end
 end`
 
@@ -1121,6 +1286,13 @@ _G.__loader_reload = function(name)
   __loaded[name] = nil
   return require(name)
 end
+
+-- __loader_forget(name): olvida un módulo de la caché SIN re-require-arlo (a
+-- diferencia de __loader_reload). Lo usa el reload de plugins (vmwasm_loader.go):
+-- tras releer del disco las fuentes de los módulos lua/ del plugin y reemplazarlas
+-- (Pool.SetModule), se olvidan aquí para que el init.lua re-ejecutado las vuelva a
+-- CARGAR (versión nueva del disco), no las sirva cacheadas.
+_G.__loader_forget = function(name) __loaded[name] = nil end
 
 -- __loader_loaded(name): ¿está cargado? (para tests y para el orden de init).
 _G.__loader_loaded = function(name) return __loaded[name] ~= nil end

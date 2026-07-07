@@ -20,10 +20,21 @@ package runtime
 // corre luego, el chunk de `-e`) la pila está vacía y el owner es "user" —idéntico
 // al backend gopher—.
 //
-// `nu.plugin.reload` (⏸, G2) NO se expone todavía sobre wasm: recargar exige
-// re-correr el `init.lua` de una extensión sobre la Instance y re-registrar sus
-// módulos `lua/`; queda pendiente para una iteración posterior (ninguna extensión
-// del conjunto oficial lo invoca al cargar, así que no bloquea M13d-ext).
+// `nu.plugin.reload` (⏸, G2) SÍ se expone sobre wasm (M13d-triage): se registra como
+// primitiva SUSPENDENTE, de modo que su HostFn corre en la goroutine de fondo del
+// scheduler (performHostcall) —fuera del `inst.mu` que toma un paso del bucle—, donde
+// puede RE-ENTRAR la VM con `Eval` sin bloqueo para re-correr el `init.lua`. El
+// orquestador Go (`loader.reloadWasm`, vmwasm_loader.go) es el gemelo de
+// `loader.reload` (loader.go): emite `core:plugin.unload`, suelta los handles del
+// dueño (registro Lua del preludio, `__release_owner`), relee y olvida los módulos
+// `lua/` del plugin (Pool.SetModule + `__loader_forget`) y re-ejecuta su `init.lua`
+// con el contexto empujado al `ownerStack`. El gate ⏸ (fuera de una task → EINVAL con
+// "task" en el mensaje) lo da gratis el thunk suspendente del preludio (`__current`).
+//
+// El etiquetado de handles por dueño (G2) reposa en `nu.plugin._owner`, un HostFn
+// SÍNCRONO que devuelve `rt.currentOwner()` (el tope del ownerStack). El preludio lo
+// consulta al crear cada sub/timer para etiquetarlo con el dueño vigente —la MISMA
+// fuente de verdad que gopher, un solo ownerStack Go-side—.
 
 import (
 	"github.com/dbareagimeno/nu/internal/vmwasm"
@@ -58,6 +69,34 @@ func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
 			})
 		}
 		return []any{arr}, nil
+	})
+
+	// nu.plugin._owner() -> string: el dueño vigente (rt.currentOwner()). Interno del
+	// preludio (etiquetado de handles por dueño, G2): SÍNCRONO, sin IO, corre en línea
+	// leyendo el tope del ownerStack sin candado (estado principal single-thread,
+	// ADR-004). Durante el init.lua de un plugin es su nombre; fuera, "user".
+	p.Register("plugin._owner", func(inst *vmwasm.Instance, args []any) ([]any, error) {
+		return []any{rt.currentOwner()}, nil
+	})
+
+	// nu.plugin.reload(name) ⏸ (§14, G2): recarga un plugin ya cargado. SUSPENDENTE
+	// (ver la nota de cabecera): su HostFn corre en la goroutine de fondo del
+	// scheduler y re-entra la VM para re-correr el init. El trabajo lo hace el gemelo
+	// Go de loader.reload; aquí solo se desempaqueta el nombre y se propaga el error
+	// estructurado (EINVAL para un plugin no cargado, con su nombre en el mensaje).
+	p.RegisterSuspending("plugin.reload", func(inst *vmwasm.Instance, args []any) ([]any, error) {
+		name, _ := args[0].(string)
+		if err := rt.ldr.reloadWasm(name); err != nil {
+			// Cruza el error del core a la forma que entiende la frontera wasm (§1.4):
+			// un *runtime.StructuredError debe re-envolverse en *vmwasm.StructuredError
+			// para que el scheduler (errToMap) preserve el código (EINVAL) y no lo
+			// degrade a EIO. El reload solo produce EINVAL (plugin no cargado); sin detail.
+			if se, ok := err.(*StructuredError); ok {
+				return nil, &vmwasm.StructuredError{Code: se.Code, Message: se.Message}
+			}
+			return nil, err
+		}
+		return nil, nil
 	})
 
 	// nu.config.dir() -> string [W] (§14): el directorio de configuración.
