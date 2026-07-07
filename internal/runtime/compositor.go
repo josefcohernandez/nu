@@ -596,7 +596,7 @@ func (c *compositor) diffEncode() int {
 	c.enc.Reset()
 	changed := 0
 	var lastSt *style
-	stDirty := true
+	var stDirty bool
 
 	for y := 0; y < c.h; y++ {
 		x := 0

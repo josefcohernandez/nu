@@ -93,7 +93,7 @@ func TestTrampolinTrapRealSePropaga(t *testing.T) {
 	if err != nil {
 		t.Fatalf("el pool quedó inutilizable tras un trap: %v", err)
 	}
-	defer other.Close()
+	defer func() { _ = other.Close() }()
 	if o, _, _ := other.Eval(`return "vivo"`); o != "vivo" {
 		t.Fatalf("instancia nueva tocada: %q", o)
 	}
@@ -139,7 +139,7 @@ func TestTrampolinMultiInstanciaConcurrente(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 
 	const N = 8
 	const iters = 50
@@ -154,7 +154,7 @@ func TestTrampolinMultiInstanciaConcurrente(t *testing.T) {
 				errs[id] = e
 				return
 			}
-			defer inst.Close()
+			defer func() { _ = inst.Close() }()
 			marca := "inst" + string(rune('A'+id))
 			if _, _, e := inst.Eval(`G = "` + marca + `"`); e != nil {
 				errs[id] = e

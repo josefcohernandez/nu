@@ -54,10 +54,6 @@ import (
 // huérfanos (sesiones.md §6): un lock cuyo pid ya no existe es huérfano. NO es ⏸
 // (consulta inmediata, sin IO que esperar).
 
-// procTypeName identifica la metatabla del handle `Proc` (lo que devuelve `spawn`),
-// de la que cuelgan `write`/`close_stdin`/`read_line`/`read`/`wait`/`kill`.
-const procTypeName = "nu.proc.Proc"
-
 // luaProc es el handle Go detrás del userdata `Proc`. Envuelve el `*exec.Cmd` ya
 // arrancado y sus tres pipes (stdin escribible, stdout/stderr leíbles). El IO de
 // los streams corre en goroutines de fondo (sin token), así que el estado que esas
@@ -467,7 +463,7 @@ func (p *luaProc) reader(which string) (*bufio.Reader, *sync.Mutex, error) {
 	case "stderr":
 		return p.stderr, &p.stderrMu, nil
 	default:
-		return nil, nil, errors.New(`Proc:read*: "which" debe ser "stdout" o "stderr"`)
+		return nil, nil, errors.New(`el argumento "which" debe ser "stdout" o "stderr"`)
 	}
 }
 

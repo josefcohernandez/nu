@@ -53,10 +53,6 @@ import (
 // quiescencia: su vida es la del turno de IO, atada con `cleanup`, no con el
 // registro de `reload`.
 
-// wsTypeName identifica la metatabla del handle `Ws` (lo que devuelve
-// `nu.ws.connect`), de la que cuelgan `send`/`recv`/`close`.
-const wsTypeName = "nu.ws.Ws"
-
 // wsReadLimit es el tope de bytes de un único mensaje entrante. `coder/websocket`
 // trae 32 KiB por defecto, que es poco para el caso de un provider que empuja un
 // turno grande en un solo mensaje; se sube a un límite holgado pero acotado (acota

@@ -415,7 +415,7 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 	if err != nil {
 		return // ilegible: se salta (como grep -r)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sc := bufio.NewScanner(f)
 	// Sube el tope de línea del Scanner (default 64 KiB) a un valor holgado: una

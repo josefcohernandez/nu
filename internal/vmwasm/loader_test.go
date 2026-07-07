@@ -191,7 +191,8 @@ func TestLoaderTopoOrder(t *testing.T) {
 	for i, n := range order {
 		pos[n] = i
 	}
-	if !(pos["core"] < pos["ui"] && pos["core"] < pos["net"] && pos["ui"] < pos["app"] && pos["net"] < pos["app"]) {
+	ordenOK := pos["core"] < pos["ui"] && pos["core"] < pos["net"] && pos["ui"] < pos["app"] && pos["net"] < pos["app"]
+	if !ordenOK {
 		t.Fatalf("orden topológico incorrecto: %v", order)
 	}
 }

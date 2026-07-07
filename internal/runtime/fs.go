@@ -119,7 +119,7 @@ func copyFile(from, to string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	dst, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsFilePerm)
 	if err != nil {

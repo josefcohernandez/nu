@@ -50,10 +50,6 @@ package runtime
 // `nu -e` no volviera jamás. `Watcher:stop()` (o `Runtime.Close`) corta su
 // goroutine y cierra el watcher del SO, sin fuga.
 
-// watcherTypeName identifica la metatabla del handle `Watcher` (lo que devuelve
-// `watch`), de la que cuelga `stop`.
-const watcherTypeName = "nu.fs.Watcher"
-
 // watchKindCreate/Modify/Remove son los `kind` de cada evento del lote (§5):
 // `{path, kind}`. fsnotify reporta operaciones por máscara de bits (`Op`); las
 // mapeamos a estos tres `kind` estables del contrato.

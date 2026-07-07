@@ -59,11 +59,6 @@ import (
 // que lo consume (su vida es la del turno de IO), no del plugin —se ata con
 // `cleanup`, no con el registro de `reload`—; aun así se rastrea para `Close`.
 
-// streamTypeName identifica la metatabla del handle `Stream` (lo que devuelve
-// `nu.http.stream`), de la que cuelgan `chunks`/`events`/`close` y los campos
-// `status`/`headers`.
-const streamTypeName = "nu.http.Stream"
-
 // maxStreamBuffer es el tope de bytes del body **pendientes de consumir** en la
 // cola interna de un `Stream` (§8). Si la goroutine de fondo acumula más que esto
 // porque Lua no consume, el stream falla con `EIO` (backpressure desbordado). 8 MiB

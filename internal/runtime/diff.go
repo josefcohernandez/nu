@@ -122,9 +122,7 @@ func splitDiffLines(s string) []string {
 	}
 	// Recorta UN '\n' final (terminador de la última línea), si lo hay, para no
 	// inventar una línea vacía tras él.
-	if strings.HasSuffix(s, "\n") {
-		s = s[:len(s)-1]
-	}
+	s = strings.TrimSuffix(s, "\n")
 	return strings.Split(s, "\n")
 }
 

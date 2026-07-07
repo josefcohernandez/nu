@@ -30,7 +30,7 @@ func wsEchoServer(t *testing.T) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer c.CloseNow()
+		defer func() { _ = c.CloseNow() }()
 		ctx := r.Context()
 		for {
 			typ, data, err := c.Read(ctx)
@@ -181,7 +181,7 @@ func TestWsConnectTimeoutETIMEOUT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("no se pudo escuchar: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	done := make(chan struct{})
 	defer close(done)
 	go func() {

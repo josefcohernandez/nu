@@ -52,7 +52,7 @@ func TestHTTPWasmRequest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test", "hola")
 		w.WriteHeader(201)
-		fmt.Fprintf(w, "cuerpo:%s", r.Method)
+		_, _ = fmt.Fprintf(w, "cuerpo:%s", r.Method)
 	}))
 	defer srv.Close()
 
@@ -73,7 +73,7 @@ func TestHTTPWasmRequestBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := make([]byte, r.ContentLength)
 		_, _ = r.Body.Read(body)
-		fmt.Fprintf(w, "recibi:%s auth:%s", string(body), r.Header.Get("Authorization"))
+		_, _ = fmt.Fprintf(w, "recibi:%s auth:%s", string(body), r.Header.Get("Authorization"))
 	}))
 	defer srv.Close()
 

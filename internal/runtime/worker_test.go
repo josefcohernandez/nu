@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+// escribirFicheroTest escribe un fichero de fixture y aborta el test si falla:
+// un fallo de escritura es un error de setup, no la conducta bajo prueba. Centraliza
+// el chequeo del error de os.WriteFile (que el linter exige) en los tests del worker.
+func escribirFicheroTest(t *testing.T, path, contenido string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contenido), 0o644); err != nil {
+		t.Fatalf("escribir %s: %v", path, err)
+	}
+}
+
 // Tests de S34 — `nu.worker.spawn` + caps (G6) + send/recv con colas acotadas
 // (§13). La lógica 🔒 a blindar:
 //
@@ -146,15 +156,15 @@ func TestWorkerNoWatchdog(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	os.WriteFile(filepath.Join(dir, "plugin.toml"), []byte("name=\"p\"\nversion=\"1.0\"\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "init.lua"), []byte(""), 0o644)
+	escribirFicheroTest(t, filepath.Join(dir, "plugin.toml"), "name=\"p\"\nversion=\"1.0\"\n")
+	escribirFicheroTest(t, filepath.Join(dir, "init.lua"), "")
 	// Cómputo de CPU pura (sin suspender) dentro del worker. Si el worker tuviera
 	// watchdog (presupuesto pequeño), un bucle así se cortaría; sin él, completa.
-	os.WriteFile(filepath.Join(dir, "lua", "wmod.lua"), []byte(`
+	escribirFicheroTest(t, filepath.Join(dir, "lua", "wmod.lua"), `
 		local s = 0
 		for i = 1, 2000000 do s = s + 1 end
 		nu.worker.parent.send(s)
-	`), 0o644)
+	`)
 
 	// Padre con watchdog DESACTIVADO (budget 0): probamos el worker, no el padre.
 	rt := New(WithDataDir(t.TempDir()), WithConfigDir(cfg), WithPluginDir(root),
@@ -199,13 +209,13 @@ func TestWorkerTerminateInterruptsSleep(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	os.WriteFile(filepath.Join(dir, "plugin.toml"), []byte("name=\"p\"\nversion=\"1.0\"\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "init.lua"), []byte(""), 0o644)
+	escribirFicheroTest(t, filepath.Join(dir, "plugin.toml"), "name=\"p\"\nversion=\"1.0\"\n")
+	escribirFicheroTest(t, filepath.Join(dir, "init.lua"), "")
 	// El módulo del worker se suspende en un sleep LARGO: si `terminate` no lo cortara
 	// en su punto de suspensión, el worker colgaría hasta que venciera (60 s).
-	os.WriteFile(filepath.Join(dir, "lua", "wmod.lua"), []byte(`
+	escribirFicheroTest(t, filepath.Join(dir, "lua", "wmod.lua"), `
 		nu.task.sleep(60000)
-	`), 0o644)
+	`)
 
 	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithPluginDir(root), WithForceUI(true))
 	if err := rt.Boot(); err != nil {
@@ -264,13 +274,13 @@ func TestWorkerTerminateInterruptsCPULoop(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	os.WriteFile(filepath.Join(dir, "plugin.toml"), []byte("name=\"p\"\nversion=\"1.0\"\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "init.lua"), []byte(""), 0o644)
+	escribirFicheroTest(t, filepath.Join(dir, "plugin.toml"), "name=\"p\"\nversion=\"1.0\"\n")
+	escribirFicheroTest(t, filepath.Join(dir, "init.lua"), "")
 	// Bucle de CPU pura infinito: sin punto de suspensión cooperativo. Solo la
 	// cancelación del contexto (que `terminate` dispara) puede romperlo.
-	os.WriteFile(filepath.Join(dir, "lua", "wmod.lua"), []byte(`
+	escribirFicheroTest(t, filepath.Join(dir, "lua", "wmod.lua"), `
 		while true do end
-	`), 0o644)
+	`)
 
 	rt := New(WithDataDir(t.TempDir()), WithConfigDir(cfg), WithPluginDir(root), WithForceUI(true))
 	if err := rt.Boot(); err != nil {

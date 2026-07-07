@@ -349,35 +349,6 @@ func (l *loader) find(name string) *pluginInfo {
 	return nil
 }
 
-// moduleNames enumera los nombres de módulo `require`-ables bajo `luaDir`,
-// recorriéndolo recursivamente. Devuelve, para cada `.lua`, el nombre con que se
-// `require`aría: la ruta relativa a `luaDir` sin extensión y con `/` → `.`, y un
-// `init.lua` colapsado a su directorio (`foo/init.lua` → `foo`). Un `luaDir`
-// inexistente devuelve vacío (un plugin puede no tener `lua/`).
-func moduleNames(luaDir string) []string {
-	var mods []string
-	_ = filepath.Walk(luaDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".lua") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(luaDir, path)
-		if relErr != nil {
-			return nil
-		}
-		rel = strings.TrimSuffix(rel, ".lua")
-		rel = strings.TrimSuffix(rel, string(filepath.Separator)+"init")
-		if rel == "init" {
-			return nil // `lua/init.lua` no es un módulo require-able por convención
-		}
-		mods = append(mods, strings.ReplaceAll(rel, string(filepath.Separator), "."))
-		return nil
-	})
-	return mods
-}
-
 // cycleDescription construye una descripción legible del ciclo: el tramo de la pila
 // de recursión desde la primera aparición del nodo que se re-encontró, cerrado
 // sobre sí mismo (`a -> b -> c -> a`).
