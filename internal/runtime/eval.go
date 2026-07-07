@@ -292,7 +292,28 @@ func (rt *Runtime) evalTaskStringWasm(code string) ([]string, error) {
 	if luaErr != "" {
 		return nil, errors.New(luaErr)
 	}
-	return parseEvalTaskOutcome(outcome)
+	n, err := parseEvalTaskOutcome(outcome)
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, nil
+	}
+	// Lee cada valor de retorno con tostring, de uno en uno (como evalStringWasm): no
+	// depende de un delimitador que un valor podría contener. Es lo que deja al CLI leer
+	// `results[2]` (el estado DENIED/OK del driver), no sólo el texto.
+	results := make([]string, 0, n)
+	for i := 1; i <= n; i++ {
+		v, lerr, gerr := rt.wasm.Eval("return tostring(__eval_results[" + strconv.Itoa(i) + "])")
+		if gerr != nil {
+			return nil, gerr
+		}
+		if lerr != "" {
+			return nil, wasmChunkError(lerr)
+		}
+		results = append(results, v)
+	}
+	return results, nil
 }
 
 // evalTaskWrapper envuelve `code` en una task que captura su desenlace en globales.
@@ -302,7 +323,7 @@ func (rt *Runtime) evalTaskStringWasm(code string) ([]string, error) {
 // preserva el recuento de retornos (multi-valor futuro). Los globales se reinician
 // al principio para que una llamada previa no filtre estado.
 func evalTaskWrapper(code string) string {
-	return `__eval_ok = nil; __eval_n = 0; __eval_result = nil
+	return `__eval_ok = nil; __eval_n = 0; __eval_results = nil
 __eval_err_code = nil; __eval_err_msg = nil; __eval_err_str = nil
 nu.task.spawn(function()
   local packed = table.pack(pcall(function()
@@ -311,7 +332,8 @@ nu.task.spawn(function()
   __eval_ok = packed[1]
   if __eval_ok then
     __eval_n = packed.n - 1
-    __eval_result = packed[2]
+    __eval_results = {}
+    for i = 2, packed.n do __eval_results[i - 1] = packed[i] end
   else
     local e = packed[2]
     if type(e) == "table" and type(e.code) == "string" then
@@ -326,8 +348,10 @@ end)`
 
 // evalTaskProbe es el chunk que lee el desenlace que dejó evalTaskWrapper y lo
 // codifica en un string delimitado por 0x01 (SOH, que no aparece en códigos ni
-// mensajes normales): "N" sin valores, "V\1<valor>" un valor, "E\1<code>\1<msg>"
-// error estructurado, "X\1<texto>" error simple.
+// mensajes normales): "N" sin valores, "V\1<n>" con N valores de retorno (que el
+// llamante lee de uno en uno de __eval_results, para no depender de un delimitador
+// que un valor podría contener), "E\1<code>\1<msg>" error estructurado, "X\1<texto>"
+// error simple.
 const evalTaskProbe = `
 if __eval_ok ~= true then
   if __eval_err_code ~= nil then
@@ -336,27 +360,32 @@ if __eval_ok ~= true then
   return "X\1" .. tostring(__eval_err_str or "la task del CLI no produjo resultado")
 end
 if __eval_n == 0 then return "N" end
-return "V\1" .. tostring(__eval_result)`
+return "V\1" .. tostring(__eval_n)`
 
-// parseEvalTaskOutcome traduce el string que emitió evalTaskProbe al par
-// ([]string, error) que EvalTaskString devuelve.
-func parseEvalTaskOutcome(outcome string) ([]string, error) {
+// parseEvalTaskOutcome traduce el header que emitió evalTaskProbe. Para el caso "V"
+// devuelve el NÚMERO de valores en `n` (con ok=true); el llamante los lee de
+// __eval_results. Para "N"/"E"/"X" el desenlace es completo (n=0).
+func parseEvalTaskOutcome(outcome string) (n int, err error) {
 	switch {
 	case outcome == "N":
-		return nil, nil // sin valores de retorno (como gopher: slice vacío)
+		return 0, nil // sin valores de retorno (como gopher: slice vacío)
 	case strings.HasPrefix(outcome, "V\x01"):
-		return []string{outcome[len("V\x01"):]}, nil
+		count, cerr := strconv.Atoi(outcome[len("V\x01"):])
+		if cerr != nil || count < 0 {
+			return 0, nil
+		}
+		return count, nil
 	case strings.HasPrefix(outcome, "E\x01"):
 		parts := strings.SplitN(outcome[len("E\x01"):], "\x01", 2)
 		se := &StructuredError{Code: parts[0], Detail: lua.LNil}
 		if len(parts) == 2 {
 			se.Message = parts[1]
 		}
-		return nil, se
+		return 0, se
 	case strings.HasPrefix(outcome, "X\x01"):
-		return nil, errors.New(outcome[len("X\x01"):])
+		return 0, errors.New(outcome[len("X\x01"):])
 	default:
-		return nil, errors.New("evalTaskStringWasm: desenlace de task no reconocido: " + outcome)
+		return 0, errors.New("evalTaskStringWasm: desenlace de task no reconocido: " + outcome)
 	}
 }
 
