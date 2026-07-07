@@ -232,7 +232,7 @@ local function __enc(v, out)
       end
     end
   else
-    error("nu: valor no serializable a la frontera VM: " .. t)
+    error({ code = "EINVAL", message = "nu: valor no serializable a la frontera VM: " .. t })
   end
 end
 

@@ -176,19 +176,36 @@ func (rt *Runtime) evalStringWasm(code string) ([]string, error) {
 	if rt.wasmErr != nil {
 		return nil, rt.wasmErr
 	}
-	// El chunk se envuelve en una función cuyos retornos se capturan con table.pack
-	// en el global `__es`. Así se preserva el RECUENTO EXACTO de valores de retorno
-	// —como `L.GetTop()` en gopher—: un `return ""` da UN valor "" (no cero), y un
-	// `return a, b` da dos. Sin esto, la Eval cruda sólo devuelve el texto del
-	// resultado y no distingue "no devolvió" de `return ""` (ambos serían ""), lo que
-	// rompía `h.eval("... return out")[0]` cuando `out` era "". El chunk corre en el
-	// ESTADO PRINCIPAL (no task): puede lanzar tasks pero no usar ⏸ directo (§1.3).
-	_, luaErr, goErr := rt.wasm.Eval("__es = table.pack((function()\n" + code + "\nend)())")
+	// El chunk se envuelve en un `pcall` cuyos retornos se capturan con table.pack.
+	// Así se logran DOS cosas a la vez:
+	//  1) Se preserva el RECUENTO EXACTO de valores de retorno —como `L.GetTop()` en
+	//     gopher—: un `return ""` da UN valor "" (no cero), y un `return a, b` da dos.
+	//  2) El error se captura COMO VALOR Lua (la tabla estructurada intacta), no como
+	//     texto ya rendido por el shim. Sin el pcall, un `error({code=...})` en el
+	//     ESTADO PRINCIPAL se popea en nu_eval y sólo sobrevive su `luaL_tolstring`
+	//     ("table: 0x..."), perdiendo el code/message. Con él leemos e.code/e.message
+	//     en Lua y reconstruimos el *StructuredError fiel (mismo truco que el camino
+	//     de task en evalTaskWrapper). El chunk corre en el ESTADO PRINCIPAL (no task):
+	//     puede lanzar tasks pero no usar ⏸ directo (§1.3).
+	_, luaErr, goErr := rt.wasm.Eval(evalStringWrapper(code))
 	if goErr != nil {
 		return nil, goErr // trap del motor wasm: fallo duro
 	}
 	if luaErr != "" {
+		// El wrapper no compiló (sintaxis en `code`): sólo hay texto.
 		return nil, wasmChunkError(luaErr)
+	}
+	// Sondea el desenlace: si el chunk lanzó, reconstruye el error ANTES de drenar
+	// tasks (como gopher, que devuelve el fallo del chunk sin drenar).
+	okStr, _, _ := rt.wasm.Eval("return tostring(__es_ok)")
+	if okStr != "true" {
+		codeStr, _, _ := rt.wasm.Eval("return tostring(__es_err_code)")
+		if codeStr != "nil" {
+			msgStr, _, _ := rt.wasm.Eval("return tostring(__es_err_msg or '')")
+			return nil, &StructuredError{Code: codeStr, Message: msgStr, Detail: lua.LNil}
+		}
+		strStr, _, _ := rt.wasm.Eval("return tostring(__es_err_str)")
+		return nil, wasmChunkError(strStr)
 	}
 	// Drena las tasks que el chunk haya lanzado (sus efectos y liberaciones deben
 	// completar antes de devolver, como waitIdle en gopher).
@@ -197,7 +214,7 @@ func (rt *Runtime) evalStringWasm(code string) ([]string, error) {
 	}
 	// Lee el recuento y serializa cada valor con tostring (leído de uno en uno para
 	// no depender de un delimitador que un valor podría contener).
-	nStr, _, _ := rt.wasm.Eval("return tostring(__es.n)")
+	nStr, _, _ := rt.wasm.Eval("return tostring(__es_n)")
 	n, err := strconv.Atoi(nStr)
 	if err != nil || n < 0 {
 		return nil, nil
@@ -214,6 +231,32 @@ func (rt *Runtime) evalStringWasm(code string) ([]string, error) {
 		results = append(results, v)
 	}
 	return results, nil
+}
+
+// evalStringWrapper envuelve `code` en un pcall que captura su desenlace (recuento de
+// retornos y error estructurado) en globales `__es_*`, de forma análoga a
+// evalTaskWrapper pero SIN spawnear una task: el chunk corre en el estado principal.
+// Los globales se reinician al principio para que una llamada previa no filtre estado.
+func evalStringWrapper(code string) string {
+	return `__es_ok = nil; __es_n = 0; __es = nil
+__es_err_code = nil; __es_err_msg = nil; __es_err_str = nil
+local __packed = table.pack(pcall(function()
+` + code + `
+end))
+__es_ok = __packed[1]
+if __es_ok then
+  __es_n = __packed.n - 1
+  __es = {}
+  for i = 2, __packed.n do __es[i - 1] = __packed[i] end
+else
+  local e = __packed[2]
+  if type(e) == "table" and type(e.code) == "string" then
+    __es_err_code = e.code
+    __es_err_msg = e.message
+  else
+    __es_err_str = tostring(e)
+  end
+end`
 }
 
 // evalTaskStringWasm es la variante de EvalTaskString sobre el backend wasm (M13d).
