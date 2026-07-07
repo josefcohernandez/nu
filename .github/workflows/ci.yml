@@ -160,7 +160,14 @@ jobs:
   # sea la VM del kernel.
   vmblob:
     name: Blob de la VM (nu.wasm reproducible)
-    runs-on: ubuntu-latest
+    # Runner PINEADO (no `ubuntu-latest`): la reproducibilidad byte-a-byte del blob
+    # depende de las versiones exactas de wasi-libc/clang-rt del archivo de la
+    # distro, y una etiqueta móvil las cambia bajo los pies (visto en la PR de la
+    # migración: el runner saltó de imagen y el rebuild dejó de coincidir con el
+    # blob comiteado sin que ninguna fuente hubiera cambiado). El blob actual se
+    # construyó con el toolchain de noble: clang 18.1.3 + wasi-libc git20230113.
+    # Si algún día se sube de imagen, se regenera el blob en el mismo cambio.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
