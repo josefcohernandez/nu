@@ -10,6 +10,49 @@ es y lo que no) y, si tocas código, [docs/implementacion.md](docs/implementacio
 (el protocolo de construcción). Todo el repositorio está en español; la API y
 los identificadores, en inglés `snake_case`.
 
+## Cómo abrir una Pull Request
+
+1. Haz fork del repositorio y clónalo:
+
+   ```
+   gh repo fork dbareagimeno/nu --clone
+   cd nu
+   ```
+
+2. Crea una rama descriptiva para tu cambio (no trabajes sobre `main`):
+
+   ```
+   git checkout -b mi-cambio
+   ```
+
+3. Haz tus cambios y comitea. Sigue el idioma y estilo del repo (ver
+   [CLAUDE.md](CLAUDE.md)): documentos y mensajes de commit en español, API e
+   identificadores en inglés `snake_case`.
+
+4. Antes de empujar, deja el repo en verde localmente (ver [Calidad](#calidad)
+   más abajo).
+
+5. Empuja tu rama y abre la PR contra `main`:
+
+   ```
+   git push -u origin mi-cambio
+   gh pr create --base main --title "..." --body "..."
+   ```
+
+   (o, sin `gh`, desde la web de tu fork con el botón "Compare & pull
+   request").
+
+6. La rama `main` está protegida: tu PR no se puede fusionar hasta que los
+   checks de CI (`.github/workflows/ci.yml`) estén en verde y haya al menos
+   una revisión aprobada. Si tu PR viene de un fork, el mantenedor debe
+   aprobar manualmente que corra el primer CI (política de seguridad de
+   GitHub para workflows de forks).
+
+7. Si el cambio es grande o toca la API (`docs/api.md`), abre antes un issue
+   para discutirlo — evita trabajo perdido si la dirección no encaja (ver
+   [Titularidad y licencia](#titularidad-y-licencia-de-las-contribuciones)
+   más abajo).
+
 ## Calidad
 
 Toda aportación de código debe dejar el repositorio en verde:
