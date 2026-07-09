@@ -184,6 +184,16 @@ El plan tiene todo el detalle (las 45 sesiones, los 11 checkpoints, el
 inventario 🔒 y los hitos de veto). Esta sección solo garantiza que lo
 **consultes y lo sigas** aunque arranques sin más contexto que este fichero.
 
+## Agentes y skills del flujo
+
+El flujo de arriba está mecanizado en [.claude/README.md](.claude/README.md)
+(el mapa): skills `/planificar-sesion`, `/sesion`, `/hallazgo`, `/ronda`,
+`/juicio` y `/mutacion`, y los agentes clean-room (jueces, verificador,
+auditor, escenarista BDD). Ante una tarea de desarrollo, consulta el mapa y
+usa la skill que corresponda en vez de improvisar el protocolo. Las reglas de
+no-contaminación de los jueces (qué reciben y qué herramientas tienen) no se
+relajan.
+
 ## Convenciones de Git
 
 - **Rama de trabajo:** desarrolla en la rama indicada por la tarea (p. ej.
