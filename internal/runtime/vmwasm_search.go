@@ -27,13 +27,12 @@ package runtime
 // secuencialmente (cada `next` espera al anterior), no hay dos `next` concurrentes
 // sobre el mismo `grepIter`: `emitted`/`close` no necesitan candado extra.
 //
-// CICLO DE VIDA. El pool se ata a `grepIter.close` (idempotente, `closeOnce`), que
-// lo disparan el propio `next` (al agotar/tope) y —vía scheduler— `Runtime.Close`.
-// El rastreo para el apagado ordenado (`stopAllGreps`) sólo se activa si hay
-// scheduler (`rt.sched != nil`); en M13b el rt de los tests es mínimo, así que el
-// grep se pasa con `s == nil` y `close` sólo cancela el contexto (ver la nota de
-// `grepIter.close`). El `cleanup` de la task por cancelación (registrado en Lua en
-// el backend gopher) es cosa del cableado real del Runtime (M13d), no de M13b.
+// CICLO DE VIDA. El pool se ata a `grepIter.close` (idempotente, `closeOnce`). El
+// wrapper registra `GrepIter:close` en `nu.task.cleanup` al crear el iterador: un
+// `break`, el éxito, un error o la cancelación de la task paran el pool. `next` lo
+// cierra además al agotar/tope y `Runtime.Close` conserva el rastreo global como
+// red de seguridad. Algunos tests vmwasm mínimos no tienen scheduler; en ellos el
+// cierre cancela el contexto aunque no haya nada que desregistrar.
 
 import (
 	"path/filepath"
@@ -140,9 +139,8 @@ func registerSearchWasm(p *vmwasm.Pool, rt *Runtime) {
 		if werr != nil {
 			return nil, mapFsErrorWasm(werr)
 		}
-		// `rt.sched` (el scheduler gopher) es nil en el rt mínimo de M13b: se pasa igual
-		// —`newGrepIter` lo guarda y `close` sólo lo usa si no es nil— y el rastreo para
-		// `Runtime.Close` se gatea, igual que en vmwasm_ws.go.
+		// El rt mínimo de algunos tests no tiene scheduler: `newGrepIter` lo admite y
+		// el rastreo para `Runtime.Close` se activa sólo en el Runtime completo.
 		it := newGrepIter(rt.sched, re, files, opts.max)
 		if rt.sched != nil {
 			rt.sched.trackGrep(it)
@@ -174,14 +172,24 @@ func registerSearchWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{grepResultToWasm(res)}, nil
 	})
 
+	// GrepIter:close() cancela el pool. Es síncrono e idempotente: no espera IO ni
+	// toca Lua; sólo cancela el contexto y desregistra el iterador. El wrapper lo
+	// registra en `nu.task.cleanup`, de modo que un `break` no deja productores
+	// bloqueados intentando enviar al canal sin consumidor.
+	p.RegisterHandleMethod("GrepIter", "close", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
+		val.(*grepIter).close()
+		return nil, nil
+	})
+
 	// Wrapper Lua: nu.search.grep envuelve el handle de _grep en una clausura
-	// iteradora que en cada paso llama GrepIter:next por __hcall_s (⏸). Reconstruye
-	// el `for r in nu.search.grep(pattern, opts) do ... end` del contrato (§11); el
-	// primer valor del `for` es la función iteradora, como en el backend gopher.
+	// iteradora que en cada paso llama GrepIter:next por __hcall_s (⏸) y registra el
+	// cierre en la task actual. Reconstruye el `for r in nu.search.grep(pattern,
+	// opts) do ... end` del contrato (§11); el primer valor es la función iteradora.
 	p.AddPreludio(`
 nu.search = nu.search or {}
 function nu.search.grep(pattern, opts)
   local it = nu.search._grep(pattern, opts)   -- handle {__id} tras enumerar el árbol
+  nu.task.cleanup(function() __hcall(it.__id, "close") end)
   return function()
     return __hcall_s(it.__id, "next")
   end

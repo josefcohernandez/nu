@@ -470,9 +470,19 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 	`)
 	h.expectEval(`return type(FIRST)`, "string")
 
-	// El cleanup de la task (cancela el contexto del grep) corre al terminar la
-	// task. Damos un margen a que las goroutines del pool drenen y comparamos con
-	// la base con holgura (otras goroutines del runtime fluctúan).
+	// El cleanup corre al terminar la task y desregistra el iterador de forma
+	// síncrona. Esta aserción detecta el cableado ausente incluso en runners con
+	// pocos núcleos, donde el margen del conteo de goroutines podía ocultar la fuga.
+	h.rt.sched.mu.Lock()
+	tracked := len(h.rt.sched.greps)
+	h.rt.sched.mu.Unlock()
+	if tracked != 0 {
+		t.Fatalf("greps vivos tras early-stop: %d", tracked)
+	}
+
+	// Las goroutines atienden a la cancelación de contexto de forma asíncrona.
+	// Damos un margen para que salgan y comparamos con la base con holgura frente a
+	// las demás goroutines del runtime.
 	if !eventuallyLeqGoroutines(base+5, 2_000) {
 		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
 	}

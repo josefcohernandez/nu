@@ -47,9 +47,10 @@ import (
 // la task. Cada `next` del iterador **suspende** hasta el siguiente match (o
 // hasta EOF, cuando el canal se cierra tras drenarse todas las goroutines). El
 // `max` corta: alcanzado el límite, el iterador deja de entregar y las goroutines
-// se cancelan (`context`). La cancelación de la task (S08) cancela el contexto vía
-// `nu.task.cleanup`, así ninguna goroutine queda colgada. Como red de seguridad,
-// `Runtime.Close` cancela todos los greps vivos (`stopAllGreps`).
+// se cancelan (`context`). Al crear el handle, el wrapper wasm registra su cierre
+// en `nu.task.cleanup`, así ninguna goroutine queda colgada aunque el consumidor
+// haga `break`. Como red de seguridad, `Runtime.Close` cancela todos los greps
+// vivos (`stopAllGreps`).
 
 // --- nu.search.files ----------------------------------------------------------
 
@@ -454,12 +455,9 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 // seguridad). Cancelar el contexto desbloquea el repartidor y las goroutines, que
 // terminan; la cerradora cierra `results`.
 //
-// El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: el backend gopher
-// siempre lo pasa (`newGrepIter(rt.sched, ...)`), pero el backend wasm (M13b,
-// vmwasm_search.go) reusa este mismo iterador con `s == nil` cuando el Runtime de
-// pruebas es mínimo — igual que `luaWs.close` sólo desregistra si hay scheduler.
-// Cancelar el contexto (el núcleo VM-agnóstico) siempre ocurre; sólo el rastreo
-// para `Runtime.Close` es opcional. Para gopher el comportamiento es idéntico.
+// El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: algunos tests
+// aislados del núcleo vmwasm crean el iterador sin un Runtime completo. Cancelar
+// el contexto siempre ocurre; sólo el rastreo para `Runtime.Close` es opcional.
 func (it *grepIter) close() {
 	it.closeOnce.Do(func() {
 		it.cancel()

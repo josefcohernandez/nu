@@ -41,9 +41,9 @@ jobs:
       - name: Preparar Go
         uses: actions/setup-go@v5
         with:
-          # Una sola fuente de verdad para la versión de Go: la directiva de go.mod
-          # (hoy 1.24.7). No hay matriz multi-versión: `nu` se distribuye como
-          # binario, no como librería que terceros compilan con su toolchain.
+          # Una sola fuente de verdad para la versión exacta de Go: la directiva de
+          # go.mod. No hay matriz multi-versión: `nu` se distribuye como binario,
+          # no como librería que terceros compilan con su toolchain.
           go-version-file: go.mod
           cache: true
 
