@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -76,6 +77,56 @@ func TestWriteAtomicOverwrites(t *testing.T) {
 	}
 	if string(got) != "nuevo" {
 		t.Fatalf("sobreescritura: got %q, want %q", got, "nuevo")
+	}
+}
+
+// TestWriteAtomicRespectsUmask blinda que la escritura atómica de un fichero
+// **nuevo** aplica el umask del proceso en la creación (como `append`/`copy`, que
+// usan `OpenFile`), y NO deja un fichero world-readable: con umask 077, un `write`
+// de `fsFilePerm` (0644) debe quedar en 0600. Es la regresión de seguridad que un
+// `CreateTemp`+`Chmod` reintroducía (el `Chmod` se salta el umask). El test toca
+// el umask del proceso, global: NO puede correr en paralelo y lo restaura al salir.
+func TestWriteAtomicRespectsUmask(t *testing.T) {
+	old := syscall.Umask(0o077)
+	defer syscall.Umask(old)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "secreto.txt")
+	if err := writeAtomic(path, []byte("dato sensible")); err != nil {
+		t.Fatalf("writeAtomic falló: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("umask 077 sobre write nuevo: modo got %o, want 0600 (no world-readable)", got)
+	}
+}
+
+// TestWriteAtomicPreservesExistingMode blinda que al **sobrescribir** un fichero
+// existente la escritura atómica conserva el modo previo del destino (igual que las
+// rutas `OpenFile`, que no tocan los permisos de un fichero que ya existe), en vez
+// de forzar `fsFilePerm`. Un fichero en 0640 debe seguir en 0640 tras el `write`.
+func TestWriteAtomicPreservesExistingMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte("viejo"), 0o640); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Aseguramos el modo exacto pese al umask del entorno de test.
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatalf("setup chmod: %v", err)
+	}
+	if err := writeAtomic(path, []byte("nuevo")); err != nil {
+		t.Fatalf("writeAtomic falló: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o640 {
+		t.Fatalf("sobrescritura debe preservar el modo previo: got %o, want 0640", got)
 	}
 }
 

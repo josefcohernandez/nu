@@ -466,6 +466,45 @@ func TestSpawnFinalizerSafetyNet(t *testing.T) {
 	}
 }
 
+// --- 🔒 killSignal: un envío fallido NO debe dejar el proceso inmatable ---
+
+// TestKillSignalNotMarkedOnFailure blinda que `killed` sólo se fija cuando la señal
+// SE ENVIÓ sin error. Antes, `killSignal` marcaba `killed=true` incondicionalmente:
+// un envío fallido cortocircuitaba TODOS los kills posteriores (cleanup, finalizer,
+// scheduler, que consultan `killed`), dejando el proceso vivo pero "matado" —huérfano
+// e inmatable—. Se fuerza un fallo determinista con una señal fuera de rango (el
+// kernel devuelve EINVAL) sobre un proceso VIVO: `killed` debe seguir false y el
+// proceso seguir vivo; un SIGKILL posterior sí surte efecto y lo mata.
+func TestKillSignalNotMarkedOnFailure(t *testing.T) {
+	cmd := newCmd([]string{"sleep", "30"}, procOpts{})
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("no se pudo lanzar sleep: %v", err)
+	}
+	pid := cmd.Process.Pid
+	p := &luaProc{cmd: cmd}
+
+	// Señal inválida (fuera de rango) sobre un proceso vivo → el envío falla (EINVAL).
+	p.killSignal(syscall.Signal(0x1fff))
+	if p.killed {
+		t.Fatalf("un envío de señal fallido NO debe fijar killed=true")
+	}
+	if !pidAlive(pid) {
+		t.Fatalf("tras un kill fallido el proceso (pid %d) debería seguir vivo", pid)
+	}
+
+	// Un SIGKILL posterior SÍ debe surtir efecto: no está cortocircuitado por `killed`.
+	p.killSignal(syscall.SIGKILL)
+	if !p.killed {
+		t.Fatalf("tras un SIGKILL exitoso, killed debería ser true")
+	}
+	if err := cmd.Wait(); err == nil {
+		t.Fatalf("un proceso matado por SIGKILL debería salir con error de señal")
+	}
+	if pidAlive(pid) {
+		t.Fatalf("tras SIGKILL+Wait el proceso (pid %d) debería estar muerto", pid)
+	}
+}
+
 // --- Sanity: la superficie de nu.proc existe (firma §6 completa) ---
 
 // TestProcSurface comprueba que `nu.proc` y los métodos de `Proc` están registrados,

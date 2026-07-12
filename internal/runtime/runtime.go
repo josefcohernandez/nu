@@ -446,15 +446,17 @@ func (rt *Runtime) Close() {
 	if rt.sched != nil {
 		// Mata los subprocesos vivos de `nu.proc.spawn` (S16): red de seguridad tras el
 		// `cleanup` y el finalizer del GC. Cierra los `nu.http.stream` (S20), `nu.ws`
-		// (S21) y cancela los `nu.search.grep` (S27) vivos: sus goroutines de fondo y
-		// conexiones no deben sobrevivir al proceso. Sus objetos Go se rastrean en el
-		// scheduler (las primitivas los registran al crearlos; ver proc.go/stream.go/
-		// ws.go/search.go, reusados por los HostFn de vmwasm). Los `nu.fs.watch` (S15) y
-		// `nu.worker` (S34) viven en la Instance/Pool wasm y los cierra su Close (abajo).
+		// (S21), cancela los `nu.search.grep` (S27) y corta los `nu.fs.watch` (S15)
+		// vivos: sus goroutines de fondo, conexiones y descriptores (fsnotify) no
+		// deben sobrevivir al proceso. Sus objetos Go se rastrean en el scheduler
+		// (las primitivas los registran al crearlos; ver proc.go/stream.go/ws.go/
+		// search.go/vmwasm_fs.go). Los `nu.worker` (S34) viven en el Pool wasm y los
+		// cierra su Close (abajo).
 		rt.sched.stopAllProcs()
 		rt.sched.stopAllStreams()
 		rt.sched.stopAllWs()
 		rt.sched.stopAllGreps()
+		rt.sched.stopAllWatchers()
 	}
 	// Corta el timer de coalescing de `nu.ui` (S29): su goroutine de pintado no debe
 	// sobrevivir al proceso.

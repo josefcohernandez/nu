@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -485,6 +486,70 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 	// las demás goroutines del runtime.
 	if !eventuallyLeqGoroutines(base+5, 2_000) {
 		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
+	}
+}
+
+// TestSearchGrepLineaLargaNoSilenciaElFichero blinda que una línea que supera el
+// tope de truncado NO aborta el escaneo del fichero: las líneas posteriores (con
+// sus matches) se siguen entregando. Antes, bufio.Scanner devolvía false
+// definitivo (ErrTooLong) y el resto del fichero se perdía en silencio.
+func TestSearchGrepLineaLargaNoSilenciaElFichero(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	// Línea 1: más larga que grepMaxLine (1 MiB). Línea 2: el match buscado.
+	long := strings.Repeat("x", grepMaxLine+4096)
+	if err := os.WriteFile(filepath.Join(root, "gen.txt"), []byte(long+"\nAGUJA aquí\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setRoot(h, root)
+
+	h.eval(`
+		FOUND = {}
+		nu.task.spawn(function()
+			for r in nu.search.grep("AGUJA", { root = ROOT }) do
+				FOUND[#FOUND+1] = { line_no = r.line_no, line = r.line }
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(#FOUND)`, "1")
+	h.expectEval(`return tostring(FOUND[1].line_no)`, "2")
+}
+
+// TestReadGrepLine cubre el lector de líneas con truncado: línea normal, línea
+// que excede el tope (se recorta y se CONTINÚA en la siguiente), CRLF, y última
+// línea sin salto final.
+func TestReadGrepLine(t *testing.T) {
+	read := func(input string, max int) []string {
+		r := bufio.NewReaderSize(strings.NewReader(input), 16) // buffer mínimo: fuerza ErrBufferFull
+		var lines []string
+		for {
+			line, eof, err := readGrepLine(r, max)
+			if err != nil {
+				t.Fatalf("readGrepLine: %v", err)
+			}
+			if eof && line == "" {
+				return lines
+			}
+			lines = append(lines, line)
+			if eof {
+				return lines
+			}
+		}
+	}
+
+	got := read("corta\n"+strings.Repeat("L", 100)+"\nfoo\r\nbar", 10)
+	want := []string{"corta", strings.Repeat("L", 10), "foo", "bar"}
+	if len(got) != len(want) {
+		t.Fatalf("líneas: got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("línea %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+	// Fichero terminado en '\n': sin línea vacía fantasma al final.
+	if got := read("a\nb\n", 10); len(got) != 2 {
+		t.Fatalf("línea fantasma tras salto final: %v", got)
 	}
 }
 

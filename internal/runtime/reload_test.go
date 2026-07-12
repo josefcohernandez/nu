@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // reloadSpawn envuelve `body` en una task y devuelve un snippet que la lanza. Es
@@ -317,6 +318,90 @@ func TestReloadFueraDeTask(t *testing.T) {
 	}
 	if !strings.Contains(se.Message, "task") {
 		t.Fatalf("el mensaje debe explicar que es ⏸ (solo en task): %q", se.Message)
+	}
+}
+
+// TestReloadMataProcesosDelPlugin (G2, 🔒): un `nu.proc.spawn` del `init.lua` de
+// un plugin NO sobrevive a recargarlo. El registro Lua del preludio solo conoce
+// subs y timers; los procesos viven en el registro Go por dueño, que el reload
+// también libera —sin esto, el proceso quedaba huérfano (con sus pipes) hasta
+// Runtime.Close, contra el contrato explícito de proc.go—.
+func TestReloadMataProcesosDelPlugin(t *testing.T) {
+	root := t.TempDir()
+	cfg := t.TempDir()
+	writePlugin(t, root, "P", "1.0", nil, `nu.proc.spawn({ "sleep", "100" })`)
+	h := newBootedHarness(t, root, cfg)
+
+	snapshot := func() (int, int) {
+		h.rt.sched.mu.Lock()
+		defer h.rt.sched.mu.Unlock()
+		pid := 0
+		for p := range h.rt.sched.procs {
+			pid = p.cmd.Process.Pid
+		}
+		return len(h.rt.sched.procs), pid
+	}
+	n, oldPid := snapshot()
+	if n != 1 || oldPid == 0 {
+		t.Fatalf("tras el boot debe haber 1 proc del init de P (hay %d)", n)
+	}
+
+	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+
+	// El init re-ejecutado lanza OTRO sleep; el viejo debe morir (SIGKILL del
+	// release por dueño) y salir del mapa de vivos. El reaper de fondo recoge el
+	// zombi, así que pidAlive(oldPid) acaba en false.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		n, newPid := snapshot()
+		if n == 1 && newPid != oldPid && !pidAlive(oldPid) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("el proc del plugin sobrevivió al reload: procs=%d, viejo vivo=%v", n, pidAlive(oldPid))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestReloadParaWatchersDelPlugin (G2, 🔒): un `nu.fs.watch` del `init.lua` de un
+// plugin se corta al recargarlo — goroutine y fd de fsnotify incluidos —, y el
+// watcher viejo sale del mapa de vivos del scheduler (antes sobrevivía a reload
+// Y a Runtime.Close, emitiendo a un evento ya sin suscriptores).
+func TestReloadParaWatchersDelPlugin(t *testing.T) {
+	root := t.TempDir()
+	cfg := t.TempDir()
+	watched := t.TempDir()
+	writePlugin(t, root, "P", "1.0", nil, `nu.fs.watch("`+watched+`", function() end)`)
+	h := newBootedHarness(t, root, cfg)
+
+	oldW := func() *wasmWatcher {
+		h.rt.sched.mu.Lock()
+		defer h.rt.sched.mu.Unlock()
+		for w := range h.rt.sched.watchers {
+			return w
+		}
+		return nil
+	}()
+	if oldW == nil {
+		t.Fatal("tras el boot debe haber 1 watcher del init de P")
+	}
+
+	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+
+	// El viejo quedó parado (stopCh cerrado) y fuera del mapa; el init
+	// re-ejecutado registró uno nuevo.
+	select {
+	case <-oldW.stopCh:
+	default:
+		t.Fatal("el watcher viejo sigue corriendo tras el reload")
+	}
+	h.rt.sched.mu.Lock()
+	_, oldTracked := h.rt.sched.watchers[oldW]
+	n := len(h.rt.sched.watchers)
+	h.rt.sched.mu.Unlock()
+	if oldTracked || n != 1 {
+		t.Fatalf("mapa de watchers tras reload: viejo dentro=%v, total=%d (want fuera y 1)", oldTracked, n)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -116,6 +117,17 @@ type luaProc struct {
 	// procesos de ESE plugin —un `spawn` de su `init.lua` no debe sobrevivir a la
 	// recarga, "reload no deja handlers huérfanos"—.
 	ownerName string
+
+	// Recuperación temprana (reap): un proceso TERMINADO cuyos dos streams ya se
+	// agotaron no puede producir nada más — se cierran sus pipes y se desregistra
+	// de los mapas del scheduler (`s`) sin esperar a Runtime.Close (sin esto, cada
+	// spawn anclaría 2 descriptores + sus entradas de rastreo toda la vida del
+	// runtime). eofOut/eofErr los marca la ruta de lectura al ver el EOF; son
+	// atómicos para que `maybeReap` los consulte sin tomar los candados de stream
+	// (que una lectura bloqueada podría retener).
+	reapOnce sync.Once
+	eofOut   atomic.Bool
+	eofErr   atomic.Bool
 }
 
 // luaProc implementa ownedHandle (S13): el registro de handles por dueño
@@ -133,6 +145,12 @@ type luaProc struct {
 func (p *luaProc) release() {
 	p.killSignal(syscall.SIGKILL)
 	p.closeReadPipes()
+	// Fuera también del mapa de vivos (es otro registro que el de dueños, que
+	// vació quien nos llama): un proc derribado por reload no necesita que
+	// `Runtime.Close` lo re-mate.
+	if p.s != nil {
+		p.s.untrackProc(p)
+	}
 }
 
 // owner devuelve el dueño con que se etiquetó el proc al crearse.
@@ -524,8 +542,49 @@ func (p *luaProc) wait() int {
 		p.code = exitCode(p.waitErr)
 		close(p.waitDone)
 	})
-	<-p.waitDone // un segundo `wait` (que no ganó el Once) espera al desenlace publicado
+	<-p.waitDone  // un segundo `wait` (que no ganó el Once) espera al desenlace publicado
+	p.maybeReap() // por si los dos streams ya se habían agotado antes de la salida
 	return p.code
+}
+
+// noteEOF registra que un stream se agotó (la ruta de lectura vio su EOF) e
+// intenta la recuperación temprana. Tras un EOF el `bufio.Reader` es pegajoso
+// (toda lectura posterior vuelve a dar EOF sin bloquear), así que marcado el
+// flag ya no puede haber una lectura bloqueada sobre ese stream.
+func (p *luaProc) noteEOF(which string) {
+	switch which {
+	case "stdout":
+		p.eofOut.Store(true)
+	case "stderr":
+		p.eofErr.Store(true)
+	}
+	p.maybeReap()
+}
+
+// maybeReap cierra los pipes y desregistra el Proc de los mapas del scheduler
+// cuando ya no puede producir nada: proceso terminado (waitDone cerrado) Y
+// stdout/stderr agotados. Idempotente (reapOnce) y seguro desde cualquier
+// goroutine (reaper, rutas de lectura): con ambos EOF vistos, closeReadPipes
+// toma los candados de stream sin riesgo de esperar a una lectura bloqueada.
+// El handle Lua sigue siendo válido después: wait/kill están memoizados y no
+// necesitan los pipes. Quien no llega aquí (nadie leyó hasta EOF) lo recoge
+// `reload` (release, por dueño) o `Runtime.Close` (stopAllProcs), como antes.
+func (p *luaProc) maybeReap() {
+	select {
+	case <-p.waitDone:
+	default:
+		return // sigue vivo: los pipes aún pueden traer datos
+	}
+	if !p.eofOut.Load() || !p.eofErr.Load() {
+		return
+	}
+	p.reapOnce.Do(func() {
+		p.closeReadPipes()
+		if p.s != nil {
+			p.s.untrackProc(p)
+			p.s.untrack(p)
+		}
+	})
 }
 
 // closeReadPipes cierra los extremos de lectura de stdout/stderr (propios, vía
@@ -562,8 +621,17 @@ func (p *luaProc) killSignal(sig syscall.Signal) {
 	if p.killed || p.cmd.Process == nil {
 		return
 	}
-	p.killed = true
-	_ = p.cmd.Process.Signal(sig)
+	// `killed` se fija SÓLO si la señal se envió sin error. Marcarlo pase lo que pase
+	// dejaría un proceso vivo pero "matado" a la vista de cleanup, el finalizer y el
+	// scheduler: un envío fallido cortocircuitaría todos los kills posteriores (todos
+	// ven `killed`) y el proceso quedaría huérfano e inmatable. La protección contra
+	// reciclar el pid tras `Wait` no la aporta este flag, sino `os.Process`, que
+	// devuelve `ErrProcessDone` sin llegar a hacer el `kill(2)`; así, un envío exitoso
+	// implica que el proceso seguía vivo (y `killed` bloquea correctamente re-señalarlo),
+	// mientras que uno fallido deja `killed=false` para que el siguiente kill reintente.
+	if err := p.cmd.Process.Signal(sig); err == nil {
+		p.killed = true
+	}
 }
 
 // --- nu.proc.alive ------------------------------------------------------------

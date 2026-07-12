@@ -152,6 +152,53 @@ func TestProcWasmKillSleeping(t *testing.T) {
 	}
 }
 
+// Señal no numérica → EINVAL, y el proceso ni muere ni queda inmatable. `Proc:kill`
+// con una señal mal tipada (un string "KILL") debe lanzar EINVAL en vez de degradarla
+// a 0 (la sonda de existencia, que no mata): el proceso sigue vivo, y —lo importante—
+// sigue siendo matable con una señal válida posterior (el kill fallido no fija `killed`
+// ni cortocircuita los siguientes). También cubre el caso feliz (el kill(9) que sí mata).
+func TestProcWasmKillNonNumericSignal(t *testing.T) {
+	extra := func(p *vmwasm.Pool) {
+		p.RegisterHandleMethod("Proc", "_pid", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
+			return []any{int64(val.(*luaProc).cmd.Process.Pid)}, nil
+		})
+	}
+	inst := wasmProcRun(t, &Runtime{}, extra, `
+		nu.task.spawn(function()
+			local p = nu.proc.spawn({"sleep", "30"})
+			g_pid = __hcall(p.__id, "_pid")
+			-- señal no numérica: debe lanzar EINVAL y NO tocar el proceso
+			local ok, e = pcall(function() return p:kill("KILL") end)
+			g_ok = ok
+			g_code = (e and e.code) or "nil"
+			g_alive = nu.proc.alive(g_pid)     -- sigue vivo: el kill inválido no lo mató
+			-- ...y sigue siendo matable con una señal válida
+			p:kill(9)                          -- SIGKILL
+			g_killed = (p:wait().code ~= 0)
+		end)`)
+
+	if got := evalStr(t, inst, `return tostring(g_ok)`); got != "false" {
+		t.Fatalf("kill('KILL') debería lanzar, got ok=%q", got)
+	}
+	if got := evalStr(t, inst, `return tostring(g_code)`); got != "EINVAL" {
+		t.Fatalf("kill('KILL'): got code %q, want EINVAL", got)
+	}
+	if got := evalStr(t, inst, `return tostring(g_alive)`); got != "true" {
+		t.Fatalf("tras un kill inválido el proceso debería seguir vivo, got alive=%q", got)
+	}
+	if got := evalStr(t, inst, `return tostring(g_killed)`); got != "true" {
+		t.Fatalf("tras el kill inválido, un kill(9) válido debería matarlo, got killed=%q", got)
+	}
+	pidStr := evalStr(t, inst, `return tostring(g_pid)`)
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		t.Fatalf("pid no numérico: %q (%v)", pidStr, err)
+	}
+	if !waitDead(pid, 5*time.Second) {
+		t.Fatalf("tras kill(9)+wait, el subproceso (pid %d) debería estar muerto", pid)
+	}
+}
+
 // M13b.proc.5: nu.proc.alive (G17) — existencia, no identidad. El pid 1 (init) existe
 // en cualquier Unix aunque no sea nuestro → true; un pid imposible (2^30) → false. El
 // equivalente wasm de TestProcAliveSnippetG17. alive NO es ⏸ (consulta inmediata):
@@ -228,5 +275,41 @@ func TestProcWasmWriteAfterClose(t *testing.T) {
 		end)`)
 	if got := evalStr(t, inst, `return tostring(out)`); got != "false:ECLOSED" {
 		t.Fatalf("write tras close_stdin: got %q, want false:ECLOSED", got)
+	}
+}
+
+// Reap temprano: un proceso TERMINADO cuyos dos streams se agotaron (EOF visto
+// por la ruta de lectura) se recoge sin esperar a Runtime.Close — pipes cerrados
+// y fuera de los mapas del scheduler—. Antes, cada spawn anclaba 2 descriptores
+// y sus entradas de rastreo durante toda la vida del runtime.
+func TestProcWasmReapTemprano(t *testing.T) {
+	rt := &Runtime{}
+	rt.sched = newScheduler(rt, 100*time.Millisecond)
+	inst := wasmProcRun(t, rt, nil, `
+		nu.task.spawn(function()
+			local p = nu.proc.spawn({"sh", "-c", "echo hola; echo err 1>&2"})
+			p:wait()
+			while p:read_line("stdout") ~= nil do end
+			while p:read_line("stderr") ~= nil do end
+			out = "ok"
+		end)`)
+	if got := evalStr(t, inst, `return tostring(out)`); got != "ok" {
+		t.Fatalf("setup: got %q", got)
+	}
+	// El último EOF dispara el reap dentro del propio hostcall, pero se sondea con
+	// margen para no acoplarse a ese detalle.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		rt.sched.mu.Lock()
+		nProcs := len(rt.sched.procs)
+		nOwned := len(rt.sched.ownerHandles["user"])
+		rt.sched.mu.Unlock()
+		if nProcs == 0 && nOwned == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("reap temprano no ocurrió: procs=%d, handles del dueño=%d", nProcs, nOwned)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

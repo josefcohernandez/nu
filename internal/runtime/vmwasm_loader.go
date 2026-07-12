@@ -192,6 +192,14 @@ func (l *loader) reloadWasm(name string) error {
 	//    huérfanos" (G2).
 	l.releaseOwnerHandlesWasm(p.Name)
 
+	//    Y el registro Go por dueño (handles.go): el preludio solo conoce subs y
+	//    timers Lua; los procesos de `nu.proc.spawn` y los watchers de `nu.fs.watch`
+	//    del plugin viven en el scheduler Go y sin este release sobrevivirían a la
+	//    recarga (el contrato de proc.go es explícito: no deben).
+	if l.rt.sched != nil {
+		l.rt.sched.releaseOwnerHandles(p.Name)
+	}
+
 	// 3. Relee del disco los módulos `lua/` del plugin (pueden haber cambiado) y vacía
 	//    su caché de `require`: un módulo modificado debe re-ejecutarse, no servirse
 	//    cacheado (paridad con clearRequireCache de gopher, que re-lee de package.path).

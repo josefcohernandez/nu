@@ -111,13 +111,17 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// nil en EOF (fin del stream). which inválido → EINVAL; fallo de lectura → EIO.
 	p.RegisterHandleMethod("Proc", "read_line", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		pr := val.(*luaProc)
-		r, mu, err := pr.reader(argString(args, 0))
+		which := argString(args, 0)
+		r, mu, err := pr.reader(which)
 		if err != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: err.Error()}
 		}
 		line, eof, rerr := readLineFrom(mu, r)
 		if rerr != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEIO, Message: "Proc:read_line: " + rerr.Error()}
+		}
+		if eof {
+			pr.noteEOF(which) // stream agotado: candidato a reap temprano (proc.go)
 		}
 		if eof && line == "" {
 			return []any{nil}, nil // EOF sin datos: nil (§6)
@@ -131,7 +135,8 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// y el wire descarta ese nil final, así que aquí `arg(args, 1)` es nil → lee todo.
 	p.RegisterHandleMethod("Proc", "read", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		pr := val.(*luaProc)
-		r, mu, err := pr.reader(argString(args, 0))
+		which := argString(args, 0)
+		r, mu, err := pr.reader(which)
 		if err != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: err.Error()}
 		}
@@ -145,6 +150,9 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		data, eof, rerr := readFrom(mu, r, n)
 		if rerr != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEIO, Message: "Proc:read: " + rerr.Error()}
+		}
+		if eof {
+			pr.noteEOF(which) // stream agotado: candidato a reap temprano (proc.go)
 		}
 		if eof && len(data) == 0 {
 			return []any{nil}, nil // EOF sin datos: nil (§6)
@@ -171,8 +179,24 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// inmediato; esperar la muerte es wait). Idempotente y best-effort (killed).
 	p.RegisterHandleMethod("Proc", "kill", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		sig := syscall.SIGTERM // por defecto TERM (§6)
-		if arg(args, 0) != nil {
-			sig = syscall.Signal(argInt(args, 0))
+		// Si se da una señal, DEBE ser numérica. No usamos argInt aquí: degradaría
+		// cualquier tipo no numérico (un string "KILL" incluido) a 0, y syscall.Signal(0)
+		// es la sonda de existencia —no mata—, de modo que un kill con señal mal tipada
+		// no mataría y tampoco daría error. Type-switch explícito: int64 o float64 con
+		// valor entero; cualquier otra cosa → EINVAL accionable.
+		if a := arg(args, 0); a != nil {
+			switch v := a.(type) {
+			case int64:
+				sig = syscall.Signal(v)
+			case float64:
+				if iv := int64(v); float64(iv) == v {
+					sig = syscall.Signal(iv)
+				} else {
+					return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "Proc:kill: la señal debe ser un entero (p. ej. 9 para KILL o 15 para TERM); el default sin argumento es TERM"}
+				}
+			default:
+				return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "Proc:kill: la señal debe ser numérica (p. ej. 9 para KILL o 15 para TERM); el default sin argumento es TERM"}
+			}
 		}
 		val.(*luaProc).killSignal(sig)
 		return nil, nil

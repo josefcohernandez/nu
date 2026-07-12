@@ -241,7 +241,21 @@ type wasmWatcher struct {
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
+
+	// ownerName/sched: ciclo de vida más allá del `stop` explícito. El watcher se
+	// etiqueta con el dueño vigente al crearse (S13): `nu.plugin.reload` corta los
+	// watchers de ESE plugin (vía release, como a sus procesos), y `Runtime.Close`
+	// corta todos los vivos (stopAllWatchers) — sin esto, goroutine y fd de
+	// fsnotify sobrevivían a ambos. `sched` es nil en los tests mínimos.
+	ownerName string
+	sched     *scheduler
 }
+
+// wasmWatcher implementa ownedHandle (S13): un reload del plugin dueño lo para
+// igual que mata a sus procesos. release NO toca el registro por dueño (eso lo
+// orquesta releaseOwnerHandles); stop sí se desregistra del mapa de vivos.
+func (w *wasmWatcher) release()      { w.stop() }
+func (w *wasmWatcher) owner() string { return w.ownerName }
 
 // registerWatchWasm cuelga `nu.fs._watch` (la primitiva síncrona que arma el
 // watcher y devuelve el handle) y el método `Watcher:stop`, e instala el wrapper
@@ -309,6 +323,8 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 			debounce:  time.Duration(debounceMs) * time.Millisecond,
 			gi:        gi,
 			stopCh:    make(chan struct{}),
+			ownerName: rt.currentOwner(),
+			sched:     rt.sched,
 		}
 		if err := w.addTree(root, info.IsDir()); err != nil {
 			_ = fsw.Close()
@@ -317,6 +333,10 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 
 		h := inst.AllocHandle("Watcher", w)
 		w.evname = fmt.Sprintf("core:__fs_watch.%d", uint32(h))
+		if rt.sched != nil {
+			rt.sched.trackWatcher(w) // para Runtime.Close (stopAllWatchers)
+			rt.sched.track(w)        // para nu.plugin.reload (registro por dueño, G2)
+		}
 		go w.run(inst)
 		return []any{h}, nil
 	})
@@ -441,11 +461,15 @@ func (w *wasmWatcher) deliver(inst *vmwasm.Instance, batch []watchEvent) {
 }
 
 // stop corta el watcher: cierra stopCh (la goroutine de run retorna) y el watcher del
-// SO (sus goroutines mueren). Idempotente (stopOnce): parar dos veces es inocuo.
+// SO (sus goroutines mueren), y se desregistra del mapa de vivos del scheduler.
+// Idempotente (stopOnce): parar dos veces es inocuo.
 func (w *wasmWatcher) stop() {
 	w.stopOnce.Do(func() {
 		close(w.stopCh)
 		_ = w.fsw.Close()
+		if w.sched != nil {
+			w.sched.untrackWatcher(w)
+		}
 	})
 }
 

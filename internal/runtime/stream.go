@@ -326,15 +326,25 @@ func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration)
 	// no llegan a tiempo; al recibirlas, se detiene.
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// LA CARRERA DE LAS CABECERAS (§8). El `time.AfterFunc(timeout)` vence en su
+	// PROPIA goroutine, y `Timer.Stop()` **no** cancela una AfterFunc que YA
+	// disparó. Sin exclusión, si el timer venciera en la ventana entre que
+	// `client.Do` retorna con éxito y el `Stop`, su `cancel()` envenenaría el
+	// contexto que gobierna `resp.Body`: entregaríamos un `Stream` con el contexto
+	// ya cancelado y el primer `next` lanzaría un `ENET` espurio pese a haber
+	// recibido status y cabeceras correctos. El `headerGate` arbitra la carrera con
+	// exclusión mutua: la AfterFunc y la ruta de entrega no pueden solaparse, así
+	// que o gana la entrega (el timer, si dispara después, es un no-op y no toca el
+	// contexto) o gana el timer (la entrega lo detecta y trata la petición como el
+	// mismo timeout de cabeceras que la ruta de error). El resultado es
+	// determinista: o `Stream` válido o `ETIMEOUT`, nunca un `ENET` espurio.
+	var gate headerGate
 	var headerTimer *time.Timer
-	headerTimedOut := false
-	var htMu sync.Mutex
 	if o.timeout > 0 {
 		headerTimer = time.AfterFunc(o.timeout, func() {
-			htMu.Lock()
-			headerTimedOut = true
-			htMu.Unlock()
-			cancel()
+			if gate.fire() {
+				cancel()
+			}
 		})
 	}
 
@@ -358,18 +368,72 @@ func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration)
 	if headerTimer != nil {
 		headerTimer.Stop()
 	}
+	// Cierra la carrera ANTES de decidir nada: marca la entrega y averigua si el
+	// timer ya la había ganado. A partir de aquí la AfterFunc, si aún no había
+	// disparado, es un no-op (no tocará `cancel`); si YA disparó, `timedOut` es
+	// true y el contexto está (o estará) cancelado por ella.
+	timedOut := gate.deliver()
 	if err != nil {
 		cancel()
-		htMu.Lock()
-		timedOut := headerTimedOut
-		htMu.Unlock()
 		if timedOut {
 			return nil, &httpError{code: CodeETIMEOUT, msg: "nu.http.stream: la petición excedió timeout_ms (hasta cabeceras)"}
 		}
 		return nil, classifyTransportError(ctx, err)
 	}
+	if timedOut {
+		// `Do` retornó éxito pero el timer ganó la carrera (venció justo antes del
+		// `Stop`): su `cancel()` ya envenenó el contexto, así que el body está muerto.
+		// No entregamos un `Stream` que lanzaría `ENET` espurio en el primer `next`:
+		// tratamos la petición como el MISMO timeout de cabeceras que la ruta de error
+		// (resultado determinista). Cerramos el body descartado y cancelamos (inocuo,
+		// ya está cancelado) para no filtrar la conexión.
+		_ = resp.Body.Close()
+		cancel()
+		return nil, &httpError{code: CodeETIMEOUT, msg: "nu.http.stream: la petición excedió timeout_ms (hasta cabeceras)"}
+	}
 
 	// Cabeceras recibidas: el `Stream` toma posesión del body y del `cancel`. La
 	// goroutine de fondo (en `newHTTPStream`) empieza a leer el body de inmediato.
 	return newHTTPStream(sched, resp.StatusCode, flattenHeaders(resp.Header), resp.Body, cancel, idle), nil
+}
+
+// headerGate arbitra la carrera entre la AfterFunc del `timeout_ms` (que vence en
+// su propia goroutine) y la ruta de entrega de `openStream` (que corre tras
+// `client.Do`). Da EXCLUSIÓN MUTUA determinista con un candado pequeño y un par de
+// booleanos: `delivered` (la entrega ya tomó posesión de la respuesta) y
+// `timedOut` (el timer venció y pidió cancelar el contexto). Solo uno de los dos
+// lados "gana", y el otro lo observa bajo el mismo candado —nunca se solapan—, de
+// modo que jamás se entrega un `Stream` con el contexto ya envenenado por un timer
+// que disparó en la ventana entre `Do` y `Timer.Stop()`.
+type headerGate struct {
+	mu        sync.Mutex
+	delivered bool
+	timedOut  bool
+}
+
+// fire lo llama la AfterFunc del `headerTimer` al vencer. Devuelve true si el
+// llamante debe cancelar el contexto: solo cuando la entrega AÚN no ha ocurrido
+// (marca entonces `timedOut` para que la ruta de entrega lo detecte). Si la
+// entrega ya ganó la carrera, devuelve false y no toca nada —el contexto que
+// gobierna un body ya entregado no se envenena—.
+func (g *headerGate) fire() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.delivered {
+		return false
+	}
+	g.timedOut = true
+	return true
+}
+
+// deliver lo llama la ruta de entrega tras `Do`+`Stop`. Marca `delivered` (a
+// partir de aquí un `fire` posterior es no-op) y devuelve si el timer YA había
+// ganado la carrera: si es true, el contexto está cancelado y el llamante debe
+// abortar la entrega tratándola como timeout de cabeceras en vez de entregar un
+// stream envenenado.
+func (g *headerGate) deliver() (timedOut bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.delivered = true
+	return g.timedOut
 }

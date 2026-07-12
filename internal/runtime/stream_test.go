@@ -327,6 +327,39 @@ func TestStreamClosedByCleanupOnCancel(t *testing.T) {
 	}
 }
 
+// TestHeaderGateRace blinda el árbitro de la carrera de cabeceras (`openStream`):
+// `Timer.Stop()` NO cancela una AfterFunc ya disparada, así que si el timer vence
+// en la ventana entre que `client.Do` retorna con éxito y el `Stop`, su `cancel()`
+// envenenaría el contexto del body y el primer `next` lanzaría un `ENET` espurio.
+// El `headerGate` da exclusión mutua determinista; se comprueban AMBOS órdenes de
+// intercalación posibles (no hay una tercera vía: ambos lados toman el candado).
+func TestHeaderGateRace(t *testing.T) {
+	// Orden A — la entrega gana (`Do` retorna antes de que venza el timer). La
+	// entrega no ve timeout y el timer, si dispara después, es un no-op.
+	var g headerGate
+	if g.deliver() {
+		t.Fatal("deliver sin timer vencido: no debería reportar timeout")
+	}
+	if g.fire() {
+		t.Fatal("fire tras deliver: no debería pedir cancelación (body ya entregado)")
+	}
+
+	// Orden B — el timer gana (vence en la ventana antes del `Stop`/deliver). El
+	// timer pide cancelar y la entrega lo detecta, abortando como timeout.
+	var g2 headerGate
+	if !g2.fire() {
+		t.Fatal("fire primero: debería pedir cancelación del contexto")
+	}
+	if !g2.deliver() {
+		t.Fatal("deliver tras fire: debería reportar que el timer ganó la carrera")
+	}
+	// Un segundo fire (el timer no vuelve a disparar, pero por robustez) tras la
+	// entrega es no-op: el árbitro es estable.
+	if g2.fire() {
+		t.Fatal("fire tras deliver: debería ser no-op")
+	}
+}
+
 // TestStreamOutsideTaskEINVAL blinda que `stream`, por ser ⏸, fuera de una task
 // lanza `EINVAL` (no puede suspender sin una task, §1.3).
 func TestStreamOutsideTaskEINVAL(t *testing.T) {

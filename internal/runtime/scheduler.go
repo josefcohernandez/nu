@@ -47,10 +47,11 @@ type scheduler struct {
 	// ni descriptor debe sobrevivir al proceso (red de seguridad, tras el cleanup de
 	// quien los creó). Los alimentan las primitivas (trackProc/trackStream/...) y los
 	// soltados a mano (untrackStream/untrackWs/untrackGrep).
-	procs   map[*luaProc]struct{}
-	streams map[*httpStream]struct{}
-	ws      map[*luaWs]struct{}
-	greps   map[*grepIter]struct{}
+	procs    map[*luaProc]struct{}
+	streams  map[*httpStream]struct{}
+	ws       map[*luaWs]struct{}
+	greps    map[*grepIter]struct{}
+	watchers map[*wasmWatcher]struct{}
 
 	// ownerHandles es el registro de handles por dueño (S13, handles.go): asocia cada
 	// plugin (por nombre de owner) a los handles persistentes que registró, para que
@@ -62,13 +63,14 @@ type scheduler struct {
 // presupuesto de slice del watchdog y los mapas de recursos de fondo vacíos.
 func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 	s := &scheduler{
-		rt:      rt,
-		gil:     make(chan struct{}, 1),
-		budget:  budget,
-		procs:   make(map[*luaProc]struct{}),
-		streams: make(map[*httpStream]struct{}),
-		ws:      make(map[*luaWs]struct{}),
-		greps:   make(map[*grepIter]struct{}),
+		rt:       rt,
+		gil:      make(chan struct{}, 1),
+		budget:   budget,
+		procs:    make(map[*luaProc]struct{}),
+		streams:  make(map[*httpStream]struct{}),
+		ws:       make(map[*luaWs]struct{}),
+		greps:    make(map[*grepIter]struct{}),
+		watchers: make(map[*wasmWatcher]struct{}),
 	}
 	s.gil <- struct{}{} // token disponible: el primero que lo pida pinta/lee el compositor
 	return s
@@ -84,6 +86,14 @@ func (s *scheduler) release() { s.gil <- struct{}{} }
 func (s *scheduler) trackProc(p *luaProc) {
 	s.mu.Lock()
 	s.procs[p] = struct{}{}
+	s.mu.Unlock()
+}
+
+// untrackProc deja de rastrear un subproceso ya recogido (reap temprano: salió y
+// sus dos streams se agotaron y cerraron, proc.go maybeReap). Idempotente.
+func (s *scheduler) untrackProc(p *luaProc) {
+	s.mu.Lock()
+	delete(s.procs, p)
 	s.mu.Unlock()
 }
 
@@ -166,6 +176,39 @@ func (s *scheduler) stopAllWs() {
 	s.mu.Unlock()
 	for _, w := range ws {
 		w.close()
+	}
+}
+
+// trackWatcher registra un `nu.fs.watch` vivo (S15) para poder cortarlo al cerrar
+// el runtime: su goroutine de fondo y el watcher del SO (fd de inotify/kqueue) no
+// deben sobrevivir al proceso.
+func (s *scheduler) trackWatcher(w *wasmWatcher) {
+	s.mu.Lock()
+	s.watchers[w] = struct{}{}
+	s.mu.Unlock()
+}
+
+// untrackWatcher deja de rastrear un watcher parado (`Watcher:stop`). Idempotente.
+func (s *scheduler) untrackWatcher(w *wasmWatcher) {
+	s.mu.Lock()
+	delete(s.watchers, w)
+	s.mu.Unlock()
+}
+
+// stopAllWatchers corta todos los watchers vivos. Lo llama `Runtime.Close`.
+// `wasmWatcher.stop` es idempotente (`stopOnce`). Se copia el conjunto antes de
+// iterar porque `stop` llama a `untrackWatcher`, que toca el mapa bajo el mismo
+// candado.
+func (s *scheduler) stopAllWatchers() {
+	s.mu.Lock()
+	ws := make([]*wasmWatcher, 0, len(s.watchers))
+	for w := range s.watchers {
+		ws = append(ws, w)
+	}
+	s.watchers = make(map[*wasmWatcher]struct{})
+	s.mu.Unlock()
+	for _, w := range ws {
+		w.stop()
 	}
 }
 

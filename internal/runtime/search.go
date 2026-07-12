@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -418,18 +419,26 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 	}
 	defer func() { _ = f.Close() }()
 
-	sc := bufio.NewScanner(f)
-	// Sube el tope de línea del Scanner (default 64 KiB) a un valor holgado: una
-	// línea muy larga (un JSON minificado, un fichero generado) no debe abortar el
-	// grep de ese fichero. Más allá de este tope se ignora el resto de la línea.
-	sc.Buffer(make([]byte, 0, 64*1024), grepMaxLine)
+	// Lectura por líneas con TRUNCADO real más allá de `grepMaxLine`: una línea
+	// muy larga (un JSON minificado, un fichero generado) no debe abortar el grep
+	// de ese fichero. Aquí no sirve `bufio.Scanner`: ante un token que supera su
+	// buffer devuelve false DEFINITIVO (ErrTooLong) y las líneas restantes del
+	// fichero se perderían en silencio; `readGrepLine` recorta la cola de la
+	// línea larga y sigue con la siguiente.
+	r := bufio.NewReaderSize(f, 64*1024)
 	lineNo := 0
-	for sc.Scan() {
+	for {
+		line, eof, rerr := readGrepLine(r, grepMaxLine)
+		if rerr != nil {
+			return // fallo de lectura a mitad: se salta el resto (como el open)
+		}
+		if eof && line == "" {
+			return
+		}
 		lineNo++
 		if it.ctx.Err() != nil {
 			return // cancelado entre líneas
 		}
-		line := sc.Text()
 		idxs := re.FindAllStringIndex(line, -1)
 		if idxs == nil {
 			continue
@@ -445,6 +454,44 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 		case it.results <- res:
 		case <-it.ctx.Done():
 			return
+		}
+	}
+}
+
+// readGrepLine lee la siguiente línea de `r` (sin el salto final, y sin el `\r`
+// de un CRLF, como hacía ScanLines) truncándola a `max` bytes: la cola de una
+// línea que supere el tope se DESCARTA consumiéndola hasta el `\n`, y la lectura
+// continúa en la línea siguiente. eof=true al agotarse el fichero (la última
+// línea sin salto llega junto con eof=true; después, línea vacía + eof).
+func readGrepLine(r *bufio.Reader, max int) (string, bool, error) {
+	var buf []byte
+	truncated := false
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(chunk) > 0 && !truncated {
+			keep := chunk
+			if keep[len(keep)-1] == '\n' {
+				keep = keep[:len(keep)-1]
+			}
+			if room := max - len(buf); len(keep) > room {
+				keep = keep[:room]
+				truncated = true
+			}
+			buf = append(buf, keep...)
+		}
+		switch err {
+		case nil:
+			// Línea completa (el '\n' quedó consumido).
+			if n := len(buf); n > 0 && buf[n-1] == '\r' {
+				buf = buf[:n-1]
+			}
+			return string(buf), false, nil
+		case bufio.ErrBufferFull:
+			continue // aún sin '\n': sigue consumiendo (y descartando, si ya truncó)
+		case io.EOF:
+			return string(buf), true, nil
+		default:
+			return "", false, err
 		}
 	}
 }
