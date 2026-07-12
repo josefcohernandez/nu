@@ -251,6 +251,9 @@ func TestCLIEvalAndPromptIncompatible(t *testing.T) {
 	if code != exitUsage {
 		t.Fatalf("-e junto con --continue debe ser uso inválido; got %d, want %d", code, exitUsage)
 	}
+	if !strings.Contains(stderr, "incompatibles") || !strings.Contains(stderr, "--continue") {
+		t.Fatalf("el error debe nombrar los flags incompatibles; got %q", stderr)
+	}
 
 	// Casos que NO colisionan: cada modo por su cuenta, y `-e` con `-p ""` (ausencia).
 	for name, opts := range map[string]cliOptions{
