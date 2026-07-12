@@ -20,6 +20,16 @@ y §6.
 Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 media,
 🔵 baja.
 
+> **Estado de arreglos (mismo día).** Corregidos y blindados con tests en esta
+> rama: A-02, A-04, A-05, A-06, A-08, A-09, A-10, A-11, A-13, A-14, A-15,
+> A-16, A-18, A-20, A-23, A-25, A-26, A-32 (ver los commits que citan cada
+> id). Pendientes de una decisión de diseño (flujo G##/sesión planificada, no
+> parche): el trío estructural del scheduler (A-01/A-03/A-34, el bombeo del
+> modo interactivo), la superficie [W] de los workers (A-17, decidir qué
+> preludios cruzan), el replay de `event` (A-19, tensión G18/G19), la
+> persistencia del subagente-worker (A-21/A-22) y todos los ítems documentales
+> (§4) y limitaciones/anti-patrones (§5-§6).
+
 ---
 
 ## 1. Bugs confirmados en el kernel Go
