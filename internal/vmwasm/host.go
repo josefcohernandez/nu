@@ -481,6 +481,44 @@ end
 -- dentro de la task sin conocer su id).
 __current = nil
 
+-- __run_guarded(fn, ...): corre fn(...) con el watchdog cubriéndola AUNQUE la
+-- frontera se ejecute en el HILO DEL SCHEDULER (A-36). El count-hook (DM4) se arma
+-- por corrutina y sólo lo llevan las corrutinas de task (nu.task.spawn → __wd_arm);
+-- pero __finish (cleanups) y __ev_dispatch (handlers del bus) corren en el hilo
+-- principal (GL), que NO lo lleva. Un bucle de CPU (while true do end) ahí congelaría
+-- painter, FeedInput, EmitEvent y el propio bucle sin EBUDGET posible, contradiciendo
+-- la robustez por watchdog + pcall de ADR-008. Aquí se le da a esas fronteras el MISMO
+-- presupuesto de slice y la MISMA semántica de disparo que a una task.
+--
+-- Sólo el hilo principal necesita envoltura: dentro de una task la corrutina YA
+-- lleva el hook armado y su presupuesto cubre lo que la emisión anide (un bucle
+-- infinito aborta la task entera, que es lo correcto), así que ahí se llama directo
+-- (pcall) sin coste extra —no penalizar el camino normal del scheduler—. En el hilo
+-- principal se corre fn en una corrutina propia CON __wd_arm() y un slice fresco: el
+-- hook cede (lua_yield) al rebasar el presupuesto, cesión que ATRAPA este
+-- coroutine.resume local —no escapa al Call de nu_sched_step, que no es yieldable— y
+-- se reconoce por el yield sin valor (status ~= "dead"), gemelo del aborto de una
+-- task. Devuelve (ok, err) como pcall: ok=false con err={code=...} si fn lanzó o si
+-- el watchdog la cortó.
+local function __run_guarded(fn, ...)
+  local _, ismain = coroutine.running()
+  if not ismain then
+    -- dentro de una task: su count-hook ya cubre esto. Llamada directa.
+    return pcall(fn, ...)
+  end
+  local co = coroutine.create(function(...) __wd_arm(); return fn(...) end)
+  nu.__reset_budget()   -- slice fresco para esta frontera (como __resume ante cada task)
+  local r = table.pack(coroutine.resume(co, ...))
+  if not r[1] then return false, r[2] end          -- fn lanzó: error normal (best-effort arriba)
+  if coroutine.status(co) ~= "dead" then
+    -- cedió sin terminar: sólo el watchdog cede desde aquí (el hook cede sin valor).
+    -- Estas fronteras no pueden ⏸ (corren con el __current del contexto, que no lo
+    -- permite), así que un yield aquí es inequívocamente el aborto por budget.
+    return false, { code = "EBUDGET", message = "una frontera del scheduler excedió el presupuesto de slice (watchdog)" }
+  end
+  return true, r[2]
+end
+
 -- __finish(t): la task terminó (ok/error/cancelada). Corre sus cleanups en
 -- orden LIFO (§1, "el defer de esta casa": pase lo que pase) y notifica a sus
 -- awaiters. Idempotente.
@@ -489,9 +527,12 @@ local function __finish(t)
   t.finished = true
   if t.cleanups then
     for i = #t.cleanups, 1, -1 do
-      local cok, cerr = pcall(t.cleanups[i])
-      -- pcall por frontera (ADR-008): un cleanup que lanza no impide que corran los
-      -- demás ni tumba el proceso; queda en el log (best-effort, como gopher).
+      -- __run_guarded, no pcall pelado (A-36): __finish corre en el hilo del scheduler,
+      -- sin count-hook; un cleanup con un bucle de CPU congelaría el runtime. Con esto
+      -- se aborta por EBUDGET (watchdog) y los demás cleanups siguen corriendo.
+      local cok, cerr = __run_guarded(t.cleanups[i])
+      -- por frontera (ADR-008): un cleanup que lanza no impide que corran los demás ni
+      -- tumba el proceso; queda en el log (best-effort, como gopher).
       if not cok and nu.log and nu.log.error then
         local msg = type(cerr) == "table" and (cerr.message or cerr.code) or tostring(cerr)
         nu.log.error("un liberador de nu.task.cleanup lanzó: " .. tostring(msg))
@@ -974,8 +1015,12 @@ local function __ev_dispatch(name, payload)
         -- acumularía handles muertos (fuga que viola "sin fuga en el registro").
         if _G.__untrack_handle and s.__oh then _G.__untrack_handle(s.__oh) end
       end
-      -- cada handler bajo pcall (ADR-008); si lanza, best-effort al log (como gopher)
-      local ok, err = pcall(s.fn, payload)
+      -- cada handler por frontera (ADR-008); si lanza, best-effort al log (como gopher).
+      -- __run_guarded, no pcall pelado (A-36): un emit del hilo del scheduler
+      -- (EmitEvent, o el core:plugin.misbehaved de __resume) despacha sin count-hook;
+      -- un handler con un bucle de CPU congelaría painter/FeedInput/EmitEvent y el
+      -- bucle. Con esto el watchdog lo corta (EBUDGET) y el resto de handlers corre.
+      local ok, err = __run_guarded(s.fn, payload)
       if not ok and nu.log and nu.log.error then
         local msg = type(err) == "table" and (err.message or err.code) or tostring(err)
         nu.log.error("un handler de nu.events lanzó: " .. tostring(msg))
