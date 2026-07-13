@@ -39,13 +39,20 @@ Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 medi
 > recogida en modelo-ejecucion.md §limitaciones, que ya remite a G44); y las
 > limitaciones A-35/A-37 son ahora **P33/P34** con disparador.
 >
-> **Sin registrar ni corregir** (revisión 2026-07-13): A-07 (registro
-> `Pool.workers` monotónico), A-12 (orden texto/tool_calls del adaptador
-> Gemini), A-21/A-22 (persistencia y opts del subagente-worker), A-28 (⏸
-> ausente en `agent.session`/`fork`), A-36 (watchdog sin cubrir cleanups ni
-> handlers del bus), A-38 (frame de texto en `ws.send`; `sessions.list`
-> O(bytes totales)) y los anti-patrones §6 (A-39..A-42, de naturaleza
-> informativa salvo el disparador de P32 que A-39 reclama).
+> **Cierre del informe (2026-07-14, rama `develop`): no queda ningún A-##
+> pendiente.** El último lote se cerró así: A-07, A-12, A-21/A-22, A-36 y las
+> dos mitades de A-38 **corregidos y blindados con tests** que citan su id
+> (`sessions.list` compone con `nu.search.grep`, sin API nueva; la vía binaria
+> de `ws.send` sí era hueco de API y siguió el flujo canónico: **G52**,
+> resuelta por adición en api.md §8, nivel de API 2→3). A-28 aplicado en
+> agente.md (⏸ en `agent.session`/`fork`; `close` anotada como síncrona a
+> propósito). De los anti-patrones §6: A-39 → disparador **medible** para P32
+> (pintado >30 ms/frame, ADR-007); A-41 → **P35** con disparador; A-42 →
+> cuarentena honesta de `TestMCPToolServerError` (retry acotado que no puede
+> dar falso verde + condición de salida en el propio test, y diagnóstico
+> corregido: no es el handshake, apunta a la quiescencia de `runTaskLoop`);
+> A-40 → el protocolo `\x01` de errores estructurados se extendió al camino de
+> chunk y `wasmChunkError` (el parsing «CODE: mensaje») desapareció.
 
 ---
 
