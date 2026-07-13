@@ -417,7 +417,8 @@ XDG_CONFIG_HOME=examples nu
 ## Documentación
 
 Por defecto el proyecto se diseña en `docs/`: esos documentos son la
-especificación, y el código los implementa. Orden de lectura sugerido:
+especificación, y el código los implementa. El mapa completo por capas está en
+[docs/README.md](docs/README.md); orden de lectura sugerido:
 
 1. [Filosofía](docs/filosofia.md) — principios y lo que nu **no** es
 2. [Arquitectura](docs/arquitectura.md) — la forma del sistema (vista estática)
@@ -438,7 +439,12 @@ especificación, y el código los implementa. Orden de lectura sugerido:
 [Problemas abiertos](docs/problemas.md) ·
 [Pospuesto](docs/pospuesto.md) ·
 [Plan de implementación](docs/implementacion.md) ·
-[Plan de migración de la VM](docs/migracion-vm.md)
+[Decisiones de implementación](docs/decisiones-implementacion.md)
+
+**Histórico:** las auditorías fechadas viven en [docs/audits/](docs/audits/) y
+los planes ya ejecutados —como la
+[migración de la VM](docs/archive/migracion-vm.md)— en
+[docs/archive/](docs/archive/).
 
 ---
 

@@ -329,7 +329,7 @@ func TestEventsCancelWrongHandle(t *testing.T) {
 // evento `core:plugin.misbehaved` que un `on` del estado principal captura, con el
 // payload `{plugin, reason}`. Esto blinda el cableado del gancho interno
 // `rt.emitMisbehaved` (S09) al bus real (S10) —emitido de forma segura desde la
-// goroutine de la task, bajo el token (ver claude_decisions.md S10)—.
+// goroutine de la task, bajo el token (ver docs/decisiones-implementacion.md S10)—.
 func TestMisbehavedWiredToBus(t *testing.T) {
 	// G10/S09: el gancho rt.emitMisbehaved emite core:plugin.misbehaved por el bus.
 	h := newHarnessBudget(t, 30*time.Millisecond)

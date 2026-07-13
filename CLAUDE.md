@@ -49,12 +49,20 @@ Todo vive en `docs/`. Orden de lectura sugerido (y dependencias conceptuales):
 | `docs/sesiones.md` | Contrato de persistencia: JSONL append-only. |
 | `docs/chat.md` | Contrato de la extensión oficial `chat` (la UI). |
 | `docs/guia-plugins.md` | Sabiduría práctica para autores de plugins + checklist. |
+| `docs/malla.md` | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
 | `docs/pseudocodigo.md` | **El ejercicio de validación**: rondas de pseudocódigo que torturan la API. |
 | `docs/problemas.md` | Grietas que la v1 *necesita* cerradas (hallazgos G##, con estado). |
 | `docs/pospuesto.md` | Lo que se decidió no decidir todavía (P##), cada uno con su *disparador* de reapertura. |
 | `docs/implementacion.md` | Plan de construcción incremental: una feature por sesión (S##), ordenado por dependencias del kernel. |
+| `docs/decisiones-implementacion.md` | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
 
-`README.md` es el índice de entrada con el mismo orden de lectura.
+Además, dos carpetas por tipo de artefacto: `docs/audits/` (informes de
+auditoría fechados y cerrados) y `docs/archive/` (planes ya ejecutados que solo
+conservan valor histórico, como la migración de la VM). Nada de lo que hay ahí
+gobierna el diseño actual.
+
+`README.md` es el índice de entrada con el mismo orden de lectura;
+[docs/README.md](docs/README.md) es el mapa por capas de `docs/`.
 
 ## Las ideas centrales que NUNCA debes contradecir
 
@@ -144,7 +152,7 @@ Este es el corazón del proyecto y debes respetarlo:
   `chat.md`, `guia-plugins.md`). La mayoría de hallazgos G17-G23 nacieron
   justo de contratos que presuponían API inexistente.
 - **Respeta los enlaces cruzados.** Los documentos se referencian entre sí con
-  rutas relativas (`[api.md](api.md) §3`) y por número de hallazgo/ADR. Al
+  rutas relativas (`[api.md](docs/api.md) §3`) y por número de hallazgo/ADR. Al
   resolver algo, deja el rastro: enlaza el cambio desde `problemas.md` y cita
   el `G##`/`F##`/`P##`/`ADR-NNN` que lo motiva.
 - No inventes API para tapar un hallazgo sin antes comprobar que el patrón se
@@ -170,12 +178,14 @@ memoria. Protocolo, sin saltarte pasos:
    exhaustivos de sus casos límite, **obligatorios**, nombrando el `G##` que
    blindan. Si es un wrapper fino, basta el snippet Lua + el checkpoint; no
    inventes tests de código ajeno. Toda sesión deja `go build ./...` verde.
-3. **La API del core es sagrada.** Implementas [api.md](api.md), no lo amplías.
+3. **La API del core es sagrada.** Implementas [api.md](docs/api.md), no lo amplías.
    Si descubres que la API no basta, **párate**: es un hallazgo `G##` que se
    resuelve primero en los documentos (problemas.md → api.md → contratos) y solo
    *después* se implementa. El código nunca corrige la espec por la vía de hecho.
 4. **Al terminar, en el mismo commit que la feature:** avanza el puntero ▶,
-   marca el tablero si cerraste una fase, y añade fila a la bitácora. Si cierras
+   marca el tablero si cerraste una fase, y añade fila a la bitácora. Las
+   decisiones operativas y desviaciones que no llegan a `G##` se registran en
+   `docs/decisiones-implementacion.md` (una entrada por sesión). Si cierras
    una fase, ejecuta antes su **checkpoint de integración (🔎)**; si falla, no
    avances el puntero. Un commit que toca código sin mover el puntero es una
    sesión a medias.

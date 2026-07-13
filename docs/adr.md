@@ -358,7 +358,7 @@ equivalente — detalle del loader).
 
 ## ADR-011 · Realización del scheduler: goroutine-por-task + token de ejecución Lua
 
-**Estado:** **Reemplazada por [ADR-020](#adr-020--el-puente--definitivo-tasks-como-corrutinas-lua-nativas-reemplaza-adr-011-en-la-conmutación)** · la conmutación **M16** hizo de wasm el backend por defecto y la retirada **M17** ([migracion-vm.md](migracion-vm.md)) eliminó gopher-lua del `go.mod` y del binario, borrando el scheduler goroutine-por-task que este ADR realizaba; el puente ⏸ definitivo (tasks como corrutinas Lua nativas) lo describe ahora ADR-020. Como manda el flujo del proyecto, el cuerpo no se reescribe: queda como registro histórico de *cómo* se realizó ADR-004 sobre gopher-lua. · Originalmente Aceptada · 2026-06 (refinaba *cómo* se realiza ADR-004 sobre
+**Estado:** **Reemplazada por [ADR-020](#adr-020--el-puente--definitivo-tasks-como-corrutinas-lua-nativas-reemplaza-adr-011-en-la-conmutación)** · la conmutación **M16** hizo de wasm el backend por defecto y la retirada **M17** ([migracion-vm.md](archive/migracion-vm.md)) eliminó gopher-lua del `go.mod` y del binario, borrando el scheduler goroutine-por-task que este ADR realizaba; el puente ⏸ definitivo (tasks como corrutinas Lua nativas) lo describe ahora ADR-020. Como manda el flujo del proyecto, el cuerpo no se reescribe: queda como registro histórico de *cómo* se realizó ADR-004 sobre gopher-lua. · Originalmente Aceptada · 2026-06 (refinaba *cómo* se realiza ADR-004 sobre
 gopher-lua; no cambiaba su semántica observable ni la API de [api.md](api.md))
 
 **Contexto.** ADR-004 fijó el "modelo del navegador" (estado Lua principal
@@ -1052,7 +1052,7 @@ tablas 0,41×), peajes concentrados en las fronteras (llamada host ~1 µs, throw
 
 ## ADR-020 · El puente ⏸ definitivo: tasks como corrutinas Lua nativas (reemplaza ADR-011 en la conmutación)
 
-**Estado:** Aceptada · 2026-07 (diseña el puente ⏸ del backend wasm de [ADR-019]; **reemplaza a [ADR-011](#adr-011--realización-del-scheduler-goroutine-por-task--token-de-ejecución-lua)** cuando wasm sea la VM por defecto —conmutación M16 de [migracion-vm.md](migracion-vm.md)—; hasta entonces ambos coexisten tras el selector de backend, ADR-011 para gopher y este para wasm). No cambia la semántica observable de [api.md](api.md) §1.3 ni ninguna firma.
+**Estado:** Aceptada · 2026-07 (diseña el puente ⏸ del backend wasm de [ADR-019]; **reemplaza a [ADR-011](#adr-011--realización-del-scheduler-goroutine-por-task--token-de-ejecución-lua)** cuando wasm sea la VM por defecto —conmutación M16 de [migracion-vm.md](archive/migracion-vm.md)—; hasta entonces ambos coexisten tras el selector de backend, ADR-011 para gopher y este para wasm). No cambia la semántica observable de [api.md](api.md) §1.3 ni ninguna firma.
 
 **Contexto.** ADR-011 realizó el scheduler *sin yields* —goroutine por task + un token de ejecución— porque gopher-lua (Lua 5.1 reimplementado) **no deja que una corrutina ceda a través de un `pcall`** (grieta [G31](problemas.md#g31)). Fue un rodeo forzado: el "puente de corrutinas" que ADR-004 anticipó como el modelo natural no se pudo construir. El spike de ADR-019 demostró (test 🔒 `TestYieldATravesDePcall`, M02) que **el Lua oficial de PUC sobre wazero SÍ cede a través de `pcall`**: la grieta G31 no existe en la implementación de referencia. Por tanto el backend wasm puede —y debe— realizar el puente como ADR-004 quería.
 

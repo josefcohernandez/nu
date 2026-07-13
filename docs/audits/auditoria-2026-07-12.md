@@ -24,7 +24,7 @@ Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 medi
 > rama: A-02, A-04, A-05, A-06, A-08, A-09, A-10, A-11, A-13, A-14, A-15,
 > A-16, A-18, A-20, A-23, A-25, A-26, A-32 (ver los commits que citan cada
 > id). Lo pendiente está **registrado en el flujo canónico de diseño**
-> ([problemas.md](problemas.md) / [pospuesto.md](pospuesto.md)):
+> ([problemas.md](../problemas.md) / [pospuesto.md](../pospuesto.md)):
 > el trío del scheduler (A-01/A-03/A-34) es **G44** —resuelta y **construida**
 > el 2026-07-13 con la opción (b), `RunTasks` persistente (bitácora de
 > implementacion.md)—, la superficie [W] de
@@ -497,7 +497,7 @@ comentario.
 
 ### 🔴 A-39 — El veto de rendimiento de la migración a wasm falló (2,45×–4,5×) y se aceptó como excepción permanente sin backend de vuelta
 
-`docs/migracion-vm.md:276` (bitácora M15) — el hito de veto exigía camino
+`docs/archive/migracion-vm.md:276` (bitácora M15) — el hito de veto exigía camino
 caliente dentro de 2× de gopher; midió 4,5× (turno headless 574 µs → 2601 µs)
 y 2,45× (markdown streaming). La causa es arquitectónica (~50% intérprete
 PUC-en-wasm + ~33% maquinaria de cruce), la decisión humana fue proceder con
@@ -519,7 +519,7 @@ es viable; el camino de chunk quedó con el apaño.
 
 ### 🟡 A-41 — `nu.plugin.reload` es best-effort ante colisión de nombres de módulo (G2), documentado pero sin resolver
 
-`internal/vmwasm/loader.go:8` + `claude_decisions.md` (S13) — la purga de
+`internal/vmwasm/loader.go:8` + `decisiones-implementacion.md` (S13) — la purga de
 `package.loaded` enumera los `.lua` del plugin recargado, pero el espacio de
 nombres es global: dos plugins con un módulo `utils` y el reload de uno puede
 dejar cargado el del otro. La resolución registrada fue explícitamente «no
@@ -528,7 +528,7 @@ como fiable para desarrollo.
 
 ### 🟡 A-42 — Tests flaky conocidos y tolerados sin skip/retry ni issue
 
-`claude_decisions.md:3529` — `TestMCPToolServerError` es flake documentado
+`decisiones-implementacion.md:3529` — `TestMCPToolServerError` es flake documentado
 bajo la suite completa con `-race -count=2` («pasa aislado») y se decidió solo
 anotarlo; `TestSearchGrepEarlyStopNoLeak` aparece señalado como «preexistente
 y ajeno» en la bitácora post-M17 (ventana de 2 s contando goroutines). El

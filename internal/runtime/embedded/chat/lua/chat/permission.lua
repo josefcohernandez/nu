@@ -15,7 +15,7 @@
 -- aceptar requieren escribir `agent.toml` y un editor de patrón: su superficie
 -- excede S43 (el agente S39 no expone aún la edición de política en caliente);
 -- v1 ofrece una/denegar, muestra el patrón propuesto, y documenta «siempre» como
--- mejora (claude_decisions.md S43). El contrato del modal (un widget focusable que
+-- mejora (docs/decisiones-implementacion.md S43). El contrato del modal (un widget focusable que
 -- responde al ask) queda ejercido.
 --
 -- THEME (G22, chat.md §7): el realce del diálogo usa colores semánticos (accent

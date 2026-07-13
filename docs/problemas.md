@@ -14,7 +14,7 @@ necesita cerrados.
 `Ws:recv` sin distinguir el tipo de frame — resuelta por adición a `api.md`
 §8, nivel de API 2→3; G44–G51
 añadidas 2026-07-12 desde la auditoría integral
-([auditoria-2026-07-12.md](auditoria-2026-07-12.md)): G47–G51 —incoherencias
+([auditoria-2026-07-12.md](audits/auditoria-2026-07-12.md)): G47–G51 —incoherencias
 documentales— resueltas el mismo día; G44 —el bombeo del scheduler— resuelta
 y **construida** el 2026-07-13 con la opción (b), `RunTasks` persistente
 (bitácora de [implementacion.md](implementacion.md)); G45 —la superficie [W]

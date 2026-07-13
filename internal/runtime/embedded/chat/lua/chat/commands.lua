@@ -12,7 +12,7 @@
 -- con un PICKER difuso (`/model` sin arg, `/sessions`, `/fork`) quedan con su
 -- handler conectado a la API del agente/providers/sesiones pero el picker visual es
 -- la capa modal (chat.md §1, `toolkit.stack`) — v1 acepta el argumento por texto y
--- documenta el picker como mejora (claude_decisions.md S43). El handler SUSPENDE
+-- documenta el picker como mejora (docs/decisiones-implementacion.md S43). El handler SUSPENDE
 -- (⏸): aplica `Session:set_model`, reanuda, etc.
 
 local M = {}

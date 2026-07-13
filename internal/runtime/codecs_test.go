@@ -94,7 +94,7 @@ func TestJSONSentinelNull(t *testing.T) {
 
 // TestJSONArrayVsObjeto blinda el mapeo Lua↔Go: una tabla con claves 1..n
 // contiguas → array JSON; cualquier otra → objeto; una tabla vacía → objeto
-// (`{}`), la decisión documentada (claude_decisions.md S18).
+// (`{}`), la decisión documentada (docs/decisiones-implementacion.md S18).
 func TestJSONArrayVsObjeto(t *testing.T) {
 	h := newHarness(t)
 

@@ -1,7 +1,7 @@
 package runtime
 
 // Test 🔒 de G44 en el DRIVER: la manifestación A-34 de la auditoría
-// (docs/auditoria-2026-07-12.md). Antes de G44, `drive()` solo hacía
+// (docs/audits/auditoria-2026-07-12.md). Antes de G44, `drive()` solo hacía
 // FeedInput/Eval/flushFrame: una task spawneada desde un keymap (exactamente
 // cómo la extensión `chat` lanza el turno del agente) encolaba y NADIE la
 // reanudaba jamás — la killer app no podía correr sobre el TTY. Con el bombeo

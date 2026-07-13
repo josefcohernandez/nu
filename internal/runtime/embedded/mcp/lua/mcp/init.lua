@@ -9,7 +9,7 @@
 --      `nu.json.encode` + `Proc:write`, y lee responses de stdout línea a línea
 --      con `Proc:read_line` + `nu.json.decode`. **Framing por líneas** (una línea
 --      = un mensaje JSON terminado en `\n`): es el framing newline-delimited del
---      transporte stdio de MCP (ver claude_decisions.md S41 para la justificación
+--      transporte stdio de MCP (ver docs/decisiones-implementacion.md S41 para la justificación
 --      y la alternativa Content-Length descartada para v1).
 --   2. **Ciclo de vida del proceso** (§"Ciclo de vida"): el servidor se lanza,
 --      se mantiene vivo mientras la conexión exista, y se mata limpiamente
@@ -48,7 +48,7 @@ end
 
 -- Versión del protocolo MCP que anunciamos en `initialize`. MCP versiona por
 -- fecha; el servidor responde con la suya (que aceptamos si la habla). Ver
--- claude_decisions.md S41 sobre la negociación mínima de v1.
+-- docs/decisiones-implementacion.md S41 sobre la negociación mínima de v1.
 local PROTOCOL_VERSION = "2025-06-18"
 
 -- Datos del cliente que enviamos en `initialize` (clientInfo, MCP §lifecycle).
@@ -220,7 +220,7 @@ end
 -- Prefijo `mcp__<servidor>__<tool>` (convención de namespacing del ecosistema
 -- MCP): evita choques entre servidores y entre una tool MCP y una propia, y hace
 -- el patrón de permiso legible (`allow = {"mcp__github__*"}`). Ver
--- claude_decisions.md S41.
+-- docs/decisiones-implementacion.md S41.
 local function tool_id(server, remote)
   return string.format("mcp__%s__%s", server, remote)
 end

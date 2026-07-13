@@ -81,7 +81,7 @@ import (
 // TABLAS: NO se soportan en S23 (CommonMark base; las tablas son una extensión
 // GFM). goldmark sin extensiones no las parsea, así que una tabla cae a un
 // párrafo de texto plano (las celdas con `|`) — válido y estable, solo sin
-// formato de tabla. Documentado en claude_decisions.md (S23); reabrible si una
+// formato de tabla. Documentado en docs/decisiones-implementacion.md (S23); reabrible si una
 // extensión las pide (P##).
 //
 // QUÉ REUSARÁ S24 (highlight): el render de un code block aquí aplica UN solo

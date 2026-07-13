@@ -2853,7 +2853,7 @@ sondeo bajo `-race`). No regresiona S01–S34. Cierra la Fase 7 (Workers); arran
 
 Primera extensión de la **Fase 8**: ya no se toca el kernel, se escribe **Lua sobre la
 API pública congelada** (ADR-003, sin privilegio de kernel; el core no sabe lo que es un
-provider). El contrato es [providers.md](docs/providers.md), no api.md.
+provider). El contrato es [providers.md](providers.md), no api.md.
 
 ### Estructura de la extensión (plugin embebido)
 
@@ -3862,7 +3862,7 @@ CIERRA la Fase 8 (todas las extensiones oficiales).
 ## S45 — Superficie CLI (flags, --auto-permissions, --continue/G18, códigos de salida); cierra la Fase 8 y el plan (arquitectura nº5)
 
 **Qué es.** El ÚLTIMO eslabón del plan: la superficie de línea de comandos del binario `nu`.
-Cierra la cuestión abierta nº5 de [arquitectura.md](docs/arquitectura.md), la Fase 8 y el plan
+Cierra la cuestión abierta nº5 de [arquitectura.md](arquitectura.md), la Fase 8 y el plan
 entero (45/45). Vive en `main.go` (el binario), **NO en la API sagrada `nu.*`** (api.md): es la
 interfaz del ejecutable, no superficie Lua. El core sigue sin saber lo que es un agente
 (ADR-003): el CLI orquesta las extensiones `agent`/`sessions` por la API pública, exactamente
@@ -3966,7 +3966,7 @@ request con `thinking.budget` sobre ellos daría 400 contra la API real. **No es
 código** —el adaptador cumple fielmente el contrato congelado y sus tests usan SSE grabado, no
 red—, sino una grieta del **modelo canónico** que conviene NO decidir aún: cambiar el modelo de
 thinking es transversal (§2.1 + el adaptador + posiblemente el control de razonamiento del agente)
-y no urge sin un consumidor real. Queda como **[P21](docs/pospuesto.md)** con su disparador
+y no urge sin un consumidor real. Queda como **[P21](pospuesto.md)** con su disparador
 (conectar el adaptador contra la API real con un Opus 4.6+ y recibir 400, o querer thinking
 adaptativo de primera clase). No se tocó `providers.md` ni el adaptador.
 

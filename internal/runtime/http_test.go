@@ -308,7 +308,7 @@ func TestHTTPRequestTLSCAFile(t *testing.T) {
 }
 
 // TestHTTPRequestMultiValueHeaders blinda la decisión sobre headers de respuesta
-// con valores múltiples (claude_decisions.md S19): se **unen por ", "**.
+// con valores múltiples (docs/decisiones-implementacion.md S19): se **unen por ", "**.
 func TestHTTPRequestMultiValueHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-Multi", "a")

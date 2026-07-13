@@ -1,6 +1,6 @@
 // Package vmwasm es el backend de VM de nu basado en PUC-Lua oficial compilado
 // a WebAssembly y ejecutado sobre wazero (Go puro, CGO_ENABLED=0). Materializa
-// [ADR-019]; el plan por sesiones vive en docs/migracion-vm.md.
+// [ADR-019]; el plan por sesiones vive en docs/archive/migracion-vm.md.
 //
 // Esta sesión (M02) provee el CIMIENTO: el blob nu.wasm embebido, un Pool que lo
 // compila una vez e instancia N veces (aislamiento físico de memoria por

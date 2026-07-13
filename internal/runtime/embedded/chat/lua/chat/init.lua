@@ -70,7 +70,7 @@ M.keys = {
 -- renderer(tool_name, fn): registra el render del resultado de una tool (chat.md
 -- §2, renderers enchufables). v1: se guarda; el transcript usa el fallback de
 -- texto plano (el render rico por-tool es mejora posterior sobre el mismo item,
--- claude_decisions.md S43).
+-- docs/decisiones-implementacion.md S43).
 local tool_renderers = {}
 function M.renderer(tool_name, fn)
   if type(tool_name) ~= "string" or type(fn) ~= "function" then

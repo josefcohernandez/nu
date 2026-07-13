@@ -2,7 +2,7 @@ package vmwasm
 
 // Tests 🔒 de G44: el bombeo del scheduler con estado en la Instance.
 // Blindan las tres manifestaciones que la auditoría verificó empíricamente
-// (A-01/A-03/A-34 del informe, docs/auditoria-2026-07-12.md):
+// (A-01/A-03/A-34 del informe, docs/audits/auditoria-2026-07-12.md):
 //   - un `every` SOBREVIVE a la quiescencia de primer plano (pausa, no muerte)
 //     y la siguiente invocación de RunTasks lo reanuda;
 //   - el trabajo encolado desde fuera del bucle (EmitEvent) despierta al select

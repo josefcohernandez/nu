@@ -3,7 +3,7 @@ package runtime
 // Tests de la PANTALLA DE RUNTIME DESNUDO (api.md §14, G21, S33). Blindan lo
 // AUTOMATIZABLE en este entorno headless (sin TTY); la interacción de teclado, el
 // streaming visible y el resize/paste visibles son el CP-7 MANUAL con TTY (ver
-// claude_decisions.md). Lo que sí se cubre por unidad:
+// docs/decisiones-implementacion.md). Lo que sí se cubre por unidad:
 //
 //   - CONDICIÓN: la pantalla se muestra SSI hay superficie de UI (`uiActive`) Y no
 //     hay plugins activos. Sin UI (headless) → no se muestra (arranca desnudo). Con

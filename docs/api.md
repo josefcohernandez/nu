@@ -24,7 +24,7 @@ de plugins y librerías Lua puras. Identificadores en inglés, `snake_case`.
 ### 1.2 Baseline del entorno Lua
 
 Lua 5.4 (PUC-Lua, compilada a WASM y ejecutada sobre el runtime embebido —
-ver [migracion-vm.md](migracion-vm.md)). Disponibles: `string`, `table`,
+ver [migracion-vm.md](archive/migracion-vm.md)). Disponibles: `string`, `table`,
 `math`, `coroutine`, `utf8`, `pairs/ipairs/pcall/error/load/...`.
 **Deshabilitados**: `io`, `os.execute`, `os.exit`, `os.remove`, `os.rename`,
 `os.getenv`, `print` (redirigido a `nu.log.info`), `dofile`/`loadfile` fuera

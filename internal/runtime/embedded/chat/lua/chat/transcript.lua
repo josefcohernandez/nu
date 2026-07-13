@@ -23,7 +23,7 @@
 -- y reusa el viewport/scroll del toolkit tal cual. Un widget-por-mensaje (para
 -- renderers enchufables de tools, chat.md §2) es una mejora natural posterior
 -- sobre este mismo modelo (los items ya están separados); v1 los serializa a
--- markdown. DESVIACIÓN documentada en claude_decisions.md (S43).
+-- markdown. DESVIACIÓN documentada en docs/decisiones-implementacion.md (S43).
 --
 -- THEME (G22, chat.md §7): el render final lo hace `nu.text.markdown`, que es
 -- themable (api.md §10); los marcadores de rol (un encabezado por mensaje) usan

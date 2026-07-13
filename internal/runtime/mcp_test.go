@@ -339,13 +339,13 @@ func TestMCPToolTrustHeadlessDeny(t *testing.T) {
 // `isError=true` se propaga como tool_result is_error (el modelo lo ve). El turno
 // no se rompe.
 //
-// CUARENTENA A-42 (flake conocido, ver docs/auditoria-2026-07-12.md §6). Este test
+// CUARENTENA A-42 (flake conocido, ver docs/audits/auditoria-2026-07-12.md §6). Este test
 // es un flake documentado bajo la SUITE COMPLETA con `-race -count=2` (pasa aislado
 // y en re-ejecuciones). SÍNTOMA EXACTO: bajo contención del conjunto el escenario
 // ocasionalmente NO observa el tool_result esperado —`out` distinto de "done", o el
 // texto del error del servidor ("explotó") ausente en `ERR_TEXT`—.
 //
-// DIAGNÓSTICO (2026-07): la nota original (`claude_decisions.md:3529`) atribuía el
+// DIAGNÓSTICO (2026-07): la nota original (`docs/decisiones-implementacion.md:3529`) atribuía el
 // flake a que "el handshake JSON-RPC excede el timing"; es INCORRECTO —no hay ningún
 // timeout en el camino de connect/handshake, `RunTasks` espera al lector—. La causa
 // real apunta a la QUIESCENCIA del scheduler (`internal/vmwasm/scheduler.go`,

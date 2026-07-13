@@ -39,7 +39,7 @@ import (
 //     (`http.ProxyFromEnvironment`). Los defaults globales viven en `[net]` de
 //     `nu.toml` (`ca_file`, `proxy`), sobreescribibles por petición.
 //
-// EL MODELO DEL CLIENTE (la decisión de diseño de S19, ver claude_decisions.md):
+// EL MODELO DEL CLIENTE (la decisión de diseño de S19, ver docs/decisiones-implementacion.md):
 // **un cliente reutilizable para el caso común, uno por-petición para los casos
 // con TLS/proxy a medida.** El caso común (sin `opts.tls`, sin `opts.proxy`, sin
 // CA corporativa de `[net]`) reusa un único `*http.Client` cacheado en
@@ -218,7 +218,7 @@ func classifyTransportError(ctx context.Context, err error) error {
 
 // flattenHeaders convierte los headers de respuesta (`http.Header`, que es
 // nombre→[]valor por el modelo del protocolo) a la tabla nombre→valor que el
-// contrato pide (§8). **Decisión sobre valores múltiples (claude_decisions.md
+// contrato pide (§8). **Decisión sobre valores múltiples (docs/decisiones-implementacion.md
 // S19):** se **unen por ", "** —la forma canónica de combinar headers repetidos
 // según RFC 7230 §3.2.2, válida para casi todos (la excepción notable, `Set-Cookie`,
 // no se parte por comas; un consumidor que necesite cookies crudas usará `stream`
