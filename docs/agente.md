@@ -23,7 +23,7 @@ tercero. Consecuencias buscadas:
 ## 2. Sesiones y turno
 
 ```
-agent.session(opts) -> Session
+agent.session(opts) ⏸ -> Session   -- IO suspendiente: lock de escritor y, con resume, replay (A-28)
   opts: { model: "proveedor/modelo", system?, cwd?, tools?: string[],
           skills?: string[], permissions?: Permissions, parent?,
           thinking?: { mode?: "off"|"adaptive"|"budget", budget?: integer },
@@ -31,11 +31,11 @@ agent.session(opts) -> Session
 
 Session:send(content: string|Block[]) ⏸ -> Message  -- ejecuta el turno completo
 Session:cancel()                                     -- cancela el turno en curso
-Session:fork(at?: integer, opts?: tabla) -> Session  -- bifurca y re-aloja (G39; sesiones.md §5)
+Session:fork(at?: integer, opts?: tabla) ⏸ -> Session -- bifurca y re-aloja; copia el prefijo (G39; sesiones.md §5)
 Session:compact() ⏸                                  -- compactación manual
 Session:set_model(model: string)                     -- cambio en caliente (G19)
 Session:set_thinking(thinking)                        -- razonamiento en caliente (ADR-016)
-Session:close()                                      -- suelta el lock de escritor (G39)
+Session:close()                                      -- suelta el lock de escritor (G39); síncrona a propósito: llamable desde nu.task.cleanup
 Session.id / Session.usage -> { context_tokens, cost_usd, turns }
 ```
 
