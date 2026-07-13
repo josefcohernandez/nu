@@ -157,12 +157,29 @@ local function make_iterator(stream, provider)
   local pending = {}
   local function enqueue(ev) pending[#pending + 1] = ev end
 
+  -- flush_text() cierra el bloque de texto acumulado y lo AÑADE AL FINAL del
+  -- content, preservando el orden real de llegada de las parts (A-12). Gemini
+  -- entrega el texto troceado en varias parts/eventos, que aquí se funden en un
+  -- único bloque contiguo; se llama justo antes de cada functionCall (para que la
+  -- tool_call quede DESPUÉS del texto que la precedió) y al cerrar el stream. Así
+  -- un `[text, functionCall, text]` produce tres bloques en ese mismo orden, en
+  -- vez de fundir todo el texto y anteponerlo a las tool_calls.
+  local function flush_text()
+    if text_acc ~= "" then
+      message.content[#message.content + 1] = { type = "text", text = text_acc }
+      text_acc = ""
+    end
+  end
+
   -- handle_part(part): traduce UNA `part` de un candidate a Events canónicos.
   local function handle_part(part)
     if type(part.text) == "string" and part.text ~= "" then
       text_acc = text_acc .. part.text
       enqueue({ type = "text", text = part.text })
     elseif type(part.functionCall) == "table" then
+      -- Cierra el texto acumulado ANTES de la tool_call: preserva el orden real
+      -- de llegada en el Message canónico (A-12), en vez de reordenar al final.
+      flush_text()
       saw_tool_call = true
       call_n = call_n + 1
       local id = "call_" .. tostring(call_n)
@@ -174,17 +191,6 @@ local function make_iterator(stream, provider)
       enqueue({ type = "tool_call.end", id = id })
       message.content[#message.content + 1] =
         { type = "tool_call", id = id, name = name, args = args }
-    end
-  end
-
-  -- flush_text() vuelca el texto acumulado como bloque al cerrar (Gemini lo
-  -- entrega troceado en varias parts/eventos).
-  local function flush_text()
-    if text_acc ~= "" then
-      -- Inserta el texto AL PRINCIPIO del content si aún no hay bloque de texto:
-      -- Gemini suele emitir el texto antes que los functionCall.
-      table.insert(message.content, 1, { type = "text", text = text_acc })
-      text_acc = ""
     end
   end
 

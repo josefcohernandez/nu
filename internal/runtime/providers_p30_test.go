@@ -220,6 +220,83 @@ func TestGeminiStreamCanonico(t *testing.T) {
 	}
 }
 
+// driveOrder corre un turno-de-adaptador y vuelca a globales el ORDEN real de
+// los bloques del Message ensamblado (A-12): `order` = tipos concatenados,
+// `texts` = los textos de los bloques `text` separados por `|`, `nblocks`.
+const driveOrder = `
+	out = {}
+	nu.task.spawn(function()
+		local p = require("providers")
+		local r = p.resolve("p/m")
+		local req = {
+			model = r.config.model.id,
+			messages = {
+				{ role = "user", content = { { type = "text", text = "hola" } } },
+			},
+			tools = { { name = "get_weather", description = "clima", schema = { type = "object" } } },
+		}
+		local done = nil
+		for ev in r.adapter.stream(req, r.config) do
+			if ev.type == "done" then done = ev end
+		end
+		local types, texts = {}, {}
+		for _, b in ipairs(done.message.content) do
+			types[#types+1] = b.type
+			if b.type == "text" then texts[#texts+1] = b.text end
+		end
+		out.order = table.concat(types, ",")
+		out.texts = table.concat(texts, "|")
+		out.nblocks = #done.message.content
+	end)
+`
+
+// SSE de Gemini con parts `[text, functionCall, text]`: el modelo intercala texto
+// antes y después de la llamada. El Message canónico debe conservar ese orden
+// (tres bloques), no fundir el texto ni anteponerlo a la tool_call (A-12).
+const geminiSSEInterleaved = `data: {"candidates":[{"content":{"role":"model","parts":[{"text":"antes "}]}}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"get_weather","args":{"city":"Madrid"}}}]}}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"después"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":11,"candidatesTokenCount":7}}
+
+`
+
+// TestGeminiOrdenTextoToolCall (A-12): parts `[text, functionCall, text]` producen
+// un Message con bloques `text, tool_call, text` en ESE orden, con el texto
+// troceado en el bloque que corresponde a cada tramo (no fundido).
+func TestGeminiOrdenTextoToolCall(t *testing.T) {
+	srv, _ := genericSSEServer(t, geminiSSEInterleaved)
+	defer srv.Close()
+	h := bootAdapter(t, "gemini", srv.URL)
+	h.eval(driveOrder)
+
+	h.expectEval(`return out.order`, "text,tool_call,text")
+	h.expectEval(`return out.texts`, "antes |después")
+	h.expectEval(`return tostring(out.nblocks)`, "3")
+}
+
+// SSE de Gemini con parts `[functionCall, text]`: la llamada llega ANTES del
+// texto. El bug histórico insertaba el texto en posición 1 y lo anteponía a la
+// tool_call; el orden canónico debe ser `tool_call, text` (A-12).
+const geminiSSECallFirst = `data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"get_weather","args":{"city":"Madrid"}}}]}}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"luego"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":11,"candidatesTokenCount":7}}
+
+`
+
+// TestGeminiOrdenToolCallTexto (A-12): parts `[functionCall, text]` producen un
+// Message con bloques `tool_call, text` en ese orden (no `text, tool_call`).
+func TestGeminiOrdenToolCallTexto(t *testing.T) {
+	srv, _ := genericSSEServer(t, geminiSSECallFirst)
+	defer srv.Close()
+	h := bootAdapter(t, "gemini", srv.URL)
+	h.eval(driveOrder)
+
+	h.expectEval(`return out.order`, "tool_call,text")
+	h.expectEval(`return out.texts`, "luego")
+	h.expectEval(`return tostring(out.nblocks)`, "2")
+}
+
 // SSE mínimo de Anthropic para que el turno complete (sin tools): message_start
 // + un texto + message_stop. Sirve para inspeccionar el cuerpo del request (P31).
 const minimalAnthropicSSE = `event: message_start
