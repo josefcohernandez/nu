@@ -11,13 +11,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
-# El PR cubre la validación pre-merge (lo importante); el push a `main` cubre el
-# commit de merge y mantiene el badge verde. No se dispara en las ramas `claude/*`
-# de trabajo: el PR ya las valida, así no se gastan minutos por duplicado.
+# El PR cubre la validación pre-merge (lo importante); el push a `main`/`develop`
+# cubre el commit de merge y mantiene el badge verde. Desde 2026-07-14 `develop`
+# es la rama de integración (main solo estables): sus pushes y las PR contra ella
+# corren los mismos checks —la protección de rama los exige—. No se dispara en
+# las ramas `claude/*` de trabajo: el PR ya las valida, así no se gastan minutos
+# por duplicado.
 
 # Permisos mínimos: solo lectura del repo. Ningún job de CI publica nada.
 permissions:
