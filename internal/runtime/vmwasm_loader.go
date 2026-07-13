@@ -97,8 +97,10 @@ func (l *loader) BootWasm() error {
 
 	// Drena las tasks que los init.lua (y los handlers de core:ready) hayan lanzado:
 	// el equivalente wasm de soltar el token en gopher (las tasks encoladas durante
-	// el arranque corren después de él). En headless (sin UI) esto termina; el bucle
-	// interactivo del driver de TTY es aparte (pendiente, ver bitácora).
+	// el arranque corren después de él). Retorna en la quiescencia de primer plano
+	// SIN matar el fondo (G44): los `every` que un init.lua arrancara quedan
+	// pausados y el bombeo continuo del modo interactivo (PumpTasks, driver.go) o
+	// el próximo drenaje headless los reanudan.
 	if err := l.rt.wasm.RunTasks(context.Background()); err != nil {
 		return err
 	}

@@ -36,6 +36,7 @@ package runtime
 // `nu.ui.quit` ni tocar `nu.version.api`.
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/signal"
@@ -118,16 +119,45 @@ func (d *ttyDriver) attachOutput() {
 	if d.rt.ui == nil {
 		return
 	}
-	d.rt.ui.out = d.out
-	d.rt.ui.comp.invalidate()
-	d.rt.flushFrame() // primer frame completo, ya
+	// Las tres operaciones (conectar la salida, invalidar, pintar) bajo el
+	// candado de la UI de una vez (G44: el bombeo puede estar mutando el
+	// compositor); flushFrameUnlocked porque el candado ya está tomado.
+	d.rt.withUILock(func() {
+		d.rt.ui.out = d.out
+		d.rt.ui.comp.invalidate()
+		d.rt.flushFrameUnlocked() // primer frame completo, ya
+	})
 }
 
 // drive es el BUCLE del driver (lo testeable): lee bytes de `d.in`, los parsea y los
 // inyecta, hasta que se pide apagar. La lectura ocurre en una goroutine aparte (un
 // `Read` de un terminal bloquea), que empuja los trozos por un canal; el bucle principal
 // selecciona entre esos trozos, el timeout del ESC pendiente y el canal de apagado.
+//
+// G44: junto al bucle de input arranca el BOMBEO CONTINUO del scheduler
+// (`PumpTasks`), la pieza que hasta ahora no existía: sin ella, una task
+// spawneada desde un keymap o un handler (el turno del agente del chat, el
+// spinner `nu.task.every`) encolaba y nadie la reanudaba jamás. Los dos bucles
+// conviven serializados por el mutex de la Instance (un solo hilo entra a la VM
+// a la vez; el bombeo lo toma por-paso y espera sin él). El bombeo vive
+// exactamente lo que vive drive(): al salir se corta su ctx y se espera su
+// retorno — sin barrer el trabajo de fondo, que reclama `Runtime.Close`.
 func (d *ttyDriver) drive() {
+	if d.rt.wasm != nil {
+		pumpCtx, pumpCancel := context.WithCancel(context.Background())
+		pumpDone := make(chan struct{})
+		go func() {
+			defer close(pumpDone)
+			// El error esperado al apagar es el ctx cancelado; un error duro del
+			// motor también termina aquí (el driver sigue vivo para poder salir).
+			_ = d.rt.wasm.PumpTasks(pumpCtx)
+		}()
+		defer func() {
+			pumpCancel()
+			<-pumpDone
+		}()
+	}
+
 	chunks := make(chan []byte, 8)
 	go d.readChunks(chunks)
 

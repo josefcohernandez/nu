@@ -49,62 +49,95 @@ type asyncResult struct {
 	isErr  bool
 }
 
-// RunTasks conduce el bucle de scheduler hasta que no queda ninguna task viva
-// (todas terminaron). Las tasks se crean desde Lua (nu.task.spawn) antes o
-// durante el bucle. `ctx` permite cancelar el bucle entero (M07 lo usará para el
-// apagado); su cancelación aborta la espera y retorna.
+// RunTasks conduce el bucle de scheduler hasta la quiescencia de PRIMER PLANO
+// (todas las tasks no-fondo terminaron) o hasta idle (nada en vuelo). Las tasks
+// se crean desde Lua (nu.task.spawn) antes o durante el bucle. `ctx` permite
+// cancelar la espera del bucle y retornar.
+//
+// G44: el estado del bombeo vive en la Instance, así que retornar NO barre el
+// trabajo de fondo — el `sleep` en vuelo de un `nu.task.every` sigue su curso,
+// su resultado espera en `pumpCh`, y la siguiente invocación (o un `PumpTasks`)
+// lo drena y reanuda el timer: los `every` se PAUSAN entre invocaciones, no
+// mueren. Solo un error duro del motor barre las peticiones en vuelo (esa VM ya
+// no puede reanudar a nadie); el barrido del apagado real es `Close` (cancela
+// `inst.ctx`, del que cuelgan todas las peticiones).
 func (inst *Instance) RunTasks(ctx context.Context) error {
-	ch := make(chan asyncResult, 64)
-	outstanding := 0
-	var inject []any // resultados a inyectar en el próximo step
-	// Una petición en vuelo por task suspendida (una corrutina cede una sola vez);
-	// su cancel permite abortarla cuando la task se cancela, sin esperar su
-	// duración (§1.3). Clave: el id de la task (int64 en el wire). Sólo cubre las
-	// peticiones con id de task parseable (la cancelación dirigida necesita la clave).
-	reqCancels := make(map[int64]context.CancelFunc)
-	// Peticiones cuyo id de task NO parsea (camino defensivo: jamás debería ocurrir,
-	// pero si ocurre su cancel no cabe en el mapa dirigido). Aquí se guardan para que
-	// `cancelAll` las barra al salir y su contexto no se fugue (aviso real de go vet).
-	var orphanCancels []context.CancelFunc
+	return inst.runTaskLoop(ctx, false)
+}
+
+// PumpTasks es el bucle de vida CONTINUO del scheduler (G44): idéntico a
+// RunTasks pero sin condición de salida por quiescencia — al agotarse el
+// trabajo se queda esperando un resultado, el timbre (kickPump) o la
+// cancelación de `ctx`, que gobierna su vida entera. Es el bombeo que el modo
+// interactivo lanza junto al bucle del driver de TTY (driver.go): sin él, una
+// task spawneada desde un keymap o un handler (el turno del agente del chat)
+// jamás correría. Cancelar `ctx` detiene el bucle SIN barrer el fondo (eso es
+// de `Close`), de modo que apagar el bombeo no mata los timers antes de que el
+// apagado ordenado del runtime los reclame.
+func (inst *Instance) PumpTasks(ctx context.Context) error {
+	return inst.runTaskLoop(ctx, true)
+}
+
+// runTaskLoop es el cuerpo común de RunTasks/PumpTasks. `persistent` decide si
+// la quiescencia de primer plano retorna (headless) o espera (bombeo continuo).
+func (inst *Instance) runTaskLoop(ctx context.Context, persistent bool) error {
+	// Un solo bucle a la vez sobre el estado compartido del bombeo: el CAS
+	// detecta la reentrada (p. ej. un EvalString drenando mientras el bombeo
+	// interactivo vive) en vez de corromper inject/outstanding en silencio.
+	if !inst.pumpActive.CompareAndSwap(false, true) {
+		return fmt.Errorf("vmwasm: RunTasks/PumpTasks reentrante: ya hay un bucle bombeando esta Instance")
+	}
+	defer inst.pumpActive.Store(false)
 
 	noteResult := func(r asyncResult) {
-		outstanding--
+		inst.pumpOutstanding--
 		if id, ok := taskID(r.id); ok {
-			if cancel, ok := reqCancels[id]; ok {
+			if cancel, ok := inst.pumpReqCancels[id]; ok {
 				cancel()
-				delete(reqCancels, id)
+				delete(inst.pumpReqCancels, id)
 			}
 		}
-		inject = append(inject, resultMap(r))
+		inst.pumpInject = append(inst.pumpInject, resultMap(r))
 	}
-	// Al salir, cancela toda petición en vuelo que quede (los timers de fondo
-	// abandonados), como `Close` en gopher: sus goroutines toman ctx.Done() y mueren.
-	// Barre las dos vías: las dirigidas por id (mapa) y las huérfanas (slice).
-	cancelAll := func() {
-		for _, cancel := range reqCancels {
+	// cancelPending barre toda petición en vuelo: SOLO para errores duros del
+	// motor. La quiescencia ya no barre (G44) — pausa, no muerte.
+	cancelPending := func() {
+		for _, cancel := range inst.pumpReqCancels {
 			cancel()
 		}
-		for _, cancel := range orphanCancels {
+		for _, cancel := range inst.pumpOrphans {
 			cancel()
 		}
 	}
 
 	for {
-		injWire, err := Encode([]any{inject})
+		// Drena sin bloquear los resultados ya listos: los que llegaron durante
+		// la espera y los que vencieron con el bucle PARADO (un every que latió
+		// entre dos invocaciones headless) — así el primer paso ya los inyecta.
+		for draining := true; draining; {
+			select {
+			case r := <-inst.pumpCh:
+				noteResult(r)
+			default:
+				draining = false
+			}
+		}
+
+		injWire, err := Encode([]any{inst.pumpInject})
 		if err != nil {
-			cancelAll()
+			cancelPending()
 			return err
 		}
-		inject = nil
+		inst.pumpInject = nil
 
 		stepWire, err := inst.schedStep(injWire)
 		if err != nil {
-			cancelAll()
+			cancelPending()
 			return err
 		}
 		pending, aborted, liveFg, err := decodeStep(stepWire)
 		if err != nil {
-			cancelAll()
+			cancelPending()
 			return err
 		}
 
@@ -112,53 +145,52 @@ func (inst *Instance) RunTasks(ctx context.Context) error {
 		// de fondo tomará su rama ctx.Done() y devolverá de inmediato (su resultado se
 		// ignora: la task ya está done), liberando `outstanding` sin la espera completa.
 		for _, id := range aborted {
-			if cancel, ok := reqCancels[id]; ok {
+			if cancel, ok := inst.pumpReqCancels[id]; ok {
 				cancel()
 			}
 		}
 
 		// Despacha cada petición de trabajo externo en una goroutine de fondo, con su
-		// propio contexto cancelable anclado al id de la task.
+		// propio contexto cancelable anclado al id de la task. El padre es el ctx de
+		// la INSTANCE, no el del bucle (G44): una petición de fondo debe sobrevivir al
+		// retorno de RunTasks (el every pausado) y morir con la cancelación dirigida
+		// de su task (§1.3) o con `Close` (inst.cancel), no con la espera del bucle.
 		for _, p := range pending {
-			reqCtx, cancel := context.WithCancel(ctx)
+			reqCtx, cancel := context.WithCancel(inst.ctx)
 			if id, ok := taskID(p.id); ok {
-				reqCancels[id] = cancel
+				inst.pumpReqCancels[id] = cancel
 			} else {
 				// Sin id de task no hay cancelación dirigida posible; se retiene el
-				// cancel para el barrido de `cancelAll` (evita la fuga de contexto).
-				orphanCancels = append(orphanCancels, cancel)
+				// cancel para el barrido de errores (evita la fuga de contexto).
+				inst.pumpOrphans = append(inst.pumpOrphans, cancel)
 			}
-			outstanding++
-			go inst.performRequest(reqCtx, p, ch)
+			inst.pumpOutstanding++
+			go inst.performRequest(reqCtx, p, inst.pumpCh)
 		}
 
-		// Quiescencia (paridad con waitIdle de gopher, que espera mientras hay primer
-		// plano vivo): se termina cuando NO queda ninguna task viva de PRIMER PLANO
-		// (liveFg==0; los timers de fondo `every` no cuentan —nunca terminan y
-		// colgarían el drain—) o cuando no hay nada en vuelo que pueda producir
-		// progreso (outstanding==0: idle/deadlock). Una task de primer plano suspendida
-		// en un future/await SÍ mantiene vivo el bombeo —incluidos los timers de fondo,
-		// cuyo callback puede resolver ese future—. Al salir se cancelan las goroutines
-		// en vuelo (timers abandonados). liveFg<0 (compat: paso sin 3er valor) NO corta.
-		if liveFg == 0 || outstanding == 0 {
-			cancelAll()
+		// Quiescencia (headless; paridad con waitIdle de gopher): se retorna cuando
+		// NO queda ninguna task viva de PRIMER PLANO (liveFg==0; los timers de fondo
+		// `every` no cuentan —nunca terminan y colgarían el drain—) o cuando no hay
+		// nada en vuelo que pueda producir progreso (outstanding==0: idle/deadlock).
+		// Una task de primer plano suspendida en un future/await SÍ mantiene vivo el
+		// bombeo —incluidos los timers de fondo, cuyo callback puede resolver ese
+		// future—. G44: se retorna SIN cancelar el fondo (pausa, no muerte); el modo
+		// persistente no retorna nunca por aquí. liveFg<0 (compat: paso sin 3er
+		// valor) NO corta.
+		if !persistent && (liveFg == 0 || inst.pumpOutstanding == 0) {
 			return nil
 		}
 
-		// Espera al menos un resultado, y drena los que ya estén listos.
+		// Espera trabajo: un resultado, el timbre (trabajo encolado desde fuera:
+		// Eval/EmitEvent/FeedInput/CoSpawn hicieron kickPump) o el fin del bucle.
 		select {
-		case r := <-ch:
+		case r := <-inst.pumpCh:
 			noteResult(r)
+		case <-inst.pumpKick:
+			// Nada que inyectar: la próxima vuelta hará el paso que recoja la
+			// cola de ready que el toque anuncia.
 		case <-ctx.Done():
 			return ctx.Err()
-		}
-		for draining := true; draining; {
-			select {
-			case r := <-ch:
-				noteResult(r)
-			default:
-				draining = false
-			}
 		}
 	}
 }
@@ -230,6 +262,19 @@ func decodeStep(wire []byte) ([]pendingReq, []int64, int, error) {
 	return reqs, aborted, liveFg, nil
 }
 
+// deliver envía un resultado al canal del bombeo. Si la Instance muere antes de
+// que algún bucle lo lea (buffer lleno y `Close`), suelta la goroutine emisora en
+// vez de fugarla — el resultado se pierde, pero esa VM ya no reanudará a nadie.
+// El escape es el ctx de la INSTANCE a propósito: la cancelación dirigida de una
+// task (reqCtx) SÍ debe entregar su ECANCELED, que es lo que decrementa
+// `outstanding` en el bucle.
+func (inst *Instance) deliver(ch chan<- asyncResult, r asyncResult) {
+	select {
+	case ch <- r:
+	case <-inst.ctx.Done():
+	}
+}
+
 // performRequest cumple una petición de trabajo externo y manda el resultado por
 // el canal. M06: "sleep"; M09: "hostcall" (una primitiva ⏸).
 func (inst *Instance) performRequest(ctx context.Context, p pendingReq, ch chan<- asyncResult) {
@@ -243,16 +288,16 @@ func (inst *Instance) performRequest(ctx context.Context, p pendingReq, ch chan<
 		defer t.Stop()
 		select {
 		case <-t.C:
-			ch <- asyncResult{id: p.id, result: nil}
+			inst.deliver(ch, asyncResult{id: p.id, result: nil})
 		case <-ctx.Done():
-			ch <- asyncResult{id: p.id, result: map[string]any{"code": "ECANCELED", "message": "cancelada"}, isErr: true}
+			inst.deliver(ch, asyncResult{id: p.id, result: map[string]any{"code": "ECANCELED", "message": "cancelada"}, isErr: true})
 		}
 	case "hostcall":
 		// Una primitiva ⏸: corre su HostFn en ESTA goroutine de fondo (no toca la
 		// VM; contrato de RegisterSuspending) y reanuda con {ok, values} o {ok=false, err}.
 		inst.performHostcall(p, ch)
 	default:
-		ch <- asyncResult{id: p.id, result: "op de scheduler desconocida: " + p.op, isErr: true}
+		inst.deliver(ch, asyncResult{id: p.id, result: "op de scheduler desconocida: " + p.op, isErr: true})
 	}
 }
 
@@ -270,16 +315,16 @@ func (inst *Instance) performHostcall(p pendingReq, ch chan<- asyncResult) {
 	}
 	reg := inst.pool.reg
 	if id < 0 || int(id) >= len(reg.fns) {
-		ch <- asyncResult{id: p.id, result: map[string]any{"ok": false, "err": map[string]any{"code": "EINVAL", "message": "id de primitiva fuera de rango"}}}
+		inst.deliver(ch, asyncResult{id: p.id, result: map[string]any{"ok": false, "err": map[string]any{"code": "EINVAL", "message": "id de primitiva fuera de rango"}}})
 		return
 	}
 	rets, callErr := reg.fns[id](inst, args)
 	if callErr != nil {
-		ch <- asyncResult{id: p.id, result: map[string]any{"ok": false, "err": errToMap(callErr)}}
+		inst.deliver(ch, asyncResult{id: p.id, result: map[string]any{"ok": false, "err": errToMap(callErr)}})
 		return
 	}
 	// {ok=true, values=[...], n=len} para que el thunk desempaquete con nils.
-	ch <- asyncResult{id: p.id, result: map[string]any{"ok": true, "values": rets, "n": int64(len(rets))}}
+	inst.deliver(ch, asyncResult{id: p.id, result: map[string]any{"ok": true, "values": rets, "n": int64(len(rets))}})
 }
 
 // errToMap traduce un error de HostFn a la tabla estructurada del contrato (§1.4).

@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -350,6 +351,26 @@ type Instance struct {
 	// goroutines distintas) podrían pisarse la ranura pendiente. slotMu hace atómico
 	// ese par sin bloquear el `mu` que conduce la VM.
 	slotMu sync.Mutex
+
+	// Estado del BOMBEO del scheduler (G44). Vive en la Instance —no en cada
+	// invocación de RunTasks— para que el trabajo de fondo (los `every`) SOBREVIVA
+	// a la quiescencia de primer plano: su petición en vuelo sigue viva, su
+	// resultado espera en `pumpCh` (buffer 64) y la siguiente invocación (u otro
+	// `PumpTasks`) lo reanuda — pausa, no muerte. `pumpKick` es el timbre (buffer
+	// 1, "queda pulsado hasta que alguien lo mira"): `Eval`/`CoSpawn` lo tocan
+	// para que el trabajo encolado desde fuera del bucle (EmitEvent, FeedInput,
+	// un handler) despierte al `select` sin esperar al vencimiento casual del IO
+	// en vuelo. `pumpActive` (CAS) impide dos bucles simultáneos sobre el mismo
+	// estado. Los campos sin sincronización propia (inject/outstanding/cancels)
+	// los toca SOLO la goroutine que ganó el CAS: el propio CAS ordena las
+	// invocaciones sucesivas desde goroutines distintas.
+	pumpCh          chan asyncResult
+	pumpKick        chan struct{}
+	pumpInject      []any
+	pumpOutstanding int
+	pumpReqCancels  map[int64]context.CancelFunc
+	pumpOrphans     []context.CancelFunc
+	pumpActive      atomic.Bool
 }
 
 // NewInstance instancia el módulo compilado (memoria fresca), cablea el
@@ -357,7 +378,11 @@ type Instance struct {
 // libs del baseline. El dispatcher arranca en el que rechaza todo; SetDispatcher
 // lo sustituye (M05).
 func (p *Pool) NewInstance() (*Instance, error) {
-	inst := &Instance{pool: p, handles: newHandleTable(), sliceBudget: p.sliceBudget}
+	inst := &Instance{pool: p, handles: newHandleTable(), sliceBudget: p.sliceBudget,
+		pumpCh:         make(chan asyncResult, 64),
+		pumpKick:       make(chan struct{}, 1),
+		pumpReqCancels: make(map[int64]context.CancelFunc),
+	}
 	// ctx con el snapshotter (lo exige el trampolín), cancelable (worker:terminate,
 	// M12) y con la propia instancia.
 	base := experimental.WithSnapshotter(context.Background())
@@ -435,10 +460,27 @@ func (inst *Instance) readResult() string {
 	return string(b)
 }
 
+// kickPump toca el timbre del bombeo (G44): señala al select de runTaskLoop que
+// puede haber trabajo nuevo en la cola de ready (una task spawneada por un
+// handler, un Future resuelto). No bloqueante y con buffer 1: el timbre queda
+// pulsado hasta que el bucle lo mira, y los toques redundantes se funden. Un
+// toque espurio solo cuesta un paso vacío del scheduler.
+func (inst *Instance) kickPump() {
+	select {
+	case inst.pumpKick <- struct{}{}:
+	default:
+	}
+}
+
 // Eval carga y corre un chunk protegido. Devuelve (resultado, errorLua, errorGo):
 // errorLua != "" es un error de Lua capturado (el chunk lanzó); errorGo != nil
 // es un fallo duro del motor (trap wasm). Sólo uno es no-cero.
+//
+// Al terminar toca el timbre del bombeo (G44): un chunk puede haber encolado
+// trabajo (EmitEvent y FeedInput entran por aquí; sus handlers hacen
+// nu.task.spawn), y sin el toque ese trabajo esperaría al azar del IO en vuelo.
 func (inst *Instance) Eval(chunk string) (string, string, error) {
+	defer inst.kickPump()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 	if err := inst.writeBuf([]byte(chunk)); err != nil {
@@ -464,7 +506,9 @@ const (
 )
 
 // CoSpawn crea una corrutina desde `chunk`. Devuelve su ref (>0) para reanudarla.
+// Toca el timbre del bombeo al salir (G44), como Eval.
 func (inst *Instance) CoSpawn(chunk string) (int32, error) {
+	defer inst.kickPump()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 	if err := inst.writeBuf([]byte(chunk)); err != nil {

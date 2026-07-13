@@ -264,15 +264,18 @@ func (rt *Runtime) renderBareScreen() bareScreenModel {
 	}
 	b := newBlock(spanLines)
 
-	comp := rt.ui.comp
 	// Una región a pantalla completa, sin dueño de plugin (es del runtime): el
 	// owner "user" la etiqueta como cualquier handle del estado principal. Se
 	// blittea el Block en su origen (0,0) y se compone+pinta de inmediato (no se
-	// espera al timer de coalescing: la pantalla desnuda debe verse ya).
-	r := comp.addRegion(0, 0, comp.w, comp.h, 0, ownerUser)
-	r.content.blitBlock(0, 0, b)
-	comp.markDirty()
-	comp.paint()
+	// espera al timer de coalescing: la pantalla desnuda debe verse ya). Bajo el
+	// candado de la UI (G44): el compositor se comparte con la VM.
+	rt.withUILock(func() {
+		comp := rt.ui.comp
+		r := comp.addRegion(0, 0, comp.w, comp.h, 0, ownerUser)
+		r.content.blitBlock(0, 0, b)
+		comp.markDirty()
+		comp.paint()
+	})
 	return m
 }
 

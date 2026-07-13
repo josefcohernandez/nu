@@ -25,9 +25,9 @@ Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 medi
 > A-16, A-18, A-20, A-23, A-25, A-26, A-32 (ver los commits que citan cada
 > id). Lo pendiente está **registrado en el flujo canónico de diseño**
 > ([problemas.md](problemas.md) / [pospuesto.md](pospuesto.md)):
-> el trío del scheduler (A-01/A-03/A-34) es **G44** —resuelta el 2026-07-13
-> con la opción (b), `RunTasks` persistente; su construcción es la próxima
-> sesión del plan (puntero ▶ de implementacion.md)—, la superficie [W] de
+> el trío del scheduler (A-01/A-03/A-34) es **G44** —resuelta y **construida**
+> el 2026-07-13 con la opción (b), `RunTasks` persistente (bitácora de
+> implementacion.md)—, la superficie [W] de
 > los workers (A-17) es **G45** y el replay de `event` (A-19) es **G46** —
 > estos dos ABIERTOS con opciones y recomendación—; las incoherencias
 > documentales

@@ -52,15 +52,23 @@ func waitForOut(out *syncBuf, sub string, d time.Duration) bool {
 	return strings.Contains(out.String(), sub)
 }
 
+// readRow lee la fila `y` de la pantalla compuesta bajo el token Y el candado de
+// la UI (G44: el bombeo continuo puede estar mutando el compositor desde un paso
+// del scheduler; el token solo ya no excluye esa vía).
+func readRow(h *harness, y int) string {
+	h.rt.sched.acquire()
+	defer h.rt.sched.release()
+	var row string
+	h.rt.withUILock(func() { row = composeRow(h.rt.ui.comp, y) })
+	return row
+}
+
 // waitForRow sondea la fila `y` de la pantalla compuesta hasta que sea `want` o venza el
-// plazo. Lee bajo el token (composeRow toca el compositor, estado principal).
+// plazo.
 func waitForRow(h *harness, y int, want string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		h.rt.sched.acquire()
-		row := composeRow(h.rt.ui.comp, y)
-		h.rt.sched.release()
-		if row == want {
+		if readRow(h, y) == want {
 			return true
 		}
 		time.Sleep(2 * time.Millisecond)
@@ -116,10 +124,7 @@ func TestDriverEndToEnd(t *testing.T) {
 		t.Fatalf("write ↑: %v", err)
 	}
 	if !waitForRow(h, 0, "count=3", 2*time.Second) {
-		h.rt.sched.acquire()
-		row := composeRow(h.rt.ui.comp, 0)
-		h.rt.sched.release()
-		t.Fatalf("tras 3 ↑ la fila compuesta es %q, want %q", row, "count=3")
+		t.Fatalf("tras 3 ↑ la fila compuesta es %q, want %q", readRow(h, 0), "count=3")
 	}
 
 	// (c) `q` emite core:shutdown → el handler interno del driver cierra el bucle.
@@ -136,17 +141,21 @@ func TestDriverEndToEnd(t *testing.T) {
 }
 
 // screenContains compone toda la pantalla y comprueba si alguna fila contiene `sub`.
-// Bajo el token (composeRow toca el compositor).
+// Bajo el token y el candado de la UI (G44, como readRow).
 func screenContains(h *harness, sub string) bool {
 	h.rt.sched.acquire()
 	defer h.rt.sched.release()
-	c := h.rt.ui.comp
-	for y := 0; y < c.h; y++ {
-		if strings.Contains(composeRow(c, y), sub) {
-			return true
+	found := false
+	h.rt.withUILock(func() {
+		c := h.rt.ui.comp
+		for y := 0; y < c.h; y++ {
+			if strings.Contains(composeRow(c, y), sub) {
+				found = true
+				return
+			}
 		}
-	}
-	return false
+	})
+	return found
 }
 
 func waitScreen(h *harness, sub string, d time.Duration) bool {

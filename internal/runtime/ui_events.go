@@ -42,10 +42,19 @@ func (rt *Runtime) resizeUI(w, h int) {
 	if rt.ui == nil {
 		return
 	}
-	if w == rt.ui.comp.w && h == rt.ui.comp.h {
+	// La consulta y la reasignación del compositor van bajo el candado de la UI
+	// (G44: el bombeo puede estar mutándolo); la emisión queda FUERA — EmitEvent
+	// re-entra la VM y toma el mutex por su cuenta (no es reentrante).
+	changed := false
+	rt.withUILock(func() {
+		if w != rt.ui.comp.w || h != rt.ui.comp.h {
+			rt.ui.comp.resize(w, h)
+			changed = true
+		}
+	})
+	if !changed {
 		return // sin cambio real: no emitir un ui:resize espurio
 	}
-	rt.ui.comp.resize(w, h)
 	rt.emitUIEvent("ui:resize", map[string]any{"w": int64(w), "h": int64(h)})
 }
 

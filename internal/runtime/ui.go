@@ -147,16 +147,28 @@ func (rt *Runtime) paintLocked() {
 	rt.sched.release()
 }
 
+// withUILock ejecuta `fn` bajo el candado que serializa el compositor frente a
+// la VM (el mutex de la Instance wasm). Desde G44 el bombeo continuo del
+// scheduler puede estar mutando la UI en cualquier momento (un hostcall de
+// `nu.ui` durante un paso), así que TODO acceso al compositor fuera de un Call
+// —el driver, el resize, la pantalla desnuda, los lectores de test— debe pasar
+// por aquí; el token del scheduler ya no basta (el bombeo no lo toma). Sin
+// backend wasm corre `fn` directamente. `fn` no debe re-entrar la VM (Eval):
+// el mutex no es reentrante.
+func (rt *Runtime) withUILock(fn func()) {
+	if rt.wasm != nil {
+		rt.wasm.WithLock(fn)
+		return
+	}
+	fn()
+}
+
 // flushFrame es el punto ÚNICO de pintado: toma el mutex de la Instance wasm (el
 // candado que serializa las mutaciones de `nu.ui` durante un Call) para leer el
 // compositor de forma excluyente con ellas (M15, veto de corrección). Todos los
 // llamantes (el timer de coalescing y el driver de TTY) pasan por aquí.
 func (rt *Runtime) flushFrame() {
-	if rt.wasm != nil {
-		rt.wasm.WithLock(rt.flushFrameUnlocked)
-		return
-	}
-	rt.flushFrameUnlocked()
+	rt.withUILock(rt.flushFrameUnlocked)
 }
 
 // flushFrameUnlocked hace el pintado en sí; presupone tomado el candado que serializa
