@@ -63,28 +63,35 @@ func registerWsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{inst.AllocHandle("Ws", w)}, nil
 	})
 
-	// Ws:send(data) ⏸ — envía data como mensaje de texto. Tras close → ECLOSED; un
-	// fallo de transporte → ENET. El Write bloqueante corre en la goroutine de fondo.
+	// Ws:send(data, opts?) ⏸ — envía data; con `opts.binary` true sale como frame
+	// binario, sin él como frame de texto (G52/A-38). Tras close → ECLOSED; un fallo
+	// de transporte → ENET. El Write bloqueante corre en la goroutine de fondo.
 	p.RegisterHandleMethod("Ws", "send", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		w := val.(*luaWs)
-		if err := w.send([]byte(argString(args, 0))); err != nil {
+		binary := false
+		if opts, ok := arg(args, 1).(map[string]any); ok {
+			binary, _ = opts["binary"].(bool)
+		}
+		if err := w.send([]byte(argString(args, 0)), binary); err != nil {
 			return nil, wsErrWasm(err, "Ws:send")
 		}
 		return nil, nil
 	})
 
-	// Ws:recv() -> string? ⏸ — el siguiente mensaje, o nil cuando la conexión se
-	// cierra (ordenadamente o por Ws:close). Un fallo de transporte real → ENET.
+	// Ws:recv() -> data: string?, binary: boolean ⏸ — el siguiente mensaje y el tipo
+	// de su frame (binary true si era binario, false si texto — G52/A-38), o nil
+	// cuando la conexión se cierra (ordenadamente o por Ws:close; el segundo valor
+	// queda nil). Un fallo de transporte real → ENET.
 	p.RegisterHandleMethod("Ws", "recv", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		w := val.(*luaWs)
-		data, closed, err := w.recv()
+		data, binary, closed, err := w.recv()
 		if err != nil {
 			return nil, wsErrWasm(err, "Ws:recv")
 		}
 		if closed {
 			return []any{nil}, nil // conexión cerrada: fin de stream → nil (no lanza)
 		}
-		return []any{string(data)}, nil
+		return []any{string(data), binary}, nil
 	})
 
 	// Ws:close() — cierra la conexión. Síncrono e idempotente (closeOnce). No libera
@@ -102,8 +109,8 @@ func registerWsWasm(p *vmwasm.Pool, rt *Runtime) {
 nu.ws = nu.ws or {}
 function nu.ws.connect(url, opts)
   local ws = nu.ws._connect(url, opts)   -- ⏸: handle {__id} tras el handshake
-  ws.send  = function(self, data) return __hcall_s(self.__id, "send", data) end
-  ws.recv  = function(self)       return __hcall_s(self.__id, "recv") end
+  ws.send  = function(self, data, opts) return __hcall_s(self.__id, "send", data, opts) end
+  ws.recv  = function(self)             return __hcall_s(self.__id, "recv") end
   ws.close = function(self)       return __hcall(self.__id, "close") end
   return ws
 end`, "ws._connect")

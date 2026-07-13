@@ -313,12 +313,13 @@ func TestSysPidDeniedByCaps(t *testing.T) {
 	h.expectEval(`return tostring(HAS)`, "false")
 }
 
-// TestVersionApiIsTwo blinda el incremento de `nu.version.api` a 2 (G32: la
-// primera adición tras el congelado, `nu.sys.pid`). api.md §17: el contador sube
-// con cada adición.
-func TestVersionApiIsTwo(t *testing.T) {
+// TestVersionApiIsThree blinda el nivel actual de `nu.version.api`: 3 tras los
+// frames binarios de `nu.ws` (G52/A-38: `opts.binary` en `Ws:send` y el segundo
+// retorno de `Ws:recv`). Antes fue 2 (G32: `nu.sys.pid`, la primera adición tras
+// el congelado). api.md §17: el contador sube con cada adición.
+func TestVersionApiIsThree(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`return tostring(nu.version.api)`, "2")
+	h.expectEval(`return tostring(nu.version.api)`, "3")
 }
 
 // TestSysAvailableInTask comprueba que `nu.sys` funciona también desde dentro de

@@ -19,7 +19,7 @@ package runtime
 //     ejecuta: expresiones (`1+1`→2), sentencias (`x=5`), llamadas a la API
 //     (`nu.version.api`), errores (capturados, no tumban el repl) e incompletitud
 //     (multilínea). NO hizo falta una primitiva nueva (corolario de completitud
-//     satisfecho; APILevel sigue en 2).
+//     satisfecho; el REPL no toca APILevel).
 //   - **código ⏸ vía task** (`eval_in_task`): una línea que llama a una función
 //     suspendiente del core (`nu.fs.read`) se evalúa dentro de una task.
 //
@@ -174,7 +174,7 @@ func TestReplEvalSentencia(t *testing.T) {
 }
 
 // TestReplEvalLlamadaAPI: una llamada a la API pública NO suspendiente se evalúa
-// directamente y devuelve su valor. nu.version.api → "2" (el nivel actual).
+// directamente y devuelve su valor. nu.version.api → el nivel actual.
 func TestReplEvalLlamadaAPI(t *testing.T) {
 	h := bootRepl(t)
 	h.expectEval(`

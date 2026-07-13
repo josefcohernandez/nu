@@ -74,12 +74,12 @@ func evalTaskOne(t *testing.T, rt *Runtime, code string) string {
 	return res[0]
 }
 
-// M13d.1: nu.version.api por el Runtime → "2" (el APILevel que buildWasmState
+// M13d.1: nu.version.api por el Runtime → "3" (el APILevel que buildWasmState
 // inyecta con SetAPIVersion). Es el smoke test que el binario `nu -e` reproduce.
 func TestRuntimeWasmVersionAPI(t *testing.T) {
 	rt := newWasmRuntime(t)
-	if got := evalStringOne(t, rt, `return nu.version.api`); got != "2" {
-		t.Fatalf("nu.version.api = %q, esperado 2", got)
+	if got := evalStringOne(t, rt, `return nu.version.api`); got != "3" {
+		t.Fatalf("nu.version.api = %q, esperado 3", got)
 	}
 }
 

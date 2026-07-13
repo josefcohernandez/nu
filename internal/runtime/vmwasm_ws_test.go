@@ -156,6 +156,31 @@ func TestWsWasmCloseIdempotent(t *testing.T) {
 	}
 }
 
+// M13b.ws.7 (G52/A-38): sobre wasm, `send` con `opts.binary` emite un frame binario
+// (bytes no-UTF-8 intactos) y `recv` distingue el tipo del frame entrante en su
+// segundo valor. El servidor de eco re-emite cada frame con el MISMO tipo, así el
+// cliente ve en recv el tipo que envió. Paridad wasm de TestWsSendBinaryFrameType_G52
+// y TestWsRecvFrameType_G52 (que capturan el tipo del lado del servidor).
+func TestWsWasmBinaryFrames_G52(t *testing.T) {
+	srv := wsEchoServer(t)
+	defer srv.Close()
+
+	out := wasmWsRun(t, &Runtime{}, `
+		nu.task.spawn(function()
+			local w = nu.ws.connect("`+srv.URL+`")
+			w:send("\255\254\0", { binary = true })  -- frame binario
+			local d1, b1 = w:recv()                    -- eco binario: (data, true)
+			w:send("texto")                            -- frame de texto (default)
+			local d2, b2 = w:recv()                    -- eco de texto: (data, false)
+			w:close()
+			local binOk = (#d1 == 3 and string.byte(d1,1) == 255 and string.byte(d1,3) == 0)
+			out = tostring(b1) .. ":" .. tostring(binOk) .. ":" .. tostring(b2) .. ":" .. d2
+		end)`)
+	if out != "true:true:false:texto" {
+		t.Fatalf("frames binarios wasm: got %q, want %q", out, "true:true:false:texto")
+	}
+}
+
 // M13b.ws.6: validación de url/opts → EINVAL accionable (url vacía, opts no-tabla,
 // headers mal tipados, timeout no positivo). El equivalente wasm de
 // TestWsBadOptsEINVAL. La validación corre en parseWsOptsWasm, antes de dialear.

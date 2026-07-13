@@ -283,6 +283,162 @@ func TestWsOutsideTaskEINVAL(t *testing.T) {
 	}
 }
 
+// --- G52 / A-38: frames binarios (opts.binary en send, segundo retorno en recv) ---
+
+// wsCaptureServer acepta una conexión y vuelca CADA frame que recibe (tipo + bytes,
+// copiados) por un canal, hasta que el cliente cierre. Deja observar, del lado del
+// servidor, el TIPO de frame que `Ws:send` emitió (G52/A-38): un test que solo mire
+// el eco no distinguiría un `MessageText` de un `MessageBinary` con los mismos bytes.
+type wsFrame struct {
+	typ  websocket.MessageType
+	data []byte
+}
+
+func wsCaptureServer(t *testing.T, frames chan<- wsFrame) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = c.CloseNow() }()
+		ctx := r.Context()
+		for {
+			typ, data, err := c.Read(ctx)
+			if err != nil {
+				return // el cliente cerró o se cortó: fin de la captura
+			}
+			frames <- wsFrame{typ, append([]byte(nil), data...)}
+		}
+	}))
+}
+
+// TestWsSendBinaryFrameType_G52 blinda (G52/A-38) que `Ws:send(data, { binary = true })`
+// emite un frame **binario** con los bytes intactos (incluidos no-UTF-8, que un frame
+// de texto conforme rechazaría con 1007), y que `Ws:send(data)` sin opts sigue siendo
+// un frame de **texto** — el default histórico, compatible con todo llamante.
+func TestWsSendBinaryFrameType_G52(t *testing.T) {
+	frames := make(chan wsFrame, 2)
+	srv := wsCaptureServer(t, frames)
+	defer srv.Close()
+
+	h := newHarness(t)
+	withURL(h, srv.URL)
+	// \255\254\0 (decimal, portable a cualquier Lua) NO es UTF-8 válido: solo viaja
+	// intacto en un frame binario.
+	h.eval(`
+		done = false
+		nu.task.spawn(function()
+			local w = nu.ws.connect(URL())
+			w:send("\255\254\0", { binary = true })  -- frame binario
+			w:send("texto")                            -- frame de texto (default, sin opts)
+			done = true
+			w:close()
+		end)
+	`)
+	h.expectEval(`return tostring(done)`, "true")
+
+	f1 := <-frames
+	if f1.typ != websocket.MessageBinary {
+		t.Fatalf("primer frame: got tipo %v, want MessageBinary", f1.typ)
+	}
+	if want := []byte{0xff, 0xfe, 0x00}; string(f1.data) != string(want) {
+		t.Fatalf("primer frame: bytes alterados: got %x want %x", f1.data, want)
+	}
+	f2 := <-frames
+	if f2.typ != websocket.MessageText {
+		t.Fatalf("segundo frame (sin opts): got tipo %v, want MessageText", f2.typ)
+	}
+	if string(f2.data) != "texto" {
+		t.Fatalf("segundo frame: got %q", f2.data)
+	}
+}
+
+// TestWsRecvFrameType_G52 blinda (G52/A-38) que `Ws:recv` distingue el tipo del frame
+// entrante en su **segundo valor**: un frame binario → `(data, true)`, uno de texto →
+// `(data, false)`. Los bytes no-UTF-8 del frame binario llegan intactos.
+func TestWsRecvFrameType_G52(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		ctx := r.Context()
+		_ = c.Write(ctx, websocket.MessageBinary, []byte{0x00, 0xff, 0x01}) // binario
+		_ = c.Write(ctx, websocket.MessageText, []byte("hola"))             // texto
+		_ = c.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer srv.Close()
+
+	h := newHarness(t)
+	withURL(h, srv.URL)
+	h.eval(`
+		binOk, b1, txt, b2 = false, nil, nil, nil
+		nu.task.spawn(function()
+			local w = nu.ws.connect(URL())
+			local d1
+			d1, b1 = w:recv()  -- frame binario: (data, true)
+			binOk = (#d1 == 3 and string.byte(d1,1) == 0 and string.byte(d1,2) == 255 and string.byte(d1,3) == 1)
+			txt, b2 = w:recv() -- frame de texto: (data, false)
+			w:close()
+		end)
+	`)
+	h.expectEval(`return tostring(binOk)`, "true")   // bytes binarios intactos
+	h.expectEval(`return tostring(b1)`, "true")       // segundo valor: binario
+	h.expectEval(`return txt`, "hola")
+	h.expectEval(`return tostring(b2)`, "false")      // segundo valor: texto
+}
+
+// TestWsRecvBinaryNilOnClose_G52 blinda (G52/A-38) que al cierre `recv` sigue dando
+// `nil` en el primer valor y **nil también en el segundo** (no `false`): el nuevo
+// retorno no altera la semántica de fin de stream.
+func TestWsRecvBinaryNilOnClose_G52(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		_ = c.Write(r.Context(), websocket.MessageText, []byte("uno"))
+		_ = c.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer srv.Close()
+
+	h := newHarness(t)
+	withURL(h, srv.URL)
+	h.eval(`
+		closeData, closeBin = "S", "S"
+		nu.task.spawn(function()
+			local w = nu.ws.connect(URL())
+			local _ = w:recv()                 -- "uno"
+			closeData, closeBin = w:recv()     -- cierre: nil, nil
+			w:close()
+		end)
+	`)
+	h.expectEval(`return tostring(closeData)`, "nil")
+	h.expectEval(`return tostring(closeBin)`, "nil")
+}
+
+// TestWsSendBinaryAfterCloseECLOSED_G52 blinda (G52/A-38) que enviar un frame binario
+// tras `Ws:close()` sigue lanzando `ECLOSED`: `opts.binary` no cambia la semántica de
+// cierre/errores del método.
+func TestWsSendBinaryAfterCloseECLOSED_G52(t *testing.T) {
+	srv := wsEchoServer(t)
+	defer srv.Close()
+
+	h := newHarness(t)
+	withURL(h, srv.URL)
+	h.eval(`
+		code = nil
+		nu.task.spawn(function()
+			local w = nu.ws.connect(URL())
+			w:close()
+			local ok, e = pcall(function() w:send("tarde", { binary = true }) end)
+			if not ok then code = e.code end
+		end)
+	`)
+	h.expectEval(`return code`, "ECLOSED")
+}
+
 // TestWsBadOptsEINVAL blinda la validación de `url`/`opts` antes de suspender:
 // url vacía, opts no-tabla, headers mal tipados y timeout no positivo → `EINVAL`.
 func TestWsBadOptsEINVAL(t *testing.T) {
