@@ -77,8 +77,9 @@ func (p *Pool) registerWorker(w *worker) int64 {
 // deregisterWorker retira un worker terminado del registro (A-07): evita el
 // crecimiento monótono del mapa —y con él la retención de la struct y sus
 // canales— en procesos de larga vida que spawneen workers periódicamente. Lo
-// llama shutdown() cuando el worker ha terminado del todo. Idempotente (borrar
-// una clave ausente es un no-op).
+// llaman reapIfDrained (fin sin mensajes pendientes) y el _recv que encuentra
+// el fin de canal (zombie ya drenado). Idempotente (borrar una clave ausente
+// es un no-op).
 func (p *Pool) deregisterWorker(id int64) {
 	p.workerMu.Lock()
 	delete(p.workers, id)
@@ -161,7 +162,13 @@ func (p *Pool) registerWorkerHost() {
 			}
 			return nil, &StructuredError{Code: "EINVAL", Message: "Worker:recv: worker inválido"}
 		}
-		return recvOnChan(w.chans.fromWorker, w.chans.done)
+		res, err := recvOnChan(w.chans.fromWorker, w.chans.done)
+		if err == nil && len(res) == 1 && res[0] == nil {
+			// fin de canal: la cola quedó drenada — reapear al zombie que shutdown
+			// dejó por tener mensajes pendientes (A-07). Idempotente si ya se borró.
+			inst.pool.deregisterWorker(toI64(args[0]))
+		}
+		return res, err
 	})
 
 	// nu.worker._terminate(wid): inmediato y seguro (estados aislados). Interrumpe
@@ -359,16 +366,34 @@ end)`
 // shutdown cierra los canales y el estado del worker, se retira del registro del
 // padre (A-07) y notifica el join. Lo corre la goroutine dueña del worker (la
 // única que toca su estado Lua), sea cual sea la vía de fin —natural, terminate()
-// o StopWorkers—, así que es el único punto de retirada del mapa. La retirada va
-// ANTES de cerrar `terminated`: cuando wait() (y con él StopWorkers) retorna, la
-// entrada ya no está en el registro.
+// o StopWorkers—. La retirada respeta la promesa de recvOnChan («un mensaje
+// encolado justo antes de terminar aún se entrega»): si la cola hacia el padre
+// está vacía, la entrada se borra aquí mismo; si quedan mensajes bufferizados,
+// la entrada sobrevive como zombie y la reapea el _recv que encuentre el fin de
+// canal (retirar aquí perdería la cola: el recv sobre un id retirado da nil
+// inmediato). El chequeo va ANTES de cerrar `terminated`: cuando wait() (y con
+// él StopWorkers) retorna, un worker sin mensajes pendientes ya no está en el
+// registro.
 func (w *worker) shutdown() {
 	w.chans.closeDone()
 	_ = w.inst.Close()
 	if w.parent != nil {
-		w.parent.deregisterWorker(w.id)
+		w.parent.reapIfDrained(w)
 	}
 	close(w.terminated)
+}
+
+// reapIfDrained borra la entrada del registro si el worker terminó sin mensajes
+// pendientes hacia el padre; con mensajes bufferizados la deja (zombie) para que
+// el consumidor los drene — el _recv que dé fin de canal hará la retirada. El
+// len() es estable: cuando shutdown corre, la goroutine del worker ya salió de
+// RunTasks y nadie más escribe en fromWorker.
+func (p *Pool) reapIfDrained(w *worker) {
+	p.workerMu.Lock()
+	defer p.workerMu.Unlock()
+	if len(w.chans.fromWorker) == 0 {
+		delete(p.workers, w.id)
+	}
 }
 
 // terminate detiene el worker: cierra done (despierta send/recv bloqueados) y

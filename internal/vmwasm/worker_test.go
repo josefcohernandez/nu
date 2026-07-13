@@ -533,6 +533,67 @@ func TestWorkerRecvTrasTerminateReapedA07(t *testing.T) {
 	}
 }
 
+// A-07 (regresión): un worker que termina con mensajes BUFFERIZADOS hacia el
+// padre NO se retira en shutdown —retirarlo perdería la cola: recv sobre un id
+// retirado da nil inmediato—. La entrada sobrevive como zombie, recv drena
+// todos los mensajes, y el fin de canal (nil) reapea la entrada. Blinda la
+// promesa de recvOnChan («un mensaje encolado justo antes de terminar aún se
+// entrega»), que la primera versión de A-07 rompió (TestWorkerOnMessageEntrega
+// perdía el último mensaje).
+func TestWorkerZombieDrenaYReapeaA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	// El worker manda 3 (caben en workerQueueCap) y retorna: fin natural.
+	if _, lerr, err := inst.Eval(`
+		out = "?"
+		__w = nu.worker.spawn([[
+			for i = 1, 3 do nu.worker.parent.send(i) end
+		]])`); err != nil || lerr != "" {
+		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
+	}
+	// Espera el shutdown COMPLETO antes de leer: los 3 mensajes quedan
+	// bufferizados y la entrada debe seguir en el registro (zombie).
+	w, _ := p.lookupWorker(1)
+	if w == nil {
+		t.Fatal("A-07: el worker recién spawneado no está en el registro")
+	}
+	w.wait()
+	if c := workerCount(p); c != 1 {
+		t.Fatalf("A-07: tras terminar con mensajes pendientes el registro tiene %d entradas (se esperaba 1, zombie)", c)
+	}
+
+	// Drena: los 3 mensajes se entregan en orden y el nil final reapea.
+	if _, lerr, err := inst.Eval(`
+		nu.task.spawn(function()
+			local got = {}
+			while true do
+				local m = __w:recv()
+				if m == nil then break end
+				got[#got+1] = m
+			end
+			out = table.concat(got, ",")
+		end)`); err != nil || lerr != "" {
+		t.Fatalf("drenado: lerr=%q err=%v", lerr, err)
+	}
+	if err := inst.RunTasks(context.Background()); err != nil {
+		t.Fatalf("RunTasks: %v", err)
+	}
+	if out, _, _ := inst.Eval(`return tostring(out)`); out != "1,2,3" {
+		t.Fatalf("A-07: se drenó %q, se esperaba \"1,2,3\"", out)
+	}
+	if c := workerCount(p); c != 0 {
+		t.Fatalf("A-07: tras drenar el registro tiene %d entradas (se esperaba 0)", c)
+	}
+}
+
 // A-07(d): StopWorkers retira todas las entradas; el fin NATURAL (un módulo que
 // retorna solo) también, vía el mismo shutdown().
 func TestWorkerStopWorkersYFinNaturalRetiranA07(t *testing.T) {
