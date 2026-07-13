@@ -116,9 +116,15 @@ recibir el chunk ya parseado, pedir el Block, colocarlo.
 5. **El bombeo del scheduler es hoy por invocación** (`Boot` y los `Eval`
    headless): el modo interactivo aún no ejecuta tasks, y los timers de fondo
    (`nu.task.every`) mueren al alcanzarse la quiescencia de primer plano de
-   cada invocación, en vez de pausarse. Es la grieta **abierta**
-   [G44](problemas.md) — limitación transitoria de la construcción, no del
-   modelo: el diseño de ADR-004 prevé el bucle de vida continuo.
+   cada invocación, en vez de pausarse. Limitación transitoria de la
+   construcción, no del modelo (el diseño de ADR-004 prevé el bucle de vida
+   continuo), y con la resolución ya **decidida**
+   ([G44](problemas.md#g44), 2026-07-13): un `RunTasks` **persistente** — el estado del bombeo vive en
+   la `Instance`, la quiescencia *pausa* el fondo en vez de cancelarlo, y un
+   canal de *kick* desde `EmitEvent`/`FeedInput`/`CoSpawn` despierta el
+   `select` — que el modo interactivo lanza junto al driver, con `inst.mu`
+   como único token de entrada a la VM. Pendiente solo de su sesión de
+   construcción (puntero ▶ de [implementacion.md](implementacion.md)).
 6. **Memoria compartida dentro del estado principal.** Un memory leak de un
    plugin infla el proceso entero; no hay presupuesto de memoria por plugin
    en v1 (los actores aislados quedaron como evolución futura, ADR-008).
