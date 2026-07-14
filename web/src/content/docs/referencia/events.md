@@ -20,6 +20,7 @@ es el tuyo.
 
 ```
 nu.events.on(name, fn) -> Sub
+  Sub:cancel()
 ```
 
 Suscribe `fn` al evento `name`. Los handlers son **síncronos**, corren en orden

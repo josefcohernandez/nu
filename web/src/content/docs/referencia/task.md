@@ -29,7 +29,7 @@ local t = nu.task.spawn(function(nombre)
 end, "mundo")
 ```
 
-## `Task:await` ⏸
+## `Task:await` ⏸ [W]
 
 ```
 Task:await() -> any
@@ -51,7 +51,7 @@ return "lanzada"
 (Recuerda: `await` es ⏸, así que va dentro de una task; en `nu -e` el chunk no lo
 es, por eso lo envolvemos en `spawn`.)
 
-## `nu.task.sleep` ⏸
+## `nu.task.sleep` ⏸ [W]
 
 ```
 nu.task.sleep(ms)
@@ -66,7 +66,7 @@ nu.task.spawn(function()
 end)
 ```
 
-## `nu.task.all` ⏸
+## `nu.task.all` ⏸ [W]
 
 ```
 nu.task.all(fns: Task[] | fn[]) -> any[]
@@ -92,7 +92,7 @@ return "ok"
 '
 ```
 
-## `nu.task.race` ⏸
+## `nu.task.race` ⏸ [W]
 
 ```
 nu.task.race(fns) -> (winner_index, result)
@@ -112,10 +112,11 @@ nu.task.spawn(function()
 end)
 ```
 
-## `nu.task.every`
+## `nu.task.every` [W]
 
 ```
 nu.task.every(ms, fn) -> Timer
+  Timer:stop()
 ```
 
 Timer periódico: ejecuta `fn` (handler **síncrono**) cada `ms`. Devuelve un
@@ -129,7 +130,7 @@ end)
 timer:stop()
 ```
 
-## `nu.task.defer`
+## `nu.task.defer` [W]
 
 ```
 nu.task.defer(fn)
@@ -144,7 +145,7 @@ nu.task.defer(function()
 end)
 ```
 
-## `nu.task.future`
+## `nu.task.future` [W]
 
 ```
 nu.task.future() -> Future
@@ -171,7 +172,7 @@ return "ok"
 '
 ```
 
-## `Task:cancel`
+## `Task:cancel` [W]
 
 ```
 Task:cancel()

@@ -158,6 +158,22 @@ jobs:
         # tests de concurrencia CON -race dirigido (subconjunto acotado, sin OOM).
         run: go test -race -shuffle=on $(go list ./... | grep -v /internal/vmwasm)
 
+  # La web de documentación (web/referencia/) es una presentación derivada de
+  # docs/api.md, la fuente de verdad. Este detector mecánico extrae el inventario
+  # de firmas y marcadores (⏸/[W]) de ambos lados y falla ante cualquier deriva:
+  # una firma que cambió en la espec y no en la web, una función sin documentar,
+  # o una que la web inventa. El trigger correcto es el cambio (no el calendario),
+  # por eso vive aquí y no en la pasada de salud. Corrección: skill /sync-web.
+  coherencia-web:
+    name: Coherencia web ↔ api.md
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detector de deriva (web/scripts/check-drift.mjs)
+        # Sin dependencias ni npm ci: Node de los runners basta (usa solo node:fs).
+        run: node web/scripts/check-drift.mjs
+
   # Blob de la VM wasm (migracion-vm.md M02, DM1): reconstruye nu.wasm desde las
   # fuentes pineadas de Lua + el shim, y verifica que el artefacto comiteado no ha
   # derivado. Guarda la reproducibilidad de la VM (DM1): permanente mientras wasm

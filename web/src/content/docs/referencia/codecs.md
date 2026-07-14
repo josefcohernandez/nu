@@ -6,7 +6,7 @@ description: Codificación y decodificación de JSON, TOML y YAML, con el sentin
 `nu.json`, `nu.toml` y `nu.yaml` son los codecs. Todos disponibles en workers
 **[W]** y ninguno suspende: trabajan sobre strings en memoria.
 
-## `nu.json`
+## `nu.json` [W]
 
 ```
 nu.json.encode(v, opts?) -> string   -- opts.pretty
@@ -66,7 +66,7 @@ if not ok and err.code == "EINVAL" then
 end
 ```
 
-## `nu.toml`
+## `nu.toml` [W]
 
 ```
 nu.toml.encode(v) -> string
@@ -86,7 +86,7 @@ TOML es el formato de configuración de `nu` (`nu.toml`, `providers.toml`,
 `plugin.toml`), así que este codec es el que usan los plugins para leer su propia
 config.
 
-## `nu.yaml`
+## `nu.yaml` [W]
 
 ```
 nu.yaml.encode(v) -> string

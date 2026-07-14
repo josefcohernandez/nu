@@ -11,7 +11,7 @@ pinta como mucho cada ~30 ms. **No existe "flush" manual.**
 Sin TTY interactivo (`nu -e`, CI, salida redirigida) el módulo `nu.ui`
 **directamente no existe** —el mismo modelo que las `caps` de los workers: la
 superficie no concedida no está—. Detéctalo con
-[`nu.has("ui")`](/nu/referencia/nu/#nuhas), **nunca** probando y capturando el
+[`nu.has("ui")`](/nu/referencia/nu/#nuhas-w), **nunca** probando y capturando el
 error. Por eso los ejemplos de esta página no son ejecutables con `nu -e`.
 :::
 
@@ -32,7 +32,7 @@ Las **regiones** son la unidad de composición: rectángulos con z-order,
 propiedad de quien los crea.
 
 ```
-Region:blit(x, y, block)            -- estampa un Block en coords locales
+Region:blit(x, y, block: Block)     -- estampa un Block en coords locales
 Region:fill(style?) / Region:clear()
 Region:move(x, y) / Region:resize(w, h)
 Region:raise() / Region:lower()
@@ -99,7 +99,9 @@ pasar. El enrutado fino de focus es trabajo del toolkit, no del core.
 
 ```
 nu.ui.on_input(fn) -> InputHandle    -- fn(ev) -> boolean (true = consumido)
-nu.ui.keymap(seq, fn, opts?) -> Keymap
+  InputHandle:pop()
+nu.ui.keymap(seq: string, fn, opts?) -> Keymap
+  Keymap:unmap()
 ```
 
 El evento `ev` es `{ type: "key"|"mouse"|"paste", key?, mods?, x?, y?, text?, path? }`.

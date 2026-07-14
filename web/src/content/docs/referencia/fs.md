@@ -89,10 +89,10 @@ return "ok"
 ## Manipulación ⏸ [W]
 
 ```
-nu.fs.mkdir(path)
-nu.fs.remove(path, opts?)        -- opts.recursive=true para dirs no vacíos
-nu.fs.rename(from, to)
-nu.fs.copy(from, to)
+nu.fs.mkdir(path) ⏸ [W]
+nu.fs.remove(path, opts?) ⏸ [W]  -- opts.recursive=true para dirs no vacíos
+nu.fs.rename(from, to) ⏸ [W]
+nu.fs.copy(from, to) ⏸ [W]
 ```
 
 ```lua
@@ -104,7 +104,7 @@ nu.task.spawn(function()
 end)
 ```
 
-## `nu.fs.tmpdir` ⏸
+## `nu.fs.tmpdir` ⏸ [W]
 
 ```
 nu.fs.tmpdir() -> string
@@ -133,6 +133,7 @@ true
 
 ```
 nu.fs.watch(path, opts?, fn) -> Watcher
+  Watcher:stop()
 ```
 
 Vigila cambios en el filesystem. Solo **estado principal**. `opts`:

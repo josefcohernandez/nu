@@ -17,6 +17,7 @@ mutation testing como juez mecánico.
 | Voy a cerrar una sesión 🔒 o un diff que toca API/contratos | `/mutacion` + `/juicio` (en ese orden, y siempre antes de bitácora/puntero) |
 | Cerré una fase (checkpoint 🔎) o toca endurecimiento periódico | `/mutacion` sobre los paquetes 🔒 + `/juicio` si algo cambió + `auditor-docs` global |
 | Toca la pasada periódica de salud (semanal/quincenal, o hace mucho de la última) | `/salud` (fuzzing con corpus acumulativo, estrés `-race`, govulncheck, rotación de mutación) |
+| La web de docs derivó de `api.md` (job "Coherencia web ↔ api.md" en rojo) o una sesión/hallazgo tocó firmas | `/sync-web` (el detector `web/scripts/check-drift.mjs` señala; la skill redacta y verifica) |
 
 ## Los cuatro flujos y cómo se encadenan
 

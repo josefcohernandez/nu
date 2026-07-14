@@ -10,10 +10,10 @@ fichero** en `data_dir`, con el plugin de origen anotado automáticamente —
 ## Niveles
 
 ```
-nu.log.debug(fmt, ...)
-nu.log.info(fmt, ...)
-nu.log.warn(fmt, ...)
-nu.log.error(fmt, ...)
+nu.log.debug(fmt, ...) [W]
+nu.log.info(fmt, ...) [W]
+nu.log.warn(fmt, ...) [W]
+nu.log.error(fmt, ...) [W]
 ```
 
 `fmt` usa el formato de `string.format`:

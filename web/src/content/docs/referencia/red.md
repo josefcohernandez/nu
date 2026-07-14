@@ -52,9 +52,9 @@ siempre).
 
 ```
 Stream.status / Stream.headers
-Stream:chunks() -> iterator  ⏸   -- trozos crudos del body según llegan
-Stream:events() -> iterator  ⏸   -- parser SSE: itera { event?, data, id? }
-Stream:close()                   -- aborta la conexión
+Stream:chunks() -> iterator  ⏸ [W]   -- trozos crudos del body según llegan
+Stream:events() -> iterator  ⏸ [W]   -- parser SSE: itera { event?, data, id? }
+Stream:close() [W]                   -- aborta la conexión
 ```
 
 Consumir un SSE (el patrón de los providers de LLM):
@@ -92,12 +92,15 @@ respetan por defecto. Los defaults globales viven en la sección `[net]` de
 
 ```
 nu.ws.connect(url, opts?) -> Ws
-  Ws:send(data)      ⏸
-  Ws:recv() -> string?  ⏸   -- nil al cerrar
+  Ws:send(data, opts?)  ⏸                          -- opts.binary? = true manda frame binario
+  Ws:recv() -> data: string?, binary: boolean  ⏸   -- data = nil al cerrar
   Ws:close()
 ```
 
-Websocket cliente.
+Websocket cliente. Los frames de **texto** exigen UTF-8 válido (lo impone el
+protocolo: un servidor conforme cierra con 1007 si no); para bytes arbitrarios
+usa `opts.binary = true` en `send`. El segundo valor de `recv` distingue el tipo
+del frame entrante.
 
 ```lua
 nu.task.spawn(function()

@@ -40,7 +40,7 @@ nu.task.spawn(function()
 end)
 ```
 
-## `nu.proc.spawn`
+## `nu.proc.spawn` [W]
 
 ```
 nu.proc.spawn(argv, opts?) -> Proc
@@ -50,12 +50,12 @@ Control fino con streams (para procesos largos o interactivos). Devuelve un
 `Proc`:
 
 ```
-Proc:write(data) ⏸                          -- escribe en stdin
-Proc:close_stdin()
-Proc:read_line(which) -> string?  ⏸         -- which: "stdout"|"stderr"; nil en EOF
-Proc:read(which, n?) -> string?   ⏸         -- lectura cruda
-Proc:wait() -> { code }           ⏸
-Proc:kill(signal?)                          -- por defecto TERM
+Proc:write(data) ⏸ [W]                                  -- escribe en stdin
+Proc:close_stdin() [W]
+Proc:read_line(which: "stdout"|"stderr") -> string? ⏸ [W]  -- nil en EOF
+Proc:read(which, n?) -> string? ⏸ [W]                   -- lectura cruda
+Proc:wait() -> { code } ⏸ [W]
+Proc:kill(signal?) [W]                                  -- por defecto TERM
 ```
 
 ```lua
@@ -78,7 +78,7 @@ red de seguridad, un `Proc` sin referencias acaba matado por el GC, pero es **no
 determinista**: no confíes en ello.
 :::
 
-## `nu.proc.alive`
+## `nu.proc.alive` [W]
 
 ```
 nu.proc.alive(pid: integer) -> boolean

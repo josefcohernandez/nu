@@ -8,6 +8,15 @@ función de la API del core. Construido con [Astro](https://astro.build/) +
 > "superficie sagrada" v1). Este sitio la presenta de forma orientada a tareas y
 > con ejemplos. Si algo discrepa, manda `docs/api.md`.
 
+Esa relación se **verifica mecánicamente**: `npm run check:drift`
+([`scripts/check-drift.mjs`](scripts/check-drift.mjs), sin dependencias) extrae
+el inventario de firmas y marcadores (⏸/[W]) de ambos lados y falla ante
+cualquier discrepancia — firma distinta, marcador que baila, función sin
+documentar o inventada. Corre en CI (job "Coherencia web ↔ api.md") y como gate
+del despliegue. Para corregir deriva, la skill `/sync-web` tiene el protocolo y
+las convenciones de formato de las páginas (dónde van los marcadores, fences
+sin etiqueta para firmas, ` -- ` para comentarios de cola).
+
 ## Desarrollo
 
 ```sh

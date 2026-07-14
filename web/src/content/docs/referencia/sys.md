@@ -6,7 +6,7 @@ description: Plataforma, variables de entorno, relojes de pared y monotónico, h
 `nu.sys` expone el entorno del proceso y los relojes. Todo disponible en workers
 **[W]** y nada suspende: son consultas locales.
 
-## `nu.sys.platform`
+## `nu.sys.platform` [W]
 
 ```
 nu.sys.platform() -> "linux" | "darwin" | "windows"
@@ -20,7 +20,7 @@ nu -e 'return nu.sys.platform()'
 linux
 ```
 
-## `nu.sys.env` / `nu.sys.setenv`
+## `nu.sys.env` / `nu.sys.setenv` [W]
 
 ```
 nu.sys.env(name) -> string?
@@ -35,7 +35,7 @@ local home = nu.sys.env("HOME")
 nu.sys.setenv("MI_FLAG", "1")   -- lo verán los nu.proc.run posteriores
 ```
 
-## `nu.sys.now_ms` / `nu.sys.mono_ms`
+## `nu.sys.now_ms` / `nu.sys.mono_ms` [W]
 
 ```
 nu.sys.now_ms() -> number   -- reloj de pared (epoch ms)
@@ -57,7 +57,7 @@ return (nu.sys.mono_ms() - t0) >= 0
 true
 ```
 
-## `nu.sys.hostname`
+## `nu.sys.hostname` [W]
 
 ```
 nu.sys.hostname() -> string
@@ -66,14 +66,14 @@ nu.sys.hostname() -> string
 Nombre de la máquina. Junto a `pid` forma la **identidad del escritor** de los
 locks de sesión.
 
-## `nu.sys.pid`
+## `nu.sys.pid` [W]
 
 ```
 nu.sys.pid() -> integer
 ```
 
 Pid del **propio** proceso `nu`. No lo confundas con
-[`nu.proc.alive(pid)`](/nu/referencia/proc/#nuprocalive), que valida pids
+[`nu.proc.alive(pid)`](/nu/referencia/proc/#nuprocalive-w), que valida pids
 *ajenos*: `pid()` es el tuyo.
 
 ```sh

@@ -55,7 +55,7 @@ nu.task.spawn(function()
 end)
 ```
 
-## `nu.search.fuzzy`
+## `nu.search.fuzzy` [W]
 
 ```
 nu.search.fuzzy(query, candidates: string[], opts?) -> { index, score }[]
