@@ -31,7 +31,12 @@ Dos reglas duras que salen de esto:
 
 **Lo que hacía BUENO a `nu`** (y que buscamos replicar) — es el orden de ranking:
 
-1. **Cortísimo** (2–3 letras ideal).
+1. **Corto pero legible** — pronunciable y reconocible de un vistazo, **no
+   crípticamente corto**: un `qrk` o un `hz` quedan fuera precisamente por eso.
+   El punto dulce son ~3–5 letras con vocal, no el mínimo de caracteres.
+   *(Aclaración del 15-jul: la longitud absoluta no es un criterio; sobre-pesarla
+   llevó el ranking de §5 a nombres crípticos, que se recalibran en la ronda
+   siguiente premiando legibilidad/pronunciabilidad.)*
 2. **Varios sentidos a la vez** (ν = letra griega + símbolo de frecuencia +
    símbolo del neutrino + "nuevo"/"desnudo" en romance).
 3. **Referencia culta/matemática con gracia** (como π).
@@ -247,14 +252,87 @@ significado, peor pronunciación) y `vav`/`qrk` (más cerca del espíritu de `nu
 
 **Decisión: ABIERTA.**
 
-## 8. Próximos pasos
+## 8. Ronda 2 (15-jul) — recalibrada por legibilidad
 
-1. **Nueva ronda de generación filtrada** explícitamente por «corto + polisémico
-   + guiño matemático/culto + **CERO connotación** en ES/EN/FR/IT», explorando
-   vetas aún poco tocadas (notación musical, física, teoría de números, craft).
-   *(En marcha.)*
-2. **Lock autoritativo** del/los finalista(s): WHOIS real de `.dev`/`.sh` en el
+Tras la aclaración del criterio (§2), se relanzó el pipeline penalizando los
+nombres **crípticos** (sin vocal, tipo `qrk`/`hz`) y con un **gate explícito de
+connotación** en ES/EN/FR/IT. Puntuación = 2·(longitud-legible) + 2·sayable +
+2·polisemia + 2·guiño-culto + memorable + brandable. Cifras: **290 generados →
+130 verificados → 44 vírgenes** (legibles, con vocal, sin connotación).
+
+**Cazados a mano** (el gate automático los dejó pasar; se descartan por
+connotación): `orto` (= "el orto" = culo, argot rioplatense), `vacuo`
+(= hueco/superficial, peyorativo), `semo` (eco de "semen").
+
+Los 44, rankeados por el criterio recalibrado:
+
+| # | Nombre | Significado / guiño | Nota |
+|---|---|---|---|
+| 1 | `hoshi` | Go: puntos estelares del tablero / jap. "estrella" | ⚠ recheck: "Hoshi 1.0" (runtime de agente IA) |
+| 2 | `fermi` | Enrico Fermi + unidad nuclear = escala mínima | ⚠ `fermi.dev` (IA), NASA |
+| 3 | `geno` | griego *genos* (origen) + genoma/género/genuino | ✔ (repo académico menor) |
+| 4 | `orto` | orthos (recto/ortogonal) + amanecer | ✗ "el orto" = culo (AR/UY) |
+| 5 | `arje` | *arché* (principio/origen primero) | ✔ (verificar npm/pypi) |
+| 6 | `apei` | *apeiron* (lo ilimitado primordial) | ✔ (≈ape/apeiro) |
+| 7 | `cauce` | Cauchy + cauce (canal / flujo de ejecución) | ✔ ninguno relevante |
+| 8 | `orbis` | latín mundo/orbital (extensiones orbitando el core) | ⚠ codename PS4, handle |
+| 9 | `komi` | Go: compensación/equilibrio de partida | ⚠ Komi-san (anime), handle |
+| 10 | `moyo` | Go: territorio potencial (arquitectura abierta) | ✔ (repos <120★) |
+| 11 | `unda` | latín "onda" (luz/sonido) | ⚠ handle |
+| 12 | `fian` | latín *fio* (llegar a ser) + fianza | ⚠ handle |
+| 13 | `onto` | griego *ontos* (ser/ontología) | ⚠ handle |
+| 14 | `thule` | *Ultima Thule*: el confín del mapa conocido | ⚠ marca Thule (portaequipajes) |
+| 15 | `topoi` | *topos* (teoría de categorías) + "lugares" | ✔ sin caveat |
+| 16 | `aji` | Go: potencial latente + jap. "sabor" + "ají" | ⚠ AJI Software; 3 letras |
+| 17 | `dame` | Go: punto neutro + "dama"/"dame" | ⚠ común / ruido |
+| 18 | `fons` | latín "fuente/manantial" | ⚠ Fons (SaaS) |
+| 19 | `fonte` | "fuente/manantial" (ES/IT/PT) + "fuente tipográfica" | ✔ sin caveat |
+| 20 | `yosu` | Go: leer el estado global del tablero | ⚠ handle, repo cerca de 120★ |
+| 21 | `irisa` | iris (luz refractada) + Iris (mensajera) | ⚠ IRISA (instituto CS francés) |
+| 22 | `sten` | griego *stenos* (estrecho/comprimido) | ⚠ handle + "Sten" (subfusil) |
+| 23 | `vacuo` | vacío (ES/IT) | ✗ = hueco/peyorativo |
+| 24 | `idel` | eco de "ideal" (teoría de anillos) | ⚠ handle |
+| 25 | `wari` | Go: cuña de ruptura (warikomi) | ⚠ ≈Warp, handle |
+| 26 | `whet` | afilar / "whet your appetite" | ⚠ handle |
+| 27 | `nasce` | latín/it. *nascere* (nacer) | ⚠ handle |
+| 28 | `poie` | griego *poiein* (hacer/crear, raíz de poesía) | ⚠ handle |
+| 29 | `semo` | eco de "semen"/*sema* (signo) | ✗ eco "semen" + ≈Sema |
+| 30 | `esti` | griego "es" (esencia/ser) | ⚠ handle |
+| 31 | `humus` | latín tierra fértil (sustrato) | ✔ (nota: "hummus") |
+| 32 | `urdi` | urdimbre (base del tejido) | ✔ sin caveat |
+| 33 | `anel` | anillo (álgebra) / "anel"=anillo PT | ⚠ handle + lenguaje académico |
+| 34 | `toral` | del toro (topología) + "total" | ⚠ handle |
+| 35 | `lota` | variante de iota ("una pizca") | ⚠ handle + repo menor |
+| 36 | `yose` | Go: fase de cierre/endgame | ⚠ app YOSE + ≈Yosys |
+| 37 | `hane` | Go: jugada de rodeo | ⚠ ≈Han/Hana |
+| 38 | `miai` | Go: opciones equivalentes (fallback) | ⚠ ≈Mia-Platform |
+| 39 | `osae` | Go: bloqueo/contención | ⚠ ≈Oso/OSE |
+| 40 | `keshi` | Go: borrar potencial (aji-keshi) | ⚠ K-pop Keshi + npm menor |
+| 41 | `lyre` | la lira (instrumento afinado) | ⚠ Lyre-OS (kernel) + ≈Lyra |
+| 42 | `neal` | de "anneal" (recocer) | ⚠ común + Neal Software |
+| 43 | `genu` | *genos* + "rodilla" (bisagra Go↔Lua) | ⚠ ≈Genus/Genuitec |
+| 44 | `nascor` | latín *nasci* (nacer) | ⚠ handle |
+
+## 9. Recomendación combinada (rondas 1 + 2)
+
+Bajo el criterio recalibrado (corto-pero-legible + polisémico + culto + limpio +
+**sin connotación**), la cima queda:
+
+- **Origen / sustrato:** `geno` · `arje` · `kenon` · `noyau` (kernel FR, campeón
+  de significado, ojo pronunciación) · `fonte` · `apei` · `humus`.
+- **Ciencia / matemáticas:** `fermi` · `cauce` · `topoi`.
+- **Metáfora de sistemas:** `moyo` (territorio potencial = arquitectura extensible).
+
+**Favoritos actuales:** `geno`, `fermi`, `kenon` — cortos, legibles, con guiño
+culto, polisémicos y sin una sola connotación incómoda. `noyau` sigue siendo el
+mejor por significado si se acepta su pronunciación.
+
+**Decisión: ABIERTA.**
+
+## 10. Próximos pasos
+
+1. **Lock autoritativo** del/los finalista(s): WHOIS real de `.dev`/`.sh` en el
    registrador (el `curl` solo da señal débil), reserva del **org de GitHub** y
    viabilidad del **tap de Homebrew**.
-3. Cuando se decida, cerrar **R-04** en la auditoría de promoción y registrar el
+2. Cuando se decida, cerrar **R-04** en la auditoría de promoción y registrar el
    cambio de nombre (binario, repo, dominios, README, strings del CLI).
