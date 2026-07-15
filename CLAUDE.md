@@ -229,9 +229,12 @@ relajan.
   rama con un nombre autogenerado (`worktree-...`), renómbrala acto seguido a
   la convención: `git branch -m claude/<tema>`. Nunca empujes a otra rama sin
   permiso explícito.
-- **Limpieza post-merge:** cuando la rama se fusiona en `develop`, elimina el
-  worktree y la rama — `ExitWorktree(remove)` si la sesión sigue dentro, o
-  `git worktree remove` más el borrado de la rama local y remota si no.
+- **Limpieza post-merge (siempre, sin excepción):** cuando la rama se fusiona
+  en `develop`, elimina el worktree y la rama — `ExitWorktree(remove)` si la
+  sesión sigue dentro, o `git worktree remove` más el borrado de la rama local
+  y remota si no — y deja el repo en su **estado de reposo**: el checkout
+  principal en `develop` actualizado (`git switch develop && git pull
+  --ff-only`) y ninguna rama local ya fusionada viva (`git branch -d <rama>`).
 - **Mensajes de commit en español**, descriptivos y referenciando el hallazgo
   cuando aplique. Estilo observado en el historial:
   - `Resuelve G27: nu.task.all alinea resultados con inputs (Promise.all)`

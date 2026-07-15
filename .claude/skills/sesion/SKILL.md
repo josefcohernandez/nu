@@ -64,5 +64,8 @@ con las disciplinas BDD y TDD y el juicio clean-room.
    anota qué falló. Mensaje en español: `S##: <qué entrega>`, citando el G##
    si lo hubo. No abras PR salvo petición explícita. Si hay PR y se
    aprueba (merge a `develop`), elimina el worktree y la rama de trabajo —
-   local y remota — en cuanto el merge esté hecho: `ExitWorktree(remove)` si
-   la sesión sigue dentro, o `git worktree remove` + borrado de rama si no.
+   local y remota — en cuanto el merge esté hecho (`ExitWorktree(remove)` si
+   la sesión sigue dentro, o `git worktree remove` + borrado de rama si no) y
+   deja el repo en su estado de reposo: checkout principal en `develop`
+   actualizado y sin ramas locales ya fusionadas (CLAUDE.md §"Convenciones de
+   Git", limpieza post-merge).
