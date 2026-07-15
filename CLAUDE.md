@@ -219,9 +219,19 @@ relajan.
   salen las versiones *no estables*. `main` queda reservada para **versiones
   estables**: solo recibe merges desde `develop` cuando se corta una estable,
   nunca trabajo directo.
-- **Rama de trabajo:** desarrolla en la rama indicada por la tarea (p. ej.
-  `claude/...`); créala localmente si no existe y ábrela **desde `develop`**.
-  Nunca empujes a otra rama sin permiso explícito.
+- **Worktree de trabajo (desde 2026-07-15):** cada tarea nueva se trabaja en
+  **un worktree y una rama nuevos**, nunca directamente en el directorio
+  principal del repo — así varias tareas conviven sin pisarse el árbol de
+  trabajo. Al arrancar la tarea, crea el worktree con la herramienta
+  **`EnterWorktree`** (nómbralo como la rama de la tarea, p. ej.
+  `claude/<tema>`): lo deja en `.claude/worktrees/` con una rama nueva **desde
+  `origin/develop`** y mueve la sesión dentro. Como la herramienta bautiza la
+  rama con un nombre autogenerado (`worktree-...`), renómbrala acto seguido a
+  la convención: `git branch -m claude/<tema>`. Nunca empujes a otra rama sin
+  permiso explícito.
+- **Limpieza post-merge:** cuando la rama se fusiona en `develop`, elimina el
+  worktree y la rama — `ExitWorktree(remove)` si la sesión sigue dentro, o
+  `git worktree remove` más el borrado de la rama local y remota si no.
 - **Mensajes de commit en español**, descriptivos y referenciando el hallazgo
   cuando aplique. Estilo observado en el historial:
   - `Resuelve G27: nu.task.all alinea resultados con inputs (Promise.all)`

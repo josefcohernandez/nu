@@ -15,7 +15,9 @@ con las disciplinas BDD y TDD y el juicio clean-room.
    `docs/implementacion.md`. Implementa **solo** la sesión que marca el
    puntero; verifica que sus dependencias ("Depende de") están cerradas. Si el
    puntero está en `—`, no hay nada que implementar: ofrece
-   `/planificar-sesion`. Crea/usa la rama de trabajo indicada por la tarea.
+   `/planificar-sesion`. Crea el worktree y la rama de la tarea con
+   `EnterWorktree` y renombra la rama a `claude/<tema>` — la convención
+   completa vive en CLAUDE.md §"Convenciones de Git".
 
 2. **Escenarios BDD (antes de una línea de código).** Lanza el agente
    `escenarista-bdd` en modo sesión con la S## y sus §N de espec. Revisa los
@@ -61,5 +63,6 @@ con las disciplinas BDD y TDD y el juicio clean-room.
    antes su checkpoint 🔎 CP-N; si falla, el puntero no se mueve y la bitácora
    anota qué falló. Mensaje en español: `S##: <qué entrega>`, citando el G##
    si lo hubo. No abras PR salvo petición explícita. Si hay PR y se
-   aprueba (merge a `develop`), borra la rama de trabajo — local y remota —
-   en cuanto el merge esté hecho.
+   aprueba (merge a `develop`), elimina el worktree y la rama de trabajo —
+   local y remota — en cuanto el merge esté hecho: `ExitWorktree(remove)` si
+   la sesión sigue dentro, o `git worktree remove` + borrado de rama si no.
