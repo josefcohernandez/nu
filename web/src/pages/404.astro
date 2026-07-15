@@ -23,7 +23,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const es = i18n.es;
 
 // Manifiesto de rutas reales, relativas (sin base, sin barra inicial): docs
-// ×22, api ×16, /plugins y la portada (''). El slug del primer doc del
+// ×18, api ×16, /plugins y la portada (''). El slug del primer doc del
 // docmap alimenta también el link [d].
 const manifest: string[] = [
   ...DOCS.map((d) => `docs/${d.slug}`),
@@ -39,7 +39,7 @@ const primerDoc = DOCS[0].slug;
 // que no calza con ningún tab a propósito, así ninguno se pinta invertido.
 const sinActiva = '' as unknown as 'docs' | 'api' | 'plugins';
 
-// Statusline: "404 · 0/22" (22 = TOTAL real de la wiki; el mock usaba 15 de
+// Statusline: "404 · 0/18" (18 = TOTAL real de la wiki; el mock usaba 15 de
 // mentira con menos docs). Teclas del mock: solo [:] y [/] (no hay j/k/n/p:
 // el 404 no es un documento paginable).
 const keys = [

@@ -1,6 +1,7 @@
 // Plugin remark de la wiki. Dos transformaciones sobre el mdast, y SOLO sobre
-// los ficheros de la wiki (docs/*.md del repo) y de `empezar`
-// (web/src/content/docs/empezando/*.md). NUNCA toca la referencia
+// los ficheros de la wiki (docs/*.md del repo), de `empezar`
+// (web/src/content/docs/empezando/*.md) y de `extensiones`
+// (web/src/content/docs/extensiones/*.md). NUNCA toca la referencia
 // (web/src/content/docs/referencia/*.md): de esos se encarga rehype-api-cards.
 //
 //  1. Enlaces `*.md` relativos entre documentos → `<BASE>/docs/<slug>[#ancla]`.
@@ -16,14 +17,14 @@
 const BASE = '/nu';
 const GH_BLOB = 'https://github.com/dbareagimeno/nu/blob/main/docs/';
 
-// Los 22 slugs publicados como página en /docs/<slug> (docmap.ts es la fuente;
+// Los 18 slugs publicados como página en /docs/<slug> (docmap.ts es la fuente;
 // aquí se replican porque el plugin corre en el pipeline de build, fuera de
-// astro:content).
+// astro:content). Los enlaces a docs despublicados (api, adr, malla y todo el
+// grupo proceso) caen a GitHub blob por la rama de `.md` desconocido.
 const WIKI_SLUGS = new Set([
   'que-es-nu', 'instalacion', 'inicio-rapido', 'primer-script', 'primer-agente', 'conceptos',
-  'filosofia', 'arquitectura', 'modelo-ejecucion', 'api', 'adr',
-  'providers', 'agente', 'sesiones', 'chat', 'guia-plugins', 'malla',
-  'problemas', 'pospuesto', 'pseudocodigo', 'implementacion', 'decisiones-implementacion',
+  'filosofia', 'arquitectura', 'modelo-ejecucion',
+  'extensiones', 'guia-plugins', 'providers', 'agente', 'sesiones', 'chat', 'mcp', 'repl', 'toolkit',
 ]);
 
 function escHtml(s) {
@@ -88,8 +89,9 @@ export function remarkEnlacesWiki() {
     if (esReferencia) return; // la transforma rehype-api-cards, no nosotros
 
     const esEmpezar = ruta.includes('/content/docs/empezando/');
+    const esExtensiones = ruta.includes('/content/docs/extensiones/');
     const esWikiRepo = /\/docs\/[^/]+\.md$/.test(ruta) && !ruta.includes('/content/docs/');
-    if (!esEmpezar && !esWikiRepo) return; // fuera de nuestra jurisdicción
+    if (!esEmpezar && !esExtensiones && !esWikiRepo) return; // fuera de nuestra jurisdicción
 
     recorre(tree);
   };

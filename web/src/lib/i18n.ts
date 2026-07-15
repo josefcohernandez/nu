@@ -37,7 +37,6 @@ export interface Dict {
   s1: string; // grupo sidebar: empezar
   s2: string; // espec
   s3: string; // extensiones
-  s4: string; // proceso
   onPage: string; // "en esta página"
   commit: string; // "última edición"
   prev: string; // "← anterior"
@@ -106,7 +105,6 @@ export const i18n: Record<Lang, Dict> = {
     s1: 'empezar',
     s2: 'espec',
     s3: 'extensiones',
-    s4: 'proceso',
     onPage: 'en esta página',
     commit: 'última edición',
     prev: '← anterior',
@@ -169,7 +167,6 @@ export const i18n: Record<Lang, Dict> = {
     s1: 'start',
     s2: 'spec',
     s3: 'extensions',
-    s4: 'process',
     onPage: 'on this page',
     commit: 'last edited',
     prev: '← previous',

@@ -53,6 +53,7 @@ export const API_SIDEBAR: ApiGroup[] = [
       { label: 'agent.tool', docSlug: 'agente' },
       { label: 'chat.command', docSlug: 'chat' },
       { label: 'providers', docSlug: 'providers' },
+      { label: 'mcp', docSlug: 'mcp' },
     ],
   },
 ];

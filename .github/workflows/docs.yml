@@ -36,7 +36,13 @@ jobs:
       # Gate de coherencia: la referencia publicada no puede discrepar de
       # docs/api.md (la fuente de verdad). Si falla, skill /sync-web.
       - run: npm run check:drift
+      # Gate de limpieza (fuente): los pares <!-- nu:interno --> de docs/ deben
+      # estar balanceados antes de renderizar. Si falla, revisa los marcadores.
+      - run: npm run check:limpieza:fuente
       - run: npm run build
+      # Gate de limpieza (HTML): ningún marcador de proceso (G##/P##/✅/nu:interno)
+      # puede haberse filtrado al HTML publicado. Si falla, skill /alta-wiki.
+      - run: npm run check:limpieza
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist

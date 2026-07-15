@@ -1,14 +1,17 @@
 // El mapa de la wiki: fuente única del orden lineal y de los grupos. Alimenta el
-// sidebar (grupos), la navegación n/p (prev/next), la posición `n/22` de la
+// sidebar (grupos), la navegación n/p (prev/next), la posición `n/18` de la
 // statusline y —vía la ruta git de cada entrada— el bloque «última edición» del
 // carril derecho. Fases posteriores (404) lo reutilizan como manifiesto.
 //
-// Orden y grupos EXACTOS (handoff §12a). El slug es el fichero sin `.md`. Las
-// seis primeras salen de la colección `empezar` (páginas locales con
-// frontmatter); el resto de `wiki` (los .md reales del repo bajo docs/).
+// Orden y grupos EXACTOS. El slug es el fichero sin `.md`. Las seis primeras
+// salen de la colección `empezar` (páginas locales con frontmatter); la capa
+// conceptual (espec) sale de `wiki` (los .md reales del repo bajo docs/); el
+// grupo extensiones MEZCLA colecciones: `wiki` (guia-plugins, providers,
+// agente, sesiones, chat) y `extensiones` (páginas locales: extensiones, mcp,
+// repl, toolkit). Por eso la colección es propiedad POR SLUG, no de grupo.
 
-export type GrupoId = 'empezar' | 'espec' | 'extensiones' | 'proceso';
-export type Coleccion = 'wiki' | 'empezar';
+export type GrupoId = 'empezar' | 'espec' | 'extensiones';
+export type Coleccion = 'wiki' | 'empezar' | 'extensiones';
 
 export interface DocEntry {
   /** fichero sin `.md`, y segmento de la URL /docs/<slug> */
@@ -23,36 +26,56 @@ export interface DocEntry {
 
 export interface Grupo {
   id: GrupoId;
-  /** clave i18n de la etiqueta del grupo (s1..s4) */
-  i18nKey: 's1' | 's2' | 's3' | 's4';
+  /** clave i18n de la etiqueta del grupo (s1..s3) */
+  i18nKey: 's1' | 's2' | 's3';
   slugs: string[];
 }
 
-// Definición declarativa: grupo → clave i18n → slugs en orden.
-const DEF: { id: GrupoId; i18nKey: Grupo['i18nKey']; collection: Coleccion; slugs: string[] }[] = [
+/** Una entrada del mapa: slug + colección de la que sale. */
+interface DefEntrada {
+  slug: string;
+  collection: Coleccion;
+}
+
+// Definición declarativa: grupo → clave i18n → entradas (slug + colección) en
+// orden. La colección va por entrada porque el grupo extensiones mezcla `wiki`
+// y `extensiones`.
+const DEF: { id: GrupoId; i18nKey: Grupo['i18nKey']; entradas: DefEntrada[] }[] = [
   {
     id: 'empezar',
     i18nKey: 's1',
-    collection: 'empezar',
-    slugs: ['que-es-nu', 'instalacion', 'inicio-rapido', 'primer-script', 'primer-agente', 'conceptos'],
+    entradas: [
+      { slug: 'que-es-nu', collection: 'empezar' },
+      { slug: 'instalacion', collection: 'empezar' },
+      { slug: 'inicio-rapido', collection: 'empezar' },
+      { slug: 'primer-script', collection: 'empezar' },
+      { slug: 'primer-agente', collection: 'empezar' },
+      { slug: 'conceptos', collection: 'empezar' },
+    ],
   },
   {
     id: 'espec',
     i18nKey: 's2',
-    collection: 'wiki',
-    slugs: ['filosofia', 'arquitectura', 'modelo-ejecucion', 'api', 'adr'],
+    entradas: [
+      { slug: 'filosofia', collection: 'wiki' },
+      { slug: 'arquitectura', collection: 'wiki' },
+      { slug: 'modelo-ejecucion', collection: 'wiki' },
+    ],
   },
   {
     id: 'extensiones',
     i18nKey: 's3',
-    collection: 'wiki',
-    slugs: ['providers', 'agente', 'sesiones', 'chat', 'guia-plugins', 'malla'],
-  },
-  {
-    id: 'proceso',
-    i18nKey: 's4',
-    collection: 'wiki',
-    slugs: ['problemas', 'pospuesto', 'pseudocodigo', 'implementacion', 'decisiones-implementacion'],
+    entradas: [
+      { slug: 'extensiones', collection: 'extensiones' },
+      { slug: 'guia-plugins', collection: 'wiki' },
+      { slug: 'providers', collection: 'wiki' },
+      { slug: 'agente', collection: 'wiki' },
+      { slug: 'sesiones', collection: 'wiki' },
+      { slug: 'chat', collection: 'wiki' },
+      { slug: 'mcp', collection: 'extensiones' },
+      { slug: 'repl', collection: 'extensiones' },
+      { slug: 'toolkit', collection: 'extensiones' },
+    ],
   },
 ];
 
@@ -68,25 +91,34 @@ export function urlDoc(slug: string): string {
 }
 
 function gitPath(collection: Coleccion, slug: string): string {
-  return collection === 'wiki'
-    ? `docs/${slug}.md`
-    : `web/src/content/docs/empezando/${slug}.md`;
+  switch (collection) {
+    case 'wiki':
+      return `docs/${slug}.md`;
+    case 'empezar':
+      return `web/src/content/docs/empezando/${slug}.md`;
+    case 'extensiones':
+      return `web/src/content/docs/extensiones/${slug}.md`;
+  }
 }
 
 // Grupos con sus slugs, para el sidebar/drawer.
-export const GRUPOS: Grupo[] = DEF.map((d) => ({ id: d.id, i18nKey: d.i18nKey, slugs: d.slugs }));
+export const GRUPOS: Grupo[] = DEF.map((d) => ({
+  id: d.id,
+  i18nKey: d.i18nKey,
+  slugs: d.entradas.map((e) => e.slug),
+}));
 
-// Lista lineal en orden de lectura: alimenta prev/next y la posición n/22.
+// Lista lineal en orden de lectura: alimenta prev/next y la posición n/18.
 export const DOCS: DocEntry[] = DEF.flatMap((d) =>
-  d.slugs.map((slug) => ({
-    slug,
-    collection: d.collection,
+  d.entradas.map((e) => ({
+    slug: e.slug,
+    collection: e.collection,
     grupo: d.id,
-    gitPath: gitPath(d.collection, slug),
+    gitPath: gitPath(e.collection, e.slug),
   })),
 );
 
-export const TOTAL = DOCS.length; // 22
+export const TOTAL = DOCS.length; // 18
 
 const PORSLUG = new Map(DOCS.map((d, i) => [d.slug, i]));
 

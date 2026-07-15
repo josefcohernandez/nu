@@ -135,8 +135,8 @@ recompilación. El contrato del adaptador y el formato del registro están en
   nativo: [P18](pospuesto.md).
 - Extensiones oficiales embebidas con `go:embed` pero **inactivas por
   defecto** (ADR-010): activación explícita (pantalla de runtime desnudo
-  con TTY — api.md §14 —, el flag `nu --default-config` sin TTY —ADR-015,
-  G33—, o `nu.toml` a mano), sin red; sobreescribibles por el usuario
+  con TTY — api.md §14 —, el flag `nu --default-config` sin TTY, o `nu.toml`
+  a mano), sin red; sobreescribibles por el usuario
   desde su directorio de config. El **conjunto oficial de producto** son
   las embebidas menos el andamiaje `example` y la malla `mesh` (ADR-015;
   [malla.md](malla.md) §1.4): además del
@@ -158,6 +158,8 @@ Las sesiones del agente se guardan como JSONL append-only bajo
 convención pública legible por otras extensiones, no una primitiva del core.
 Contrato completo en [sesiones.md](sesiones.md). El resto de extensiones
 escriben bajo `data_dir()/plugins/<nombre>/`.
+
+<!-- nu:interno -->
 
 ## Cuestiones abiertas
 
@@ -252,3 +254,5 @@ escriben bajo `data_dir()/plugins/<nombre>/`.
    del binario, NO superficie Lua sagrada (como `EvalString`/`RenderBareScreen`);
    api.md quedó INTACTO (corolario de completitud satisfecho: la API pública +
    las extensiones bastaron, sin hallazgo `G##`).
+
+<!-- /nu:interno -->

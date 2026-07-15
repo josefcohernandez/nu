@@ -95,7 +95,7 @@ explícito, que tiene precedencia. El id sale del listado de sesiones
 contra el registro de providers, escribe una entrada `event` en el
 transcript ([sesiones.md](sesiones.md) §3) y aplica desde el siguiente
 request; con un turno en vuelo, al ensamblar la siguiente iteración (como
-la cola de G4), nunca a mitad de un stream.
+con la reentrada), nunca a mitad de un stream.
 
 **Fork y cierre (G39)**: `Session:fork(at?, opts?)` bifurca la historia en
 una sesión nueva **autocontenida** — el prefijo se **copia** al transcript
@@ -160,7 +160,7 @@ Dos mecanismos, deliberadamente separados:
 `delta`, `message`, `tool.start`, `tool.progress`, `tool.end`, `compact`,
 `error`, `permission.asked`, `permission.denied` (G40, §5). Para pintar, loggear, observar. *(El evento
 `compact` solo se emitirá cuando exista la compactación automática:
-[pospuesto.md](pospuesto.md) **P25**.)* El namespace
+[pospuesto.md](pospuesto.md) (P25).)* El namespace
 `agent:` no es una reserva del core (el core no sabe de agentes, ADR-003):
 es el namespace del plugin `agent`, protegido por la unicidad del nombre de
 plugin como cualquier otro (G26, [api.md](api.md) §4).
@@ -409,8 +409,12 @@ Las descripciones de tools de servidores MCP no entran aquí: instalar un
 servidor MCP es un acto consciente del usuario — su responsabilidad, como
 instalar un plugin.
 
+<!-- nu:interno -->
+
 ## 12. Relación con lo pospuesto
 
 Tool calls paralelas ([P12](pospuesto.md)), workers anidados para subagentes
 ([P11](pospuesto.md)) y retención de sesiones ([P10](pospuesto.md)) tienen
 entrada en el registro de pospuestos con su disparador.
+
+<!-- /nu:interno -->

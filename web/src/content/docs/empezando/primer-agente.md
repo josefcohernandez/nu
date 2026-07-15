@@ -16,7 +16,7 @@ de tu provider.
 ## 1. Activa las extensiones oficiales
 
 Las extensiones oficiales vienen embebidas en el binario pero **inactivas por
-defecto** (ADR-010). El agente necesita tres: `providers`, `sessions` y `agent`.
+defecto**. El agente necesita tres: `providers`, `sessions` y `agent`.
 Actívalas en `nu.toml`, dentro de `nu.config.dir()` (normalmente
 `~/.config/nu/`):
 
@@ -31,7 +31,7 @@ exactamente esta línea de `nu.toml`.
 
 ## 2. Declara un provider
 
-Los providers de LLM se declaran como **datos** (TOML), no como código (ADR-005).
+Los providers de LLM se declaran como **datos** (TOML), no como código.
 Edita `providers.toml` en el mismo directorio de config:
 
 ```toml

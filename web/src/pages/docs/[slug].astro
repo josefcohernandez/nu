@@ -14,13 +14,15 @@ import { i18n } from '../../lib/i18n';
 import '../../styles/markdown.css';
 
 export async function getStaticPaths() {
-  const [wiki, empezar] = await Promise.all([
+  const [wiki, empezar, extensiones] = await Promise.all([
     getCollection('wiki'),
     getCollection('empezar'),
+    getCollection('extensiones'),
   ]);
   const porId = new Map<string, any>();
   for (const e of wiki) porId.set(`wiki:${e.id}`, e);
   for (const e of empezar) porId.set(`empezar:${e.id}`, e);
+  for (const e of extensiones) porId.set(`extensiones:${e.id}`, e);
 
   return DOCS.map((doc, i) => ({
     params: { slug: doc.slug },
@@ -39,12 +41,12 @@ const es = i18n.es; // build-time en ES; el swap a EN es en cliente
 
 const { Content, headings } = await render(entry);
 
-// Título: frontmatter (empezar) o el primer H1 del .md (wiki). Las páginas de
-// `empezar` no traen H1 en el cuerpo: se pinta aquí para que reciba el mismo
-// estilo (═) que un H1 de markdown.
-const esEmpezar = doc.collection === 'empezar';
+// Título: frontmatter (empezar, extensiones) o el primer H1 del .md (wiki). Las
+// páginas locales (empezar y extensiones) no traen H1 en el cuerpo: se pinta
+// aquí para que reciba el mismo estilo (═) que un H1 de markdown.
+const usaFrontmatter = doc.collection === 'empezar' || doc.collection === 'extensiones';
 const tituloH1 = headings.find((h) => h.depth === 1)?.text;
-const titulo = esEmpezar ? (entry.data.title as string) : (tituloH1 ?? doc.slug);
+const titulo = usaFrontmatter ? (entry.data.title as string) : (tituloH1 ?? doc.slug);
 
 // Índice del carril: los h2 del documento.
 const toc = headings.filter((h) => h.depth === 2);
@@ -85,7 +87,7 @@ function agoEs(n: number): string {
       <!-- Contenido. -->
       <main class="col-main">
         <article class="markdown">
-          {esEmpezar && <h1>{titulo}</h1>}
+          {usaFrontmatter && <h1>{titulo}</h1>}
           <Content />
         </article>
 

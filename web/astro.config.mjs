@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import { remarkLimpiezaInterno } from './src/lib/markdown/remark-limpieza-interno.mjs';
 import { remarkEnlacesWiki } from './src/lib/markdown/remark-enlaces-wiki.mjs';
 import { rehypeApiCards } from './src/lib/markdown/rehype-api-cards.mjs';
 
@@ -15,7 +16,9 @@ export default defineConfig({
   // enlaza concatenando `${BASE}ruta` (sin barra se generarían /nudocs, etc.).
   base: '/nu/',
   markdown: {
-    remarkPlugins: [remarkEnlacesWiki],
+    // Limpieza PRIMERO: los bloques internos se van con sus enlaces antes de
+    // que remark-enlaces-wiki los reescriba.
+    remarkPlugins: [remarkLimpiezaInterno, remarkEnlacesWiki],
     rehypePlugins: [rehypeApiCards],
     shikiConfig: {
       theme: 'css-variables',

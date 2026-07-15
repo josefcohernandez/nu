@@ -203,9 +203,13 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
 | Atajos | `nu.ui.keymap` + tabla `chat.keys` |
 | Apariencia | themes del toolkit (semánticos) |
 
+<!-- nu:interno -->
+
 ## 10. Pospuesto
 
 Splits / vista multi-sesión ([P14](pospuesto.md)), búsqueda dentro del
 transcript ([P15](pospuesto.md)), modo vim del editor de input
 ([P16](pospuesto.md)), render de imágenes en el transcript
 ([P6](pospuesto.md)).
+
+<!-- /nu:interno -->

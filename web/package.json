@@ -8,7 +8,9 @@
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
     "check": "astro check",
-    "check:drift": "node scripts/check-drift.mjs"
+    "check:drift": "node scripts/check-drift.mjs",
+    "check:limpieza": "node scripts/check-limpieza-html.mjs",
+    "check:limpieza:fuente": "node scripts/check-limpieza-html.mjs --fuente"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.1.0",

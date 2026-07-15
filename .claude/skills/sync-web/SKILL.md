@@ -57,3 +57,9 @@ script no puede hacer: redactar y verificar.
 - No relaja el detector para "hacer pasar" una página: si un caso legítimo no
   parsea, se arregla el script explicando el caso en su cabecera, nunca
   añadiendo una excepción silenciosa a la comparación.
+- No la afecta el plugin de limpieza de la web (`remark-limpieza-interno`): su
+  jurisdicción son los contratos de `docs/*.md`, nunca `referencia/`. Además,
+  `docs/api.md` ya **no** se publica como página wiki (`/docs/api` se retiró):
+  la única presentación web de la API es `/api`, derivada de
+  `web/src/content/docs/referencia/`. El flujo espec→web de esta skill no
+  cambia. (El alta/baja de páginas de la wiki lo lleva `/alta-wiki`.)

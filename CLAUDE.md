@@ -155,6 +155,13 @@ Este es el corazón del proyecto y debes respetarlo:
   rutas relativas (`[api.md](docs/api.md) §3`) y por número de hallazgo/ADR. Al
   resolver algo, deja el rastro: enlaza el cambio desde `problemas.md` y cita
   el `G##`/`F##`/`P##`/`ADR-NNN` que lo motiva.
+- **La web publica la Capa 1; la trazabilidad se mantiene en la fuente.** Una
+  sección de un contrato que no debe aparecer en la web de docs se envuelve
+  entre `<!-- nu:interno -->` y `<!-- /nu:interno -->`; el resto de la
+  trazabilidad (`(G##)`, `(P##)`, `> ✅ …`) se queda en `docs/` —sigue siendo la
+  fuente de verdad— y la web la limpia en build. Alta o baja de páginas de la
+  wiki: `/alta-wiki`. Detalle en [docs/README.md](docs/README.md)
+  §«Publicación web».
 - No inventes API para tapar un hallazgo sin antes comprobar que el patrón se
   repite y que no se compone con lo existente. Varios "hallazgos" se cierran
   demostrando que ya eran expresables (semáforo con `nu.task.future`, etc.).
