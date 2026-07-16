@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build hermético y reproducible de enu.wasm (migracion-vm.md M02 + fix
 # post-M17): PUC-Lua OFICIAL (5.4.7, sin un solo parche) + el shim del kernel
-# (shim/eenu_shim.c), compilados a WebAssembly con el trampolín de desenrollado
+# (shim/enu_shim.c), compilados a WebAssembly con el trampolín de desenrollado
 # (shim/enu_unwind.h) en vez de setjmp/longjmp.
 #
 # Toolchain HERMÉTICA: el script descarga el wasi-sdk oficial (versión y
@@ -96,7 +96,7 @@ LUA_SRC=$(ls "$LUA_DIR"/*.c \
   -O2 -mexec-model=reactor \
   -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS \
   -include shim/enu_unwind.h -Ishim -I"$LUA_DIR" \
-  $LUA_SRC shim/eenu_shim.c -o enu.wasm \
+  $LUA_SRC shim/enu_shim.c -o enu.wasm \
   -lwasi-emulated-signal -lwasi-emulated-process-clocks \
   -Wl,--export=__stack_pointer -Wl,--export=malloc \
   -Wl,--strip-debug
