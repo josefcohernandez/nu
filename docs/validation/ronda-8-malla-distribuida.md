@@ -18,7 +18,7 @@ en las fronteras que importan (los Roles y los merges, nunca el torrente de
 turnos)? La hipótesis dura de la ronda es **pull-only**: enu solo actúa de
 cliente — sin listener, P1/P19 siguen dormidos. Fuera de alcance, como en la
 Ronda 5: el no-determinismo del *muestreo* del modelo (territorio de
-[providers.md](providers.md); el "replay adapter" del escenario 27 sigue siendo
+[providers.md](../contracts/providers.md); el "replay adapter" del escenario 27 sigue siendo
 el escape para reproducibilidad total). Hallazgos G38-G40 al final.
 
 ## Escenario 33: nodo de malla con claim por CAS de git
@@ -269,15 +269,15 @@ solo dato: el patrón denegado en forma estructurada. **[G40]**
 ## Hallazgos (ronda 8)
 
 **G38 — el slug de proyecto de `sessions/<proyecto>/` no está especificado.**
-[sesiones.md](sesiones.md) §1 promete que "cualquier herramienta externa puede
+[sesiones.md](../contracts/sesiones.md) §1 promete que "cualquier herramienta externa puede
 leer sesiones", pero §2 codifica el directorio como "slug del cwd" sin escribir
 el algoritmo: la promesa no se puede ejercer. La ronda lo necesitó tres veces
 (comitear el transcript en la rama, contar entradas para elegir el punto de
 fork, importar una sesión ajena). **Resuelto**: el algoritmo pasa a ser parte
-del formato ([sesiones.md](sesiones.md) §2, congelado tal cual con sus
+del formato ([sesiones.md](../contracts/sesiones.md) §2, congelado tal cual con sus
 propiedades — legible, con pérdida, clave de agrupación y no identidad) y la
 extensión lo expone como `sessions.slug/dir`; detalle y contraindicaciones en
-[problemas.md](problemas.md#g38).
+[problemas.md](../findings/g38-el-slug-de-proyecto.md).
 
 **G39 — `Session:fork` no re-aloja: sin `opts` y con `at` sin unidad definida.**
 Fork-como-replicación exige worktree (cwd) propio por variante — el remedio de
@@ -286,10 +286,10 @@ documenta qué hereda, y el rodeo (close + `resume` con opts efímeros) se apoya
 en un `close` que la firma del contrato omite. Además `at` no define qué indexa
 (la unidad de `meta.parent.entry` está implícita). **Resuelto**:
 `fork(at?, opts?)` (opts efímeros, permisos solo recortan) y `close()` entran
-en el contrato ([agente.md](agente.md) §2), `at` indexa el historial de
+en el contrato ([agente.md](../contracts/agente.md) §2), `at` indexa el historial de
 mensajes vigente, la herencia queda especificada completa, y se bendice la
 copia del prefijo — la hija autocontenida hace viajar los transcripts
-([sesiones.md](sesiones.md) §5). Detalle en [problemas.md](problemas.md#g39).
+([sesiones.md](../contracts/sesiones.md) §5). Detalle en [problemas.md](../findings/g39-session-fork-no-re-aloja.md).
 
 **G40 — las denegaciones de permisos no son observables como dato.**
 El deny de política corta antes de los hooks `permission`, `permission.asked`
@@ -300,8 +300,8 @@ puede convertir denegaciones en enmiendas de Role sin parsear texto.
 (`{ id, tool, args?, source, pattern?, suggested? }`) con dos destinos — el
 evento `agent:permission.denied` para observadores vivos y el `meta` del
 `tool_result` para que la denegación viaje con el transcript —, y `tool.end`
-queda especificado también para denegaciones ([agente.md](agente.md) §4/§5).
-Detalle en [problemas.md](problemas.md#g40).
+queda especificado también para denegaciones ([agente.md](../contracts/agente.md) §4/§5).
+Detalle en [problemas.md](../findings/g40-las-denegaciones-de-permisos.md).
 
 Confirmaciones (sin API nueva): el **claim distribuido** es un push atómico de
 ref y el heartbeat un `--force-with-lease` — CAS dos veces, todo con `enu.proc`

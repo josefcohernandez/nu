@@ -6,7 +6,7 @@ description: Sincroniza la web de documentación (web/referencia/) con docs/api.
 # Sincronizar la web con la espec
 
 La web (`web/src/content/docs/referencia/`) es una **presentación derivada** de
-[docs/api.md](../../../docs/api.md): orientada a tareas, con prosa pedagógica y
+[docs/api.md](../../../docs/contracts/api.md): orientada a tareas, con prosa pedagógica y
 ejemplos verificados. La deriva mecánica (firmas, marcadores ⏸/[W], inventario)
 la detecta un script determinista; esta skill es la parte editorial que el
 script no puede hacer: redactar y verificar.

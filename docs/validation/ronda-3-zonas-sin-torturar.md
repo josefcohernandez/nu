@@ -9,7 +9,7 @@ scenarios: [12, 13, 14, 15, 16, 17]
 # Ronda 3: las zonas sin torturar
 
 Cambio de método: esta ronda **no aplica resoluciones** — cada grieta va a
-la lista de problemas abiertos ([problemas.md](problemas.md)) para
+la lista de problemas abiertos ([problemas.md](../findings/README.md)) para
 resolverse una a una.
 
 ## Escenario 12: resize del terminal con un modal abierto
@@ -92,6 +92,6 @@ local w = enu.worker.spawn("auditor", { caps = { "fs", "text", "search" } })
 ```
 
 Hallazgos G1-G9 consolidados con impacto y opciones en
-[problemas.md](problemas.md).
+[problemas.md](../findings/README.md).
 
 ---

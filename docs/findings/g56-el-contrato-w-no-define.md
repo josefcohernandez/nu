@@ -12,7 +12,7 @@ adr: "ADR-024"
 # G56 · El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner — `api.md` §13/§16 / `agente.md` — **RESUELTO**
 
 **Resolución** (2026-07-16; ADR-024; aclaración semántica en
-[api.md](api.md) §13/§14/§15/§16 y [agente.md](agente.md) §9 — sin firma
+[api.md](../contracts/api.md) §13/§14/§15/§16 y [agente.md](../contracts/agente.md) §9 — sin firma
 nueva: `enu.version.api` no se mueve). **Foto del dueño en el spawn**: un
 worker porta como identidad el plugin dueño vigente en el momento de
 `enu.worker.spawn`, capturada en el estado principal —donde la pila de dueños
@@ -34,7 +34,7 @@ procesos huérfanos sin dueño). Cierra de paso **SEC-05**: al viajar la
 identidad **copiada** en el spawn —como los mensajes— y quedar prohibida la
 lectura en vivo de `rt.ownerStack` del padre desde la goroutine del worker,
 el data race deja de existir **por diseño**, no por candado. (Origen: SEC-07
-de [auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md).)
+de [auditoria-seguridad-2026-07-16.md](../audits/auditoria-seguridad-2026-07-16.md).)
 
 **Problema.** Las primitivas marcadas [W] que se atribuyen a un "dueño" (p. ej.
 `enu.log`, `enu.proc`) no tienen definido bajo qué identidad corren cuando se

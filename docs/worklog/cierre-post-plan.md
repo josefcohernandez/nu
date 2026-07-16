@@ -20,7 +20,7 @@ request con `thinking.budget` sobre ellos daría 400 contra la API real. **No es
 código** —el adaptador cumple fielmente el contrato congelado y sus tests usan SSE grabado, no
 red—, sino una grieta del **modelo canónico** que conviene NO decidir aún: cambiar el modelo de
 thinking es transversal (§2.1 + el adaptador + posiblemente el control de razonamiento del agente)
-y no urge sin un consumidor real. Queda como **[P21](pospuesto.md)** con su disparador
+y no urge sin un consumidor real. Queda como **[P21](../postponed/pospuesto.md)** con su disparador
 (conectar el adaptador contra la API real con un Opus 4.6+ y recibir 400, o querer thinking
 adaptativo de primera clase). No se tocó `providers.md` ni el adaptador.
 

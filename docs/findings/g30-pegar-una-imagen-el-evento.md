@@ -9,13 +9,13 @@ affected: ["api.md §9.3"]
 ---
 # G30 · Pegar una imagen: el evento `paste` solo trae texto — `api.md` §9.3 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §9.3): pegar contenido
+**Resolución** (aplicada en [api.md](../contracts/api.md) §9.3): pegar contenido
 **no-texto** del portapapeles (una imagen) **inyecta una ruta**, no los
 bytes. El core vuelca la imagen a un fichero temporal de la sesión
 (`enu.fs.tmpdir`) y entrega un evento `paste` con `path` (sin `text`); la UI
 inserta la ruta exactamente como una mención `@`, y el agente decide leerla
 (no se incrusta el contenido a ciegas, igual que las menciones de
-[chat.md](chat.md) §3). Los bytes binarios nunca cruzan las fronteras de
+[chat.md](../contracts/chat.md) §3). Los bytes binarios nunca cruzan las fronteras de
 texto/JSON (coherente con G11). Es **distinto de P6** (render de imágenes en
 el transcript, pospuesto): aquello es pintar, esto es entrada. Descartado
 entregar los bytes en el evento (reintroduce binario en la frontera de

@@ -11,12 +11,12 @@ findings: ["G27"]
 
 Pregunta del stress test: si la extensión oficial `agent` existe, ¿puede
 **otro** plugin construir encima loops deterministas de agentes y correrlos
-en paralelo, usando solo el contrato público ([agente.md](agente.md)) +
+en paralelo, usando solo el contrato público ([agente.md](../contracts/agente.md)) +
 `enu.task` + `enu.worker`? Misma regla de siempre. Dos ejes que tirar de los
 extremos: **determinismo** (un loop reproducible en su control de flujo) y
 **paralelismo** (N agentes a la vez). Fuera de alcance a propósito: el
 no-determinismo del *muestreo* del modelo (temperatura/seed) es territorio
-de [providers.md](providers.md), no del orquestador.
+de [providers.md](../contracts/providers.md), no del orquestador.
 
 ## Escenario 24: driver de loop determinista (plugin de tercero)
 
@@ -64,7 +64,7 @@ mensaje final del asistente; para un branch determinista sobre "¿pasaron los
 tests?" el driver necesita el resultado de la tool, no la prosa del modelo.
 No hace falta API nueva: se suscribe a `agent:tool.end` filtrando por
 `payload.session` (la atribución obligatoria de G3) o lee el transcript JSONL
-([sesiones.md](sesiones.md)). Funciona, pero es observación lateral, no valor
+([sesiones.md](../contracts/sesiones.md)). Funciona, pero es observación lateral, no valor
 de retorno — lo anoto sin elevarlo a hallazgo.
 
 ```lua
@@ -124,7 +124,7 @@ end
 Esto **es paralelismo real donde importa**: cada `spawn{}:run()` corre como
 task y se suspende en su `enu.http.stream` al LLM; mientras una espera, las
 otras avanzan, y las goroutines de red van de verdad en paralelo (§9, el caso
-caliente de [modelo-ejecucion.md](modelo-ejecucion.md)). El `pcall` por rama
+caliente de [modelo-ejecucion.md](../core/modelo-ejecucion.md)). El `pcall` por rama
 me da el *allSettled* que `task.all` no ofrece de fábrica (solo trae
 fail-fast: "si una lanza, cancela el resto y relanza"). El semáforo de
 `future` me da el límite de concurrencia sin API nueva.
@@ -210,9 +210,9 @@ respuesta correcta es serializar.
 Único hallazgo nuevo de mecanismo. Sin orden posicional especificado, una
 orquestación paralela determinista no puede correlacionar resultado con
 entrada sin acarrear el índice a mano. Resolución propuesta: semántica
-`Promise.all` en [api.md](api.md) §3 — `out[i]` es el resultado de `fns[i]`,
+`Promise.all` en [api.md](../contracts/api.md) §3 — `out[i]` es el resultado de `fns[i]`,
 independiente del orden de terminación. **Resuelto**: aplicado a
-[api.md](api.md) §3 y registrado en [problemas.md](problemas.md) (G27).
+[api.md](../contracts/api.md) §3 y registrado en [problemas.md](../findings/README.md) (G27).
 
 Confirmaciones (sin API nueva): el loop determinista se monta sobre el
 contrato público (§24); el fan-out paralelo acotado y *allSettled* se compone

@@ -11,7 +11,7 @@ findings: ["G28", "G29", "G30"]
 
 Pregunta del stress test: ¿se puede montar la TUI de un harness de coding
 (estilo claude-code) **entera** sobre `enu.ui` crudo + el contrato de
-[chat.md](chat.md)? La respuesta corta es que `chat.md` ya *es* ese harness;
+[chat.md](../contracts/chat.md)? La respuesta corta es que `chat.md` ya *es* ese harness;
 así que esta ronda no reescribe lo ya validado (transcript, modales, slash,
 statusline — escenario 5 cubrió el picker modal) sino que tortura lo que
 `chat.md` da por hecho: el **scrollback** del transcript, el **cursor real**
@@ -131,11 +131,11 @@ cálculo. **[G29]**
 ## Hallazgos (ronda 6)
 
 Las tres quedaron resueltas tras discutir contraindicaciones (registradas en
-[problemas.md](problemas.md)):
+[problemas.md](../findings/README.md)):
 
 **G28 — `Region:blit` con coordenadas locales negativas (viewport/scrollback).**
 Mecanismo central del transcript con scroll; el doc solo especificaba el
-recorte por exceso. Resuelta en [api.md](api.md) §9.1: `blit` recorta por
+recorte por exceso. Resuelta en [api.md](../contracts/api.md) §9.1: `blit` recorta por
 **ambos extremos** (negativos recortan el borde inicial), es **copia y no
 re-render**, y la virtualización es del toolkit. Las contraindicaciones que
 afinaron la resolución: clavar la semántica del negativo, garantizar que no
@@ -155,7 +155,7 @@ bytes — el core vuelca la imagen del portapapeles a un temporal de sesión y
 el evento `paste` trae `path`; la UI la inserta igual que una mención `@` y
 el agente decide leerla. Mantiene los binarios fuera de las fronteras
 texto/JSON (coherente con G11) y es distinto de P6 (render de imágenes en
-pantalla, pospuesto). Aplicada a [api.md](api.md) §9.3.
+pantalla, pospuesto). Aplicada a [api.md](../contracts/api.md) §9.3.
 
 Confirmaciones (sin API nueva): las tres zonas, el editor multilínea con
 cursor real, los popups `@`/`/`, el spinner en vivo y los renderers de tools

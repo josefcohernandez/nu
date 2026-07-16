@@ -7,7 +7,7 @@ date: "2026-07"
 ---
 # ADR-021 · Baseline completo y reproducible de lint antes de congelar v1
 
-**Estado:** Aceptada · 2026-07 (**refina** [ADR-013](#adr-013--integración-continua-y-publicación-de-releases), punto 5; no cambia el resto de su política de CI ni la superficie de [api.md](api.md))
+**Estado:** Aceptada · 2026-07 (**refina** [ADR-013](adr-013-integracion-continua-y-publicacion.md), punto 5; no cambia el resto de su política de CI ni la superficie de [api.md](../../contracts/api.md))
 
 **Contexto.** ADR-013 introdujo un conjunto pequeño de linters con
 `only-new-issues: true` para que la deuda del código ya escrito no bloqueara la

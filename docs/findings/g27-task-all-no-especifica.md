@@ -9,7 +9,7 @@ affected: ["api.md §3"]
 ---
 # G27 · `enu.task.all` no especifica el orden de los resultados — `api.md` §3 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §3): `enu.task.all` devuelve los
+**Resolución** (aplicada en [api.md](../contracts/api.md) §3): `enu.task.all` devuelve los
 resultados **alineados con los inputs** (`out[i]` es el de `fns[i]`),
 independiente del orden de terminación — semántica `Promise.all`. No es API
 nueva: fija la semántica de orden de un primitivo que ya existía. Pasa la

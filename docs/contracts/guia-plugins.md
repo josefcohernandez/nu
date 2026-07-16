@@ -10,7 +10,7 @@ status: "vigente"
 
 Estado: viva — crece con cada lección aprendida. No es un contrato: es la
 sabiduría práctica para escribir plugins que funcionen bien en el modelo de
-ejecución de enu ([modelo-ejecucion.md](modelo-ejecucion.md)). Las firmas
+ejecución de enu ([modelo-ejecucion.md](../core/modelo-ejecucion.md)). Las firmas
 exactas están en [api.md](api.md) y los contratos de extensión en
 [agente.md](agente.md) / [chat.md](chat.md) / [providers.md](providers.md).
 

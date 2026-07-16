@@ -69,7 +69,7 @@ la necesita; Anthropic dará un error accionable en la primera petición, no al
 resolver). El onramp `enu --default-config` deja una plantilla **activa** de este
 fichero —provider `anthropic` con `api_key_env = "ANTHROPIC_API_KEY"` y el modelo
 `claude-opus-4-8` (alias `opus`)— escrita solo si no existe, para que el harness
-quede usable con un comando ([ADR-017](adr.md), [G35](problemas.md)).
+quede usable con un comando ([ADR-017](../decisions/adr/README.md), [G35](../findings/README.md)).
 
 ---
 
@@ -95,7 +95,7 @@ Request = {
 Message = { role: "user"|"assistant", content: Block[] }
 ```
 
-**Razonamiento extendido (`thinking`)** ([ADR-016](adr.md#adr-016--modelo-canónico-de-thinking-con-mode-y-traducción-por-modelo-en-el-adaptador), cierra [G34](problemas.md#g34)): `mode` pide el *modo* de razonamiento —`"adaptive"` (el modelo decide el esfuerzo, lo que esperan los modelos modernos), `"budget"` con `budget = N` (presupuesto de N tokens, extended thinking *legacy*), `"off"`—; `thinking` ausente = sin razonamiento. Por **compatibilidad**, `{ budget = N }` sin `mode` equivale a `mode = "budget"`. Qué forma entiende cada modelo es un **dato del registro**: cada entrada de modelo en `providers.toml` declara `thinking = "adaptive" | "budget" | "none"` (default `"budget"`), que viaja en el `ModelInfo` (§3) y el adaptador lee para **traducir por-modelo** (p. ej. `mode="budget"` sobre un modelo de dialecto `"adaptive"` degrada a `{type="adaptive"}`, porque Opus 4.6+ retiró `budget_tokens`). Pedir razonamiento a un modelo de dialecto `"none"` es una **degradación declarada** (§3 obligación 5): el adaptador no lo simula. Así el adaptador no hardcodea tablas de versiones de modelos (ADR-003/ADR-005).
+**Razonamiento extendido (`thinking`)** ([ADR-016](../decisions/adr/adr-016-modelo-canonico-de-thinking.md), cierra [G34](../findings/g34-el-modelo-canonico-de-thinking.md)): `mode` pide el *modo* de razonamiento —`"adaptive"` (el modelo decide el esfuerzo, lo que esperan los modelos modernos), `"budget"` con `budget = N` (presupuesto de N tokens, extended thinking *legacy*), `"off"`—; `thinking` ausente = sin razonamiento. Por **compatibilidad**, `{ budget = N }` sin `mode` equivale a `mode = "budget"`. Qué forma entiende cada modelo es un **dato del registro**: cada entrada de modelo en `providers.toml` declara `thinking = "adaptive" | "budget" | "none"` (default `"budget"`), que viaja en el `ModelInfo` (§3) y el adaptador lee para **traducir por-modelo** (p. ej. `mode="budget"` sobre un modelo de dialecto `"adaptive"` degrada a `{type="adaptive"}`, porque Opus 4.6+ retiró `budget_tokens`). Pedir razonamiento a un modelo de dialecto `"none"` es una **degradación declarada** (§3 obligación 5): el adaptador no lo simula. Así el adaptador no hardcodea tablas de versiones de modelos (ADR-003/ADR-005).
 
 ### 2.2 Bloques de contenido
 
@@ -177,7 +177,7 @@ Obligaciones del adaptador:
    sesiones) tienen su válvula en `meta`/`extra`. *(✅ Implementado para
    `anthropic`: coloca los breakpoints en la última tool, el system y los dos
    últimos mensajes, sin pisar el `cache_control` que venga en `meta` —
-   [pospuesto.md](pospuesto.md) **P31**.)*
+   [pospuesto.md](../postponed/pospuesto.md) **P31**.)*
 
 Esqueleto ilustrativo (no normativo):
 
@@ -217,7 +217,7 @@ de [guia-plugins.md](guia-plugins.md) §5 tiene el porqué.)*
 
 - Los adaptadores oficiales (`anthropic`, `openai-compat`, `gemini`) van
   embebidos como parte de la extensión de providers. *(✅ Los tres están
-  embebidos: [pospuesto.md](pospuesto.md) **P30** resuelto. `openai-compat` sirve
+  embebidos: [pospuesto.md](../postponed/pospuesto.md) **P30** resuelto. `openai-compat` sirve
   a todo el ecosistema Chat Completions —OpenAI, Together, Groq, OpenRouter, vLLM,
   Ollama `/v1`—; `gemini` a la Generative Language API.)*
 - Un plugin aporta el suyo registrándolo:
@@ -250,9 +250,9 @@ de [guia-plugins.md](guia-plugins.md) §5 tiene el porqué.)*
 servidor local: **device flow o pegado manual de código** (`enu.http.request`
 en polling + abrir el navegador con `enu.proc` — el patrón de `gh` o
 `gcloud`). Tokens de refresco: en `data_dir()/plugins/<nombre>/`, permisos
-`0600`, en claro (coherente con [P7](pospuesto.md): el cifrado en reposo es
+`0600`, en claro (coherente con [P7](../postponed/pospuesto.md): el cifrado en reposo es
 del filesystem). El flujo con callback localhost requeriría un listener
-HTTP que el core no tiene: pospuesto ([P19](pospuesto.md)).
+HTTP que el core no tiene: pospuesto ([P19](../postponed/pospuesto.md)).
 
 ---
 

@@ -5,8 +5,8 @@ Gracias por el interés. `enu` es software libre bajo la [Apache License
 de bugs y parches.
 
 Antes de nada, lee la guía del proyecto: [CLAUDE.md](CLAUDE.md) (flujo de
-trabajo, idioma y estilo), [docs/filosofia.md](docs/filosofia.md) (lo que `enu`
-es y lo que no) y, si tocas código, [docs/implementacion.md](docs/implementacion.md)
+trabajo, idioma y estilo), [docs/filosofia.md](docs/core/filosofia.md) (lo que `enu`
+es y lo que no) y, si tocas código, [docs/implementacion.md](docs/plan/implementacion.md)
 (el protocolo de construcción). Todo el repositorio está en español; la API y
 los identificadores, en inglés `snake_case`.
 
@@ -66,7 +66,7 @@ Toda aportación de código debe dejar el repositorio en verde:
 
 La integración continua (ver [`.github/workflows/ci.yml`](.github/workflows/ci.yml))
 comprueba esto en cada Pull Request, en Linux y macOS. La API del core es
-**sagrada** ([docs/api.md](docs/api.md)): crece solo por adición; si crees que
+**sagrada** ([docs/api.md](docs/contracts/api.md)): crece solo por adición; si crees que
 falta algo, ábrelo como discusión antes de implementarlo.
 
 ## Titularidad y licencia de las contribuciones

@@ -9,8 +9,8 @@ affected: ["api.md", "agente.md §5", "chat.md §8"]
 ---
 # G20 · Detección de interactividad (TTY/headless) — `api.md` / `agente.md` §5 / `chat.md` §8 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §2/§9, [agente.md](agente.md)
-§5 y [chat.md](chat.md) §8): en headless el módulo `enu.ui` directamente
+**Resolución** (aplicada en [api.md](../contracts/api.md) §2/§9, [agente.md](../contracts/agente.md)
+§5 y [chat.md](../contracts/chat.md) §8): en headless el módulo `enu.ui` directamente
 **no existe**; el test es `enu.has("ui")` — coherente con el
 deny-by-default de las `caps` de workers (la superficie no concedida no
 está) y sin primitiva nueva. `enu.ui.interactive()` se descartó (un módulo

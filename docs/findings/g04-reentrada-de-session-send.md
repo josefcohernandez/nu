@@ -9,7 +9,7 @@ affected: ["agente.md §2"]
 ---
 # G4 · Reentrada de `Session:send` — `agente.md` §2 — **RESUELTO**
 
-**Resolución** (aplicada en [agente.md](agente.md) §2): `send` con turno en
+**Resolución** (aplicada en [agente.md](../contracts/agente.md) §2): `send` con turno en
 vuelo encola; el loop inyecta lo encolado al ensamblar el siguiente request
 (nunca a mitad de stream). `cancel()` no vacía la cola
 (`clear_queue()` aparte). Descartado `EBUSY` (cada UI reimplementaría la

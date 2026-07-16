@@ -32,7 +32,7 @@ de plugins y librerías Lua puras. Identificadores en inglés, `snake_case`.
 ### 1.2 Baseline del entorno Lua
 
 Lua 5.4 (PUC-Lua, compilada a WASM y ejecutada sobre el runtime embebido —
-ver [migracion-vm.md](archive/migracion-vm.md)). Disponibles: `string`, `table`,
+ver [migracion-vm.md](../archive/migracion-vm.md)). Disponibles: `string`, `table`,
 `math`, `coroutine`, `utf8`, `pairs/ipairs/pcall/error/load/...`.
 **Deshabilitados**: `io`, `os.execute`, `os.exit`, `os.remove`, `os.rename`,
 `os.getenv`, `print` (redirigido a `enu.log.info`), `dofile`/`loadfile` fuera
@@ -307,7 +307,7 @@ Pegar una imagen (G30): cuando el portapapeles trae contenido **no-texto**
 vez de `text`. La UI inserta esa ruta igual que una mención `@` y el agente
 decide leerla (no se incrusta el contenido a ciegas); así los bytes binarios
 nunca cruzan las fronteras de texto/JSON (coherente con G11, §12). Pintar la
-imagen en pantalla es otra cosa ([pospuesto.md](pospuesto.md) P6).
+imagen en pantalla es otra cosa ([pospuesto.md](../postponed/pospuesto.md) P6).
 
 ---
 
@@ -384,7 +384,7 @@ de `enu.proc` (§6) lanzados desde el worker se registran bajo ese plugin. En
 los artefactos de atribución se anota distinguible como `<plugin> (worker)` —
 p. ej. `agent (worker)`— para que la traza diga quién *y desde dónde*.
 Consecuencia de supervisión: como el estado principal posee todos los workers
-([P11](pospuesto.md)), un `enu.plugin.reload` (§14) del plugin dueño sigue
+([P11](../postponed/pospuesto.md)), un `enu.plugin.reload` (§14) del plugin dueño sigue
 soltando también los procesos lanzados por sus workers — el árbol de
 supervisión no tiene fugas por la frontera del worker.
 
@@ -419,7 +419,7 @@ disponibles — y sus acciones: activar el conjunto oficial (escribe
 extensiones sueltas (p. ej. solo `repl`), o salir. No es la UI de un
 producto sino la del runtime: las extensiones embebidas y su activación
 son capacidad del loader, así que el kernel habla de lo suyo
-([filosofia.md](filosofia.md) §2) — render fijo, pre-Lua, sin widgets ni
+([filosofia.md](../core/filosofia.md) §2) — render fijo, pre-Lua, sin widgets ni
 lógica. Es lo que se ve siempre que enu arranca sin nada activo, no un
 diálogo de primera vez. Sin TTY no hay pantalla: arranca desnudo, y los
 errores por extensión inactiva son accionables (nombran la línea de

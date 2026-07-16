@@ -7,14 +7,14 @@ date: "2026-06"
 ---
 # ADR-009 · Convenciones de la API: namespace global, async por corrutinas, errores estructurados
 
-**Estado:** Propuesta · 2026-06 (se acepta al congelar [api.md](api.md)) ·
+**Estado:** Propuesta · 2026-06 (se acepta al congelar [api.md](../../contracts/api.md)) ·
 **El namespace global `nu` de la decisión 1 queda reemplazado por
-[ADR-022](#adr-022--renombrado-total-del-proyecto-y-de-la-api-nu--enu)**
+[ADR-022](adr-022-renombrado-total-del-proyecto.md)**
 (16-jul-2026); el resto de esta entrada (async por corrutinas, errores
 estructurados) sigue vigente sin cambios.
 
 **Contexto.** Antes de escribir código se define formalmente la API v1
-([api.md](api.md)). Tres decisiones transversales necesitan registro propio.
+([api.md](../../contracts/api.md)). Tres decisiones transversales necesitan registro propio.
 
 **Decisión.**
 

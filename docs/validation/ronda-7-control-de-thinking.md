@@ -58,15 +58,15 @@ forma entiende cada modelo. **[G34]**
 ## Hallazgos (ronda 7)
 
 **G34 — el modelo canónico de `thinking` no expresa el modo adaptativo.**
-Resuelta en [ADR-016](adr.md#adr-016--modelo-canónico-de-thinking-con-mode-y-traducción-por-modelo-en-el-adaptador)
-(que **reabre y cierra [P21](pospuesto.md)**, hasta hoy pospuesta): el parámetro
+Resuelta en [ADR-016](../decisions/adr/adr-016-modelo-canonico-de-thinking.md)
+(que **reabre y cierra [P21](../postponed/pospuesto.md)**, hasta hoy pospuesta): el parámetro
 canónico crece por adición a `thinking = { mode?: "off"|"adaptive"|"budget",
 budget? }` (con `{budget=N}` como alias compatible de `mode="budget"`), y el
 **dialecto de razonamiento de cada modelo se declara como dato** en el
 `providers.toml` (`thinking = "adaptive"|"budget"|"none"`), que el adaptador lee
 para traducir por-modelo. El adaptador sigue siendo un traductor puro
 (ADR-003/ADR-005): cero tablas de versiones de modelos en el código. Registrada
-en [problemas.md](problemas.md#g34) (G34). Es la primera grieta nacida de
+en [problemas.md](../findings/g34-el-modelo-canonico-de-thinking.md) (G34). Es la primera grieta nacida de
 *usar* el binario contra la realidad de la API de un proveedor (el 400 de Opus
 4.6+), no de una incompletitud interna.
 

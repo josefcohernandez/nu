@@ -8,7 +8,7 @@ date: "2026-06"
 # ADR-007 · API de UI expuesta a Lua
 
 **Estado:** Aceptada · 2026-06 (la *validación pendiente por spike* la cerró el
-spike de S28 sin ejecutar el veto: [ADR-012](#adr-012--resultado-del-spike-de-adr-007-el-toolkit-se-construye-en-lua))
+spike de S28 sin ejecutar el veto: [ADR-012](adr-012-resultado-del-spike-de-adr.md))
 
 **Contexto.** Si la UI de chat es una extensión (ADR-003), la API de UI debe
 ser lo bastante rica para construirla entera desde Lua. Opciones evaluadas:

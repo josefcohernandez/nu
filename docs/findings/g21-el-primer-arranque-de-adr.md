@@ -9,8 +9,8 @@ affected: ["ADR-010", "api.md §14"]
 ---
 # G21 · El primer arranque de ADR-010 no tiene dueño — ADR-010 / `api.md` §14 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §14,
-[filosofia.md](filosofia.md) §2 y [arquitectura.md](arquitectura.md)):
+**Resolución** (aplicada en [api.md](../contracts/api.md) §14,
+[filosofia.md](../core/filosofia.md) §2 y [arquitectura.md](../core/arquitectura.md)):
 opción (a), reencuadrada con la formulación general del principio — **el
 kernel solo conoce sus propias capacidades** —, bajo la cual esto no es
 una excepción: las extensiones embebidas y su activación son capacidad

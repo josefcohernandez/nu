@@ -8,13 +8,13 @@ status: "vigente"
 
 Runbook **operativo** del operador: los *pasos* para publicar una versión
 estable. El *porqué* (CI, cross-compile, versionado por constantes) vive en
-[ADR-013](adr.md#adr-013--integración-continua-y-publicación-de-releases), que
+[ADR-013](../decisions/adr/adr-013-integracion-continua-y-publicacion.md), que
 deliberadamente "captura las decisiones, no los *steps* del YAML" — este
 documento es esos steps. Es DevOps del operador: **no** toca la API sagrada
-([api.md](api.md)) ni los contratos de extensión. No se publica en la web (Capa 2,
-ver [docs/README.md](README.md)).
+([api.md](../contracts/api.md)) ni los contratos de extensión. No se publica en la web (Capa 2,
+ver [docs/README.md](../../README.md)).
 
-Recordatorio del modelo de ramas ([CLAUDE.md](../CLAUDE.md) §«Convenciones de
+Recordatorio del modelo de ramas ([CLAUDE.md](../../CLAUDE.md) §«Convenciones de
 Git»): `develop` es integración y rama por defecto; `main` queda para **estables**
 y solo recibe merges desde `develop`. Las versiones *no estables* salen de
 `develop` sin tag.
@@ -25,7 +25,7 @@ y solo recibe merges desde `develop`. Las versiones *no estables* salen de
   `develop`.
 - CI de `develop` en verde.
 - Número `vX.Y.Z` decidido (semver): **patch** para correcciones; **minor** para
-  adiciones a la API — que además suben `APILevel` ([api.md](api.md) §17).
+  adiciones a la API — que además suben `APILevel` ([api.md](../contracts/api.md) §17).
 
 ## Pasos
 
@@ -126,4 +126,4 @@ GitHub: sería `main → develop` (al revés) y arrastraría solo esos merge com
 ## Reposo
 
 Checkout principal en `develop` actualizado; worktrees de tareas eliminados
-([CLAUDE.md](../CLAUDE.md) §«Convenciones de Git»).
+([CLAUDE.md](../../CLAUDE.md) §«Convenciones de Git»).

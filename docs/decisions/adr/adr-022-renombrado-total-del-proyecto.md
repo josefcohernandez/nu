@@ -8,12 +8,12 @@ date: "2026-07-16"
 # ADR-022 · Renombrado total del proyecto y de la API: `nu` → `enu`
 
 **Estado:** Aceptada · 2026-07-16 (**reemplaza** la decisión 1 de
-[ADR-009](#adr-009--convenciones-de-la-api-namespace-global-async-por-corrutinas-errores-estructurados);
+[ADR-009](adr-009-convenciones-de-la-api-namespace.md);
 no toca sus decisiones 2 y 3)
 
 **Contexto.** El nombre `nu` colisiona en el `PATH` con el binario de
 **Nushell** y, en menor medida, con el Lisp histórico `Nu`
-([docs/audits/analisis-nombres-2026-07-15.md](../docs/audits/analisis-nombres-2026-07-15.md),
+([docs/audits/analisis-nombres-2026-07-15.md](../../audits/analisis-nombres-2026-07-15.md),
 que resuelve R-04 de la auditoría de promoción). El estudio de renombrado
 recorrió el cementerio de descartes, un ranking de 77 nombres vírgenes y el
 análisis profundo de cinco finalistas; el propietario decidió el 16 de julio
@@ -51,11 +51,11 @@ shim de compatibilidad.
 **Consecuencias.**
 
 - Esto **rompe deliberadamente** la regla "la API del core crece solo por
-  adición" (idea central 4 de [CLAUDE.md](../CLAUDE.md)) — pero de forma
+  adición" (idea central 4 de [CLAUDE.md](../../../CLAUDE.md)) — pero de forma
   consciente y de una sola vez, **antes** de congelar v1 (el punto en el que
   esa regla empieza a regir en serio). No es un precedente para romper
   firmas después de congelar.
-- Todo el pseudocódigo de [pseudocodigo.md](pseudocodigo.md) y los contratos
+- Todo el pseudocódigo de [pseudocodigo.md](../../validation/README.md) y los contratos
   (`api.md`, `agente.md`, `providers.md`, `sesiones.md`, `chat.md`,
   `guia-plugins.md`, `malla.md`) migran en bloque al namespace `enu.*` y a
   las rutas en disco `enu`/`.enu`; no queda un periodo mixto documentado.
@@ -71,6 +71,6 @@ shim de compatibilidad.
   esa carpeta es informe fechado y cerrado, no contrato vivo, y no se toca.
 - Fuera de `docs/`, el renombrado del binario, el module path de Go y las
   rutas reales en disco es trabajo de una sesión de implementación
-  ([docs/implementacion.md](implementacion.md)), no de este ADR: aquí se
+  ([docs/implementacion.md](../../plan/implementacion.md)), no de este ADR: aquí se
   registra la decisión y se actualizan los contratos; el código la sigue
   después, protocolo habitual "el contrato lidera, el código sigue".

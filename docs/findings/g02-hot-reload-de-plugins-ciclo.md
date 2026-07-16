@@ -9,7 +9,7 @@ affected: ["loader", "api.md §14"]
 ---
 # G2 · Hot-reload de plugins (ciclo de desarrollo) — loader / `api.md` §14 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §14 y §4):
+**Resolución** (aplicada en [api.md](../contracts/api.md) §14 y §4):
 `enu.plugin.reload(name)` best-effort — handles etiquetados por dueño,
 evento `core:plugin.unload` para que las extensiones limpien sus
 registros, caché de require vaciada, init.lua recargado. Herramienta de

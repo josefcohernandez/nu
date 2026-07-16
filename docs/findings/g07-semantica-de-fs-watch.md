@@ -9,7 +9,7 @@ affected: ["api.md §5"]
 ---
 # G7 · Semántica de `fs.watch` — `api.md` §5 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §5): `watch(path, opts?, fn)`
+**Resolución** (aplicada en [api.md](../contracts/api.md) §5): `watch(path, opts?, fn)`
 con `recursive`, `gitignore = true` por defecto y entrega en lotes con
 debounce (`fn(events[])`, ~50 ms). La versión mínima se descartó: habría
 obligado a cada consumidor a reimplementar recursión+ignores+debounce en

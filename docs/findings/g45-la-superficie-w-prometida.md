@@ -11,7 +11,7 @@ affected: ["api.md §16 / vmwasm/worker.go"]
 # G45 · La superficie [W] prometida en `api.md` §16 no llega a los workers: los wrappers Lua de `extraPreludio` no cruzan — `api.md` §16 / `vmwasm/worker.go` — **RESUELTO**
 
 **Resolución** (2026-07-13; opción (a), construida el mismo día — detalle en la
-fila `G45 (kernel)` de la bitácora de [implementacion.md](implementacion.md)).
+fila `G45 (kernel)` de la bitácora de [implementacion.md](../plan/implementacion.md)).
 `AddPreludio` gana la variante **`AddPreludioW(snippet, needs...)`** que etiqueta
 el fragmento como [W] y declara los **thunks que envuelve** (`needs`, p. ej.
 `"re._compile"`); `spawnWorker` copia al preludio del worker los etiquetados

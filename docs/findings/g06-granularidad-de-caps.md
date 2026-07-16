@@ -10,13 +10,13 @@ adr: "ADR-010"
 ---
 # G6 · Granularidad de `caps` — `api.md` §13 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §13, [agente.md](agente.md)
+**Resolución** (aplicada en [api.md](../contracts/api.md) §13, [agente.md](../contracts/agente.md)
 §9, guía §3; nueva ADR-010): mecanismo por función en el core (dos
 granularidades: `"fs"` módulo, `"fs.read"` función; deny-by-default para
 funciones futuras), vocabulario como tablas inspeccionables de la
 extensión del agente (`agent.caps.FS_RO`). Los paquetes curados en el core
 se descartaron (esconden juicios y redistribuyen poder retroactivamente al
-crecer la API); el scoping por rutas va a [P17](pospuesto.md). Derivada:
+crecer la API); el scoping por rutas va a [P17](../postponed/pospuesto.md). Derivada:
 ADR-010 — las extensiones oficiales se distribuyen embebidas pero
 **inactivas por defecto**, activación explícita de una tecla.
 

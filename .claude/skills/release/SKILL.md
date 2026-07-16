@@ -5,7 +5,7 @@ description: Corta una release estable de enu — bump de versión, merge develo
 
 # Cortar una release estable (/release)
 
-Mecaniza el runbook [docs/release.md](../../../docs/release.md) —que sigue siendo
+Mecaniza el runbook [docs/release.md](../../../docs/ops/release.md) —que sigue siendo
 el **protocolo canónico**; esta skill lo *conduce*, no lo duplica—. Una release es
 acción **del operador** y **outward-facing** (crea una GitHub Release pública y
 redespliega la web; ADR-013 la enmarca como "el operador crea el tag a mano"). Por

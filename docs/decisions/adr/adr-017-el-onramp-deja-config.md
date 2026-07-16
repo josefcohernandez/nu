@@ -7,7 +7,7 @@ date: "2026-06"
 ---
 # ADR-017 · El onramp deja config de agente usable y el chat degrada con gracia
 
-**Estado:** Aceptada · 2026-06 (**refina** [ADR-015](#adr-015--conjunto-oficial-de-producto-y-onramp-no-interactivo); resuelve [G35](problemas.md#g35--el-onramp-de-adr-015-activa-los-plugins-pero-no-deja-config-de-agente-el-primer-nu-muere-sin-modelo-y-deja-la-ui-atrapada))
+**Estado:** Aceptada · 2026-06 (**refina** [ADR-015](adr-015-conjunto-oficial-de-producto.md); resuelve [G35](../../findings/g35-el-onramp-de-adr-015.md))
 
 **Contexto.** ADR-015 dio el onramp no interactivo (`nu --default-config`) que
 activa el **conjunto oficial de producto** en `nu.toml`. Pero "activar los
@@ -15,7 +15,7 @@ plugins" no es "tener un harness usable": el agente y el chat necesitan un
 **modelo**, un **provider** y una **API key** que el onramp no provee. Al usar el
 binario terminado tras `nu --default-config`, ejecutar `nu` deja la terminal en
 blanco; el log lo dice: `chat: no se pudo arrancar: agent.session requiere model
-("proveedor/modelo") en opts o en agent.toml`. Son **dos defectos** ([G35](problemas.md#g35--el-onramp-de-adr-015-activa-los-plugins-pero-no-deja-config-de-agente-el-primer-nu-muere-sin-modelo-y-deja-la-ui-atrapada)):
+("proveedor/modelo") en opts o en agent.toml`. Son **dos defectos** ([G35](../../findings/g35-el-onramp-de-adr-015.md)):
 (1) el onramp no escribe `agent.toml`/`providers.toml`, así que `core:ready` →
 `chat.start` → `agent.session({model=nil})` lanza `EINVAL`; (2) el chat captura
 ese fallo con `pcall` y lo manda solo al log (`nu.log.error`, nunca a pantalla,

@@ -9,8 +9,8 @@ affected: ["agente.md §2", "chat.md §4"]
 ---
 # G19 · Cambio de modelo a mitad de sesión sin API — `agente.md` §2 / `chat.md` §4 — **RESUELTO**
 
-**Resolución** (aplicada en [agente.md](agente.md) §2 y
-[chat.md](chat.md) §4): `Session:set_model("proveedor/modelo")` — valida
+**Resolución** (aplicada en [agente.md](../contracts/agente.md) §2 y
+[chat.md](../contracts/chat.md) §4): `Session:set_model("proveedor/modelo")` — valida
 contra el registro de providers, escribe la entrada `event` en el
 transcript (sesiones.md §3) y aplica desde el siguiente request; con un
 turno en vuelo, al ensamblar la siguiente iteración (como la cola de G4),
@@ -19,7 +19,7 @@ claro de validación ni de registro en el transcript); fork-por-modelo
 descartado (fragmenta sesiones para una operación cotidiana).
 
 **Problema.** `/model` existe en `chat` (picker desde `providers.list()`)
-y [sesiones.md](sesiones.md) §3 pone "cambio de modelo a mitad de sesión"
+y [sesiones.md](../contracts/sesiones.md) §3 pone "cambio de modelo a mitad de sesión"
 como ejemplo canónico de entrada `event`, pero `Session` no expone ninguna
 forma de cambiarlo: `opts.model` solo existe en la creación.
 

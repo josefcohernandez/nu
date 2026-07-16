@@ -18,16 +18,16 @@ es el código. Orden de lectura sugerido:
 
 | Documento | Rol |
 |---|---|
-| [filosofia.md](filosofia.md) | Principios fundacionales y "lo que enu no es". El *porqué* del proyecto. |
-| [arquitectura.md](arquitectura.md) | Vista estática: las capas, el inventario de primitivas del kernel. |
-| [modelo-ejecucion.md](modelo-ejecucion.md) | Vista dinámica: concurrencia, comunicación, limitaciones. |
-| [api.md](api.md) | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
-| [providers.md](providers.md) | Contrato de la extensión oficial de providers. |
-| [agente.md](agente.md) | Contrato de la extensión oficial `agent` (motor headless). |
-| [sesiones.md](sesiones.md) | Contrato de persistencia: JSONL append-only. |
-| [chat.md](chat.md) | Contrato de la extensión oficial `chat` (la UI). |
-| [guia-plugins.md](guia-plugins.md) | Sabiduría práctica para autores de plugins + checklist. |
-| [malla.md](malla.md) | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
+| [filosofia.md](core/filosofia.md) | Principios fundacionales y "lo que enu no es". El *porqué* del proyecto. |
+| [arquitectura.md](core/arquitectura.md) | Vista estática: las capas, el inventario de primitivas del kernel. |
+| [modelo-ejecucion.md](core/modelo-ejecucion.md) | Vista dinámica: concurrencia, comunicación, limitaciones. |
+| [api.md](contracts/api.md) | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
+| [providers.md](contracts/providers.md) | Contrato de la extensión oficial de providers. |
+| [agente.md](contracts/agente.md) | Contrato de la extensión oficial `agent` (motor headless). |
+| [sesiones.md](contracts/sesiones.md) | Contrato de persistencia: JSONL append-only. |
+| [chat.md](contracts/chat.md) | Contrato de la extensión oficial `chat` (la UI). |
+| [guia-plugins.md](contracts/guia-plugins.md) | Sabiduría práctica para autores de plugins + checklist. |
+| [malla.md](contracts/malla.md) | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
 
 ## Capa 2 — Flujo de diseño y construcción
 
@@ -36,13 +36,13 @@ entradas no se reescriben, se suceden.
 
 | Documento | Rol |
 |---|---|
-| [adr.md](adr.md) | Decisiones técnicas (ADR-NNN); las reemplazadas se marcan, nunca se borran. |
-| [problemas.md](problemas.md) | Grietas que la v1 necesita cerradas (G##, con estado vivo en su cabecera). |
-| [pospuesto.md](pospuesto.md) | Lo que se decidió no decidir todavía (P##), cada uno con su disparador. |
-| [pseudocodigo.md](pseudocodigo.md) | El ejercicio de validación: rondas de pseudocódigo que torturan la API. |
-| [implementacion.md](implementacion.md) | Plan de construcción por sesiones (S##), con puntero ▶ y bitácora. |
-| [decisiones-implementacion.md](decisiones-implementacion.md) | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
-| [release.md](release.md) | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
+| [adr.md](decisions/adr/README.md) | Decisiones técnicas (ADR-NNN); las reemplazadas se marcan, nunca se borran. |
+| [problemas.md](findings/README.md) | Grietas que la v1 necesita cerradas (G##, con estado vivo en su cabecera). |
+| [pospuesto.md](postponed/pospuesto.md) | Lo que se decidió no decidir todavía (P##), cada uno con su disparador. |
+| [pseudocodigo.md](validation/README.md) | El ejercicio de validación: rondas de pseudocódigo que torturan la API. |
+| [implementacion.md](plan/implementacion.md) | Plan de construcción por sesiones (S##), con puntero ▶ y bitácora. |
+| [decisiones-implementacion.md](worklog/README.md) | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
+| [release.md](ops/release.md) | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
 
 ## Capa 3 — [audits/](audits/) (informes fechados)
 

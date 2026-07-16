@@ -102,7 +102,7 @@ un runtime— y quiere verla crecer (o darle forma).
 
 ## Cómo funciona, por dentro
 
-La tesis, en cuatro ideas (detalle en [docs/filosofia.md](docs/filosofia.md)):
+La tesis, en cuatro ideas (detalle en [docs/filosofia.md](docs/core/filosofia.md)):
 
 1. **El core no sabe lo que es un agente.** Modelo Emacs/Textadept, no Neovim:
    un kernel diminuto de primitivas + un intérprete de Lua. El agente, MCP, el
@@ -136,7 +136,7 @@ estable) y los contratos de las extensiones oficiales para colgarse de ellas:
 `agent.tool{}`, `agent.hook(...)`, `chat.command{}`,
 `providers.register_adapter(...)`.
 
-Empieza por la [**guía de plugins**](docs/guia-plugins.md) y por
+Empieza por la [**guía de plugins**](docs/contracts/guia-plugins.md) y por
 [`examples/`](examples/), que trae una TUI funcional escrita en Lua puro sobre la
 API del core:
 
@@ -165,19 +165,19 @@ sobre la API, o sobre dónde chirría.
 El mapa completo por capas está en [docs/README.md](docs/README.md). Orden de
 lectura sugerido:
 
-1. [Filosofía](docs/filosofia.md) — los principios y lo que enu **no** es
-2. [Arquitectura](docs/arquitectura.md) — la forma del sistema (vista estática)
-3. [Modelo de ejecución](docs/modelo-ejecucion.md) — concurrencia y límites (vista dinámica)
-4. [API del core](docs/api.md) — la superficie sagrada v1
-5. [ADR](docs/adr.md) — el registro de decisiones y su razonamiento
+1. [Filosofía](docs/core/filosofia.md) — los principios y lo que enu **no** es
+2. [Arquitectura](docs/core/arquitectura.md) — la forma del sistema (vista estática)
+3. [Modelo de ejecución](docs/core/modelo-ejecucion.md) — concurrencia y límites (vista dinámica)
+4. [API del core](docs/contracts/api.md) — la superficie sagrada v1
+5. [ADR](docs/decisions/adr/README.md) — el registro de decisiones y su razonamiento
 
 **Contratos de las extensiones oficiales:**
-[Providers](docs/providers.md) ·
-[Agente](docs/agente.md) ·
-[Sesiones](docs/sesiones.md) ·
-[Chat](docs/chat.md)
+[Providers](docs/contracts/providers.md) ·
+[Agente](docs/contracts/agente.md) ·
+[Sesiones](docs/contracts/sesiones.md) ·
+[Chat](docs/contracts/chat.md)
 
-**Para autores de plugins:** [Guía de plugins](docs/guia-plugins.md)
+**Para autores de plugins:** [Guía de plugins](docs/contracts/guia-plugins.md)
 
 ---
 
@@ -185,8 +185,8 @@ lectura sugerido:
 
 Las aportaciones son bienvenidas; lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de
 enviar un Pull Request. Como el proyecto tiene un método de trabajo explícito, el
-mejor primer paso es leer [docs/filosofia.md](docs/filosofia.md) y
-[docs/adr.md](docs/adr.md) para entender el *porqué* antes de proponer el *qué*.
+mejor primer paso es leer [docs/filosofia.md](docs/core/filosofia.md) y
+[docs/adr.md](docs/decisions/adr/README.md) para entender el *porqué* antes de proponer el *qué*.
 
 El autor conserva la titularidad del proyecto, por lo que al incorporar código de
 terceros puede pedir una cesión de derechos o un acuerdo de contribución (CLA).

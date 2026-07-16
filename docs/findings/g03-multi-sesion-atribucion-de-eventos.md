@@ -9,8 +9,8 @@ affected: ["agente.md §4", "chat.md"]
 ---
 # G3 · Multi-sesión: atribución de eventos y modales concurrentes — `agente.md` §4 / `chat.md` — **RESUELTO**
 
-**Resolución** (aplicada en [agente.md](agente.md) §4-§5 y
-[chat.md](chat.md) §1/§2/§5): `session` obligatorio en todo payload
+**Resolución** (aplicada en [agente.md](../contracts/agente.md) §4-§5 y
+[chat.md](../contracts/chat.md) §1/§2/§5): `session` obligatorio en todo payload
 `agent:*` (emitido vía helper único); `chat` pinta solo la sesión activa y
 señala el resto en statusline; modales en cola FIFO etiquetados por
 sesión, **sin timeout** en los asks (un timeout→deny sería no

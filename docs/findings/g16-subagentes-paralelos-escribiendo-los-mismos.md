@@ -9,7 +9,7 @@ affected: ["agente.md §9"]
 ---
 # G16 · Subagentes paralelos escribiendo los mismos ficheros — `agente.md` §9 — **RESUELTO**
 
-**Resolución** (aplicada en [agente.md](agente.md) §9): limitación conocida
+**Resolución** (aplicada en [agente.md](../contracts/agente.md) §9): limitación conocida
 documentada + remedio prescrito (repartir territorio vía prompt, como los
 harnesses de referencia). Lock en tools oficiales descartado: seguridad
 falsa — bash y tools de terceros escriben sin pasar por él, prometería una

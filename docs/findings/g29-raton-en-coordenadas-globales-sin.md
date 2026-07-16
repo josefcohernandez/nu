@@ -9,7 +9,7 @@ affected: ["api.md §9.1/§9.3"]
 ---
 # G29 · Ratón en coordenadas globales sin traducción a región (hit-testing) — `api.md` §9.1/§9.3 — **RESUELTO**
 
-**Resolución** (aplicada en [guia-plugins.md](guia-plugins.md) §6): opción
+**Resolución** (aplicada en [guia-plugins.md](../contracts/guia-plugins.md) §6): opción
 (c) — el mapeo pantalla→contenido es del **toolkit**, no del core, por el
 mismo reparto que G1 (relayout) y G22 (theming): lo que depende del layout
 que el plugin posee es del plugin. La razón decisiva es que `Region:hit` (a)

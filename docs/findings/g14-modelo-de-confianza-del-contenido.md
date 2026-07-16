@@ -9,7 +9,7 @@ affected: ["agente.md §6-§7 / transversal"]
 ---
 # G14 · Modelo de confianza del contenido del repo — `agente.md` §6-§7 / transversal — **RESUELTO**
 
-**Resolución** (aplicada en [agente.md](agente.md) §11): el repo no es el
+**Resolución** (aplicada en [agente.md](../contracts/agente.md) §11): el repo no es el
 usuario. (1) La config del repo **solo recorta** permisos: sus `deny` se
 honran, sus `allow`/`mode` se ignoran. (2) **TOFU de una tecla** por repo
 para skills y `enu.md` (patrón `:trust` de Neovim); sin sí explícito

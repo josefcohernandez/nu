@@ -9,7 +9,7 @@ affected: ["api.md §4"]
 ---
 # G10 · Reentrada del bus de eventos — `api.md` §4 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §4): despacho sobre snapshot
+**Resolución** (aplicada en [api.md](../contracts/api.md) §4): despacho sobre snapshot
 de suscriptores; cancelación con efecto inmediato; suscritos durante el
 despacho solo ven eventos futuros; emits anidados encolados (anchura, no
 profundidad — el ping-pong infinito se vuelve bucle plano que corta el

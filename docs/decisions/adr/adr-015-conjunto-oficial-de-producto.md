@@ -7,12 +7,12 @@ date: "2026-06"
 ---
 # ADR-015 · Conjunto oficial de producto y onramp no interactivo
 
-**Estado:** Aceptada · 2026-06 (**refina** [ADR-010](#adr-010--extensiones-oficiales-distribuidas-con-nu-no-activas-por-defecto); resuelve [G33](problemas.md#g33--el-arranque-sin-tty-no-tiene-onramp-y-el-conjunto-oficial-está-sin-definir)) · **Refinada por [ADR-017](#adr-017--el-onramp-deja-config-de-agente-usable-y-el-chat-degrada-con-gracia)** (el onramp deja también config de agente usable) y por **ADR-018** (qué significa "el conjunto oficial" con TTY: el repl cede la pantalla al chat, G36); ninguna la reemplaza: el "conjunto oficial" y los dos modos siguen siendo de este ADR
+**Estado:** Aceptada · 2026-06 (**refina** [ADR-010](adr-010-extensiones-oficiales-distribuidas-con-nu.md); resuelve [G33](../../findings/g33-el-arranque-sin-tty.md)) · **Refinada por [ADR-017](adr-017-el-onramp-deja-config.md)** (el onramp deja también config de agente usable) y por **ADR-018** (qué significa "el conjunto oficial" con TTY: el repl cede la pantalla al chat, G36); ninguna la reemplaza: el "conjunto oficial" y los dos modos siguen siendo de este ADR
 
 **Contexto.** ADR-010 dejó las extensiones oficiales **inactivas por defecto** y
-[G21](problemas.md#g21--el-primer-arranque-de-adr-010-no-tiene-dueño--adr-010--apimd-14)
+[G21](../../findings/g21-el-primer-arranque-de-adr.md)
 les dio el onramp del primer arranque: la **pantalla de runtime desnudo**. Pero esa
-pantalla es UI —existe **solo con TTY interactivo**—; [api.md](api.md) §14 lo cierra
+pantalla es UI —existe **solo con TTY interactivo**—; [api.md](../../contracts/api.md) §14 lo cierra
 explícito: "Sin TTY no hay pantalla: arranca desnudo". Al *usar* el binario ya
 terminado para probarlo con su harness en CI/Docker/scripts (sin TTY) aparecen dos
 cabos que ADR-010 no ató: (1) **no hay un paso** para activar el conjunto oficial sin
@@ -20,7 +20,7 @@ TTY —hay que escribir `config.dir()/nu.toml` a mano, lo que contradice la ergo
 "de una tecla" que el propio ADR-010 promete—; y (2) **"el conjunto oficial" nunca se
 definió** con precisión: hoy `ActivateOfficial()` activa `embeddedNames()` *entero*,
 que incluye `example` —el plugin-andamiaje que existe solo para probar el gating
-([implementacion.md](implementacion.md), Fase 8)—, de modo que la acción TTY ya mete
+([implementacion.md](../../plan/implementacion.md), Fase 8)—, de modo que la acción TTY ya mete
 el plugin de pruebas en la config del usuario.
 
 **Decisión.** Dos piezas, **ninguna en la API sagrada** `nu.*` (es superficie CLI y
@@ -53,7 +53,7 @@ segunda lista "sin UI" sería un caso borde sin ganancia.
 **Razonamiento.**
 - **Por qué un flag y no ampliar la API (`nu.config.enable_official()` + `nu -e`).**
   Exponerlo a Lua **ampliaría la superficie sagrada** (`nu.version.api`++, el coste más
-  caro del proyecto y lo que [api.md](api.md) §17 blinda) para *empeorar* la ergonomía:
+  caro del proyecto y lo que [api.md](../../contracts/api.md) §17 blinda) para *empeorar* la ergonomía:
   `nu -e 'nu.config.enable_official()'` no es más fácil de recordar ni de teclear que el
   flag. Falla el objetivo declarado (instalación fácil) pagando el precio más alto.
 - **Por qué un flag y no un subcomando `nu init`.** Sería honesto (un verbo para una

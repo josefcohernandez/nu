@@ -8,7 +8,7 @@ status: "vigente"
 
 Estado: borrador. Este documento ordena la construcción de `enu` en una
 secuencia de **sesiones, cada una con una sola feature entregable**. No es un
-contrato (no congela API; eso es [api.md](api.md)) sino un mapa de obra: en qué
+contrato (no congela API; eso es [api.md](../contracts/api.md)) sino un mapa de obra: en qué
 orden se levanta el kernel, por qué ese orden y qué hace que una sesión esté
 *hecha*.
 
@@ -52,13 +52,13 @@ quedara desfasado. El documento manda; git es la red de seguridad.
 ## Antes de empezar: un cambio de fase
 
 Hasta hoy el proyecto está en **fase de diseño** y la regla ha sido *no escribir
-código* ([CLAUDE.md](../CLAUDE.md)). Ejecutar este plan **abre la fase de
+código* ([CLAUDE.md](../../CLAUDE.md)). Ejecutar este plan **abre la fase de
 construcción**: a partir de la sesión S01 sí se crean ficheros Go y Lua. Eso no
 deroga el resto de reglas, las refuerza:
 
 - **La API del core es sagrada** (ADR-003). Este plan *implementa* `api.md`, no
   lo amplía. Si construyendo una feature descubres que la API no basta, eso es
-  un **hallazgo** (`G##`): páralo, anótalo en [problemas.md](problemas.md),
+  un **hallazgo** (`G##`): páralo, anótalo en [problemas.md](../findings/README.md),
   resuélvelo en los documentos *y luego* impleméntalo. El código nunca corrige
   la espec por la vía de hecho.
 - **Lua decide, Go ejecuta** (ADR-004). Cada primitiva que toque la pantalla o
@@ -193,7 +193,7 @@ enumera, sino por **dependencia de ejecución**:
    entre sí una vez existe el scheduler; se ordenan por valor de desbloqueo
    (`fs`/`proc` antes que `http`, porque los tests de red se apoyan en ficheros).
 4. **La UI va después de un spike de veto** (ADR-007, cuestión abierta nº1 de
-   [arquitectura.md](arquitectura.md)): no se compromete la arquitectura de
+   [arquitectura.md](../core/arquitectura.md)): no se compromete la arquitectura de
    compositor + toolkit-en-Lua sin demostrar antes que es fluida.
 5. **Los workers** llegan tarde porque son paralelismo opt-in: nada del camino
    básico depende de ellos, y necesitan que la API **[W]** ya exista para
@@ -406,14 +406,14 @@ sesión S28 ejecutó el veto, el toolkit (S40) se construye en Go en su lugar.
 
 | Sesión | Feature | Depende de | Espec | Criterio de hecho |
 |---|---|---|---|---|
-| **S36** | Extensión **providers**: lector del registro TOML, contrato del adaptador, `providers.approx_tokens` (la heurística que G23 sacó del core). | S18, S20 | [providers.md](providers.md) | El registro TOML se carga; un adaptador stub responde a una petición simulada. |
+| **S36** | Extensión **providers**: lector del registro TOML, contrato del adaptador, `providers.approx_tokens` (la heurística que G23 sacó del core). | S18, S20 | [providers.md](../contracts/providers.md) | El registro TOML se carga; un adaptador stub responde a una petición simulada. |
 | **S37** | **Adaptador Anthropic** (SSE, tool calls, system prompt, thinking blocks) como primer dialecto real. | S36 | providers.md | Contra un SSE grabado, el adaptador emite el stream de mensajes canónico. |
-| **S38** | Extensión **sesiones**: JSONL append-only, modelo canónico de mensajes, lockfiles (`fs.write{exclusive}` + `proc.alive` para huérfanos). | S14, S16 | [sesiones.md](sesiones.md) | Una sesión se persiste y se reanuda; un lock huérfano (pid muerto) se detecta y reclama. |
-| **S39** | Extensión **agente** (motor headless): turno, registro de tools, **permisos**, hooks-middleware (`tool.pre`...), eventos `agent:*`. | S37, S38 | [agente.md](agente.md) | Un turno completo con una tool de prueba; un permiso denegado produce error accionable. |
+| **S38** | Extensión **sesiones**: JSONL append-only, modelo canónico de mensajes, lockfiles (`fs.write{exclusive}` + `proc.alive` para huérfanos). | S14, S16 | [sesiones.md](../contracts/sesiones.md) | Una sesión se persiste y se reanuda; un lock huérfano (pid muerto) se detecta y reclama. |
+| **S39** | Extensión **agente** (motor headless): turno, registro de tools, **permisos**, hooks-middleware (`tool.pre`...), eventos `agent:*`. | S37, S38 | [agente.md](../contracts/agente.md) | Un turno completo con una tool de prueba; un permiso denegado produce error accionable. |
 | **S40** | **Subagentes** del agente (vía workers con `caps` recortadas / paquetes con nombre). | S39, S35 | agente.md §subagentes | Un subagente corre aislado con API recortada y devuelve resultado digerido. |
 | **S41** | Extensión **MCP** (capa 2): `io.spawn` + JSON-RPC/stdio, ciclo de vida de procesos, mapeo de tools y su confianza. Cierra la cuestión abierta nº4 de arquitectura. | S16, S18, S39 | arquitectura §"Providers"/capa 2 | Un servidor MCP de prueba se lanza, anuncia tools y el agente las invoca. |
 | **S42** | **Toolkit de widgets** (extensión Lua oficial, o Go si S28 vetó): árbol + nodos sucios, slots, focus, themes (nombres semánticos de color → literales, G22). | S29, S31 | arquitectura §"kernel"/nota ui | Un layout con focus entre dos widgets compone sin colisión entre plugins. |
-| **S43** | Extensión **chat** (la UI oficial del harness) sobre toolkit + agente. | S42, S39 | [chat.md](chat.md) | Conversación con streaming de tokens pintada con markdown; input multilínea. |
+| **S43** | Extensión **chat** (la UI oficial del harness) sobre toolkit + agente. | S42, S39 | [chat.md](../contracts/chat.md) | Conversación con streaming de tokens pintada con markdown; input multilínea. |
 | **S44** | Extensión **repl** (REPL de Lua sobre la API pública; activable solo, sin el harness, G21). | S32 | arquitectura §"Distribución" | `enu` con solo `repl` activo evalúa expresiones Lua interactivamente. |
 | **S45** | **Superficie CLI** (cuestión abierta nº5): flags de `enu -e`, `--auto-permissions`, headless, códigos de salida, azúcar `--continue` sobre `agent.session{resume}` (G18). | S39 | arquitectura §"Cuestiones abiertas" nº5 | `enu -e` ejecuta sin TTY con códigos de salida correctos; `--continue` reanuda la última sesión. |
 
@@ -426,7 +426,7 @@ La Fase 8 es larga, así que lleva checkpoints **internos**, no solo al cierre:
 > conversación contra un SSE **grabado** del adaptador Anthropic, pintada con
 > markdown en streaming. Primera vez que HTTP stream → SSE → markdown → blit
 > corre junto; mide la fluidez real (limitación nº8 de
-> [modelo-ejecucion.md](modelo-ejecucion.md)).
+> [modelo-ejecucion.md](../core/modelo-ejecucion.md)).
 
 > 🔎 **CP-10 · Agente headless mínimo, usable** (tras S39). Prueba de humo:
 > `enu -e` ejecuta un turno con una tool de fichero y un permiso **denegado**
@@ -451,7 +451,7 @@ encaja; un hito puede *reordenar el plan*):
 - **S37 (primer adaptador real)**: primera vez que el camino caliente completo
   (HTTP stream → SSE → markdown → blit) corre de punta a punta. Valida que el
   rendimiento de Lua en el camino caliente (limitación nº8 de
-  [modelo-ejecucion.md](modelo-ejecucion.md)) es aceptable.
+  [modelo-ejecucion.md](../core/modelo-ejecucion.md)) es aceptable.
 
 ## Coherencia con el flujo de diseño
 

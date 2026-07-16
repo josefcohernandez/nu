@@ -16,7 +16,7 @@ decisiones): **no crees ficheros de código Go o Lua salvo que se pida
 explícitamente**; el pseudocódigo ilustrativo vive dentro de los `.md`.
 
 **Excepción — fase de construcción:** cuando la tarea sea *implementar* el
-kernel, se rige por [docs/implementacion.md](docs/implementacion.md) y su
+kernel, se rige por [docs/implementacion.md](docs/plan/implementacion.md) y su
 **protocolo de sesión** (una feature por sesión, puntero, checkpoints, tests).
 Eso *es* "pedirlo explícitamente": ahí sí se escribe código. El default "no
 código" sigue valiendo para todo lo demás. Cómo operar en esa fase: la sección
@@ -155,7 +155,7 @@ Este es el corazón del proyecto y debes respetarlo:
   `chat.md`, `guia-plugins.md`). La mayoría de hallazgos G17-G23 nacieron
   justo de contratos que presuponían API inexistente.
 - **Respeta los enlaces cruzados.** Los documentos se referencian entre sí con
-  rutas relativas (`[api.md](docs/api.md) §3`) y por número de hallazgo/ADR. Al
+  rutas relativas (`[api.md](docs/contracts/api.md) §3`) y por número de hallazgo/ADR. Al
   resolver algo, deja el rastro: enlaza el cambio desde `problemas.md` y cita
   el `G##`/`F##`/`P##`/`ADR-NNN` que lo motiva.
 - **La web publica la Capa 1; la trazabilidad se mantiene en la fuente.** Una
@@ -175,7 +175,7 @@ Este es el corazón del proyecto y debes respetarlo:
 ## Cuando implementes (fase de construcción)
 
 Si la tarea es construir el kernel (no diseñar), **el plan manda**:
-[docs/implementacion.md](docs/implementacion.md). No improvises el orden ni
+[docs/implementacion.md](docs/plan/implementacion.md). No improvises el orden ni
 juntes features: una sesión = una feature. El estado vive en el repo, no en tu
 memoria. Protocolo, sin saltarte pasos:
 
@@ -188,7 +188,7 @@ memoria. Protocolo, sin saltarte pasos:
    exhaustivos de sus casos límite, **obligatorios**, nombrando el `G##` que
    blindan. Si es un wrapper fino, basta el snippet Lua + el checkpoint; no
    inventes tests de código ajeno. Toda sesión deja `go build ./...` verde.
-3. **La API del core es sagrada.** Implementas [api.md](docs/api.md), no lo amplías.
+3. **La API del core es sagrada.** Implementas [api.md](docs/contracts/api.md), no lo amplías.
    Si descubres que la API no basta, **párate**: es un hallazgo `G##` que se
    resuelve primero en los documentos (problemas.md → api.md → contratos) y solo
    *después* se implementa. El código nunca corrige la espec por la vía de hecho.

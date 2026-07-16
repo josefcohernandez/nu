@@ -9,8 +9,8 @@ affected: ["api.md §9.1"]
 ---
 # G28 · `Region:blit` con coordenadas locales negativas (viewport/scrollback) — `api.md` §9.1 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §9.1 y
-[guia-plugins.md](guia-plugins.md) §6): opción (a) con tres clavos. (1)
+**Resolución** (aplicada en [api.md](../contracts/api.md) §9.1 y
+[guia-plugins.md](../contracts/guia-plugins.md) §6): opción (a) con tres clavos. (1)
 `blit` recorta por **ambos extremos**: `x/y` negativos recortan el borde
 inicial del Block (`blit(0, -3, doc)` muestra `doc` desde su cuarta fila),
 simétrico al recorte por exceso — un viewport sobre un Block más grande que

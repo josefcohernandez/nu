@@ -9,7 +9,7 @@ affected: ["api.md §13"]
 ---
 # G8 · `on_message` vs `recv` simultáneos — `api.md` §13 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §13): mutuamente excluyentes,
+**Resolución** (aplicada en [api.md](../contracts/api.md) §13): mutuamente excluyentes,
 `EINVAL` en el acto al registrar uno con el otro pendiente. Prioridad
 silenciosa descartada (esconde el bug); competencia por cola descartada
 (no determinismo de serie).

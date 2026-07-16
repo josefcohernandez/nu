@@ -9,8 +9,8 @@ affected: ["api.md §5-§7", "sesiones.md §6"]
 ---
 # G17 · El lockfile de sesiones no es implementable con la API actual — `api.md` §5-§7 / `sesiones.md` §6 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §1.4/§5/§6/§7 y
-[sesiones.md](sesiones.md) §6): tres primitivas genéricas mínimas —
+**Resolución** (aplicada en [api.md](../contracts/api.md) §1.4/§5/§6/§7 y
+[sesiones.md](../contracts/sesiones.md) §6): tres primitivas genéricas mínimas —
 `opts.exclusive = true` en `enu.fs.write` (creación atómica
 solo-si-no-existe vía `O_EXCL`, sin temporal+rename, lanza el nuevo código
 reservado `EEXIST`), `enu.proc.alive(pid)` (existencia, no identidad: un
@@ -20,7 +20,7 @@ descartó (metería la política de sesiones — pids, huérfanos, hostnames —
 en el kernel: el core da garantías, no comodidades); el best-effort se
 descartó ("casi bien es peor que no").
 
-**Problema.** La resolución de G5 exige tres piezas que [api.md](api.md)
+**Problema.** La resolución de G5 exige tres piezas que [api.md](../contracts/api.md)
 no tiene: (1) creación **exclusiva** de fichero — `enu.fs.write` es atómico
 vía temporal+rename, pero rename *sobreescribe*: dos procesos pueden
 "ganar" el lock a la vez; (2) comprobar si un `pid` ajeno está vivo

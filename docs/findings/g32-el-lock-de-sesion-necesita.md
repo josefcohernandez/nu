@@ -10,8 +10,8 @@ affected: ["api.md §7", "sesiones.md §6"]
 ---
 # G32 · El lock de sesión necesita el pid PROPIO y la API no lo expone — `api.md` §7 / `sesiones.md` §6 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §7/§16/§17 y
-[sesiones.md](sesiones.md) §6): una primitiva mínima —`enu.sys.pid() ->
+**Resolución** (aplicada en [api.md](../contracts/api.md) §7/§16/§17 y
+[sesiones.md](../contracts/sesiones.md) §6): una primitiva mínima —`enu.sys.pid() ->
 integer`, el pid del proceso `enu` actual—, consulta local inmediata (no ⏸) y
 [W] como el resto de `enu.sys`. Junto a `enu.sys.hostname()` forma la **identidad
 del escritor** que el lock graba (`{ pid, hostname, started }`, §6). Es la
@@ -29,9 +29,9 @@ que lanza, jamás el del propio `enu`—. Descartado derivarlo de un subproceso
 descartado plegarlo a `enu.proc.alive` (es existencia de un pid dado, no
 descubrimiento del propio).
 
-**Problema.** El lockfile de [sesiones.md](sesiones.md) §6 graba
+**Problema.** El lockfile de [sesiones.md](../contracts/sesiones.md) §6 graba
 `{ pid, hostname, started }` con el **pid del proceso que escribe**, pero
-[api.md](api.md) no lo expone: `enu.sys` da `platform`/`env`/`setenv`/`now_ms`/
+[api.md](../contracts/api.md) no lo expone: `enu.sys` da `platform`/`env`/`setenv`/`now_ms`/
 `mono_ms`/`hostname` (sin pid) y `enu.proc.alive(pid)` valida pids **ajenos**
 (para detectar locks huérfanos) pero no hay forma de obtener el **propio**. Sin
 él la extensión sesiones (S38) no puede escribir el lock especificado: misma

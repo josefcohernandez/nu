@@ -7,17 +7,17 @@ date: "2026-06"
 ---
 # ADR-013 · Integración continua y publicación de releases
 
-**Estado:** Aceptada · 2026-06 · **Refinada por [ADR-021](#adr-021--baseline-completo-y-reproducible-de-lint-antes-de-congelar-v1)** (el modo transitorio `only-new-issues` se retira al quedar la deuda en cero; el resto de la decisión permanece vigente)
+**Estado:** Aceptada · 2026-06 · **Refinada por [ADR-021](adr-021-baseline-completo-y-reproducible.md)** (el modo transitorio `only-new-issues` se retira al quedar la deuda en cero; el resto de la decisión permanece vigente)
 
 **Contexto.** Cerradas las 45 sesiones del [plan de
-implementación](implementacion.md), el kernel y las extensiones oficiales son
+implementación](../../plan/implementacion.md), el kernel y las extensiones oficiales son
 código real (un binario Go más `internal/runtime`). Hasta ahora la disciplina de
-calidad vivía solo en el protocolo de [CLAUDE.md](../CLAUDE.md) —"toda sesión
+calidad vivía solo en el protocolo de [CLAUDE.md](../../../CLAUDE.md) —"toda sesión
 deja `go build ./...` verde", el inventario 🔒 de tests obligatorios— y se
 ejercía a mano en cada sesión. No había integración continua, ni linting
 configurado, ni mecanismo para distribuir el binario. Esta decisión registra el
 **cómo se valida y se publica `nu`**. Es DevOps del operador: la implementación
-(los `.github/workflows/*.yml`) NO es parte de la API sagrada ([api.md](api.md))
+(los `.github/workflows/*.yml`) NO es parte de la API sagrada ([api.md](../../contracts/api.md))
 ni de los contratos de extensión; este ADR captura las *decisiones*, no los
 *steps* del YAML. Encaja donde ya viven ADR-001 (Go, `CGO_ENABLED=0`) y ADR-010
 (extensiones embebidas inactivas), que describen la distribución sin haber fijado
@@ -40,7 +40,7 @@ su tubería.
    cross-compila a **`linux/amd64`, `linux/arm64`, `darwin/amd64`,
    `darwin/arm64`**, empaqueta un `tar.gz` por plataforma más un `checksums.txt`
    (SHA256), y crea la GitHub Release con notas autogeneradas. **No** se publica
-   Windows nativo: está pospuesto ([pospuesto.md](pospuesto.md) P18) y Windows va
+   Windows nativo: está pospuesto ([pospuesto.md](../../postponed/pospuesto.md) P18) y Windows va
    por WSL2, que usa el binario `linux/amd64`; un `.exe` daría falsa señal de
    soporte.
 
@@ -79,13 +79,13 @@ su tubería.
 - **A mano vs GoReleaser.** El alcance es pequeño y estable (4 targets, 1
   binario, sin paquetes nativos ni brew tap ni Docker). GoReleaser metería una
   herramienta externa con su propia versión, config y "magia" —justo lo que la
-  [filosofía §6](filosofia.md) ("cero dependency hell") evita en el producto y
+  [filosofía §6](../../core/filosofia.md) ("cero dependency hell") evita en el producto y
   conviene evitar también en su tubería—. El workflow a mano cabe en YAML legible
   y no añade nada que mantener. Si en el futuro se añaden Homebrew tap, paquetes
   nativos o imágenes Docker, se reabre esta elección.
 
 **Consecuencias.**
-- El protocolo de [CLAUDE.md](../CLAUDE.md) ("build verde", inventario 🔒) deja
+- El protocolo de [CLAUDE.md](../../../CLAUDE.md) ("build verde", inventario 🔒) deja
   de depender solo de la diligencia manual: la CI lo exige en cada PR. El
   `tidy`-check materializa "cero dependency hell" como gate automático.
 - **Publicar implica subir la versión a mano antes del tag.** El flujo es: editar
@@ -98,7 +98,7 @@ su tubería.
   dejar macOS solo en `push: main`. Para *compilar* los binarios darwin del
   release **no** hace falta runner macOS (el cross-compile de Go corre en Linux);
   macOS en CI es solo para *ejecutar* los tests nativamente.
-- **Licencia:** resuelta en [ADR-014](#adr-014--licencia-apache-20) (Apache 2.0).
+- **Licencia:** resuelta en [ADR-014](adr-014-licencia-apache-2-0.md) (Apache 2.0).
   Los `tar.gz` del release incluyen el binario; el `LICENSE` y el `NOTICE` viven
   en la raíz del repo.
 - **Pendiente del dueño del proyecto, fuera de este ADR:** un flag `--version` en

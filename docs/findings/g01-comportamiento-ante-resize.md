@@ -9,8 +9,8 @@ affected: ["api.md §9"]
 ---
 # G1 · Comportamiento ante resize — `api.md` §9 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §9.1 y
-[guia-plugins.md](guia-plugins.md) §6): regla dura en el core — las
+**Resolución** (aplicada en [api.md](../contracts/api.md) §9.1 y
+[guia-plugins.md](../contracts/guia-plugins.md) §6): regla dura en el core — las
 regiones fuera de pantalla se recortan sin error y conservan sus
 coordenadas; recolocarse es del dueño (convención "tu región, tu
 `ui:resize`"); el relayout automático es del toolkit. Anclajes

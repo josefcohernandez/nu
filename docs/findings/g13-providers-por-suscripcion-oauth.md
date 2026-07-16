@@ -9,11 +9,11 @@ affected: ["providers.md", "api.md"]
 ---
 # G13 · Providers por suscripción (OAuth) — `providers.md` / `api.md` — **RESUELTO**
 
-**Resolución** (aplicada en [providers.md](providers.md) §4 y guía §7):
+**Resolución** (aplicada en [providers.md](../contracts/providers.md) §4 y guía §7):
 camino v1 sin listener — device flow o pegado manual de código (patrón
 `gh`/`gcloud`), escribible con `http.request` + `enu.proc`; tokens en
 `data_dir()/plugins/<nombre>/` con `0600`, en claro (coherente con P7). El
-listener localhost (`listen_once`) va a [P19](pospuesto.md) con disparador
+listener localhost (`listen_once`) va a [P19](../postponed/pospuesto.md) con disparador
 "provider real sin device flow ni pegado de código".
 
 **Problema.** El device flow es escribible con lo que hay (polling +

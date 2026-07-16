@@ -6,9 +6,9 @@ status: "vigente"
 # Rondas de validación por pseudocódigo
 
 Estado: ejercicio de validación previo a congelar la API. Regla del juego:
-**solo se puede usar lo especificado** en [api.md](api.md),
-[providers.md](providers.md), [sesiones.md](sesiones.md),
-[agente.md](agente.md) y [chat.md](chat.md). Cada punto donde el código no
+**solo se puede usar lo especificado** en [api.md](../contracts/api.md),
+[providers.md](../contracts/providers.md), [sesiones.md](../contracts/sesiones.md),
+[agente.md](../contracts/agente.md) y [chat.md](../contracts/chat.md). Cada punto donde el código no
 se pudo escribir es un hallazgo (lista al final). El código es ilustrativo,
 no normativo ni completo.
 
@@ -166,7 +166,7 @@ sin nada nuevo.
 *Nota posterior: G55 (2026-07-16, de SEC-04) invirtió el default de entorno
 que este sketch ilustra — la tool `bash` del contrato monta el entorno del
 hijo **sin** los secretos del provider (`providers.secret_env_vars()`,
-[agente.md](agente.md) §3); lo mismo vale para el `enu.proc.spawn(argv, {})`
+[agente.md](../contracts/agente.md) §3); lo mismo vale para el `enu.proc.spawn(argv, {})`
 del cliente MCP del escenario 8. Ambos sketches reflejan el estado previo a
 esa resolución: no los copies como plantilla de lanzamiento de subprocesos.*
 
@@ -309,7 +309,7 @@ componen un plugin real sin tocar nada interno.
 **H1 — Falta una primitiva de rendez-vous (`enu.task.future`).** Apareció
 tres veces (espera de permisos, picker modal, y en general "una task espera
 un valor que otro código producirá"). Sin ella, el patrón sería polling con
-`task.sleep`. Resolución: añadir a [api.md](api.md) §3
+`task.sleep`. Resolución: añadir a [api.md](../contracts/api.md) §3
 `enu.task.future() -> Future`, con `Future:set(v)` (síncrono, una sola vez)
 y `Future:await() -> v ⏸` (varios pueden esperar; si ya está resuelto,
 retorna inmediato).
@@ -320,7 +320,7 @@ siempre. Resolución: `opts.idle_timeout_ms` en `enu.http.stream` (lanza
 `ETIMEOUT` si pasan N ms sin bytes).
 
 **H3 — `require` dentro de workers.** El escenario 4 necesita cargar el
-módulo del adaptador en el worker. Resolución: aclarar en [api.md](api.md)
+módulo del adaptador en el worker. Resolución: aclarar en [api.md](../contracts/api.md)
 §13 que las rutas de `require` del loader (módulos Lua de plugins) están
 disponibles en workers; lo que no existe es la API `enu.plugin` (ciclo de
 vida).

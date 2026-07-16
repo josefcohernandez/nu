@@ -9,7 +9,7 @@ affected: ["api.md §13", "modelo-ejecucion.md"]
 ---
 # G15 · El interior de un worker: scheduler propio y watchdog — `api.md` §13 / `modelo-ejecucion.md` — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §13): cada worker es un
+**Resolución** (aplicada en [api.md](../contracts/api.md) §13): cada worker es un
 mini-runtime completo (scheduler propio, multi-task, timers, futures) y
 **sin watchdog** — los workers existen para quemar CPU a gusto; el control
 es `terminate()` + `caps`. El watchdog configurable se descartó: un mando

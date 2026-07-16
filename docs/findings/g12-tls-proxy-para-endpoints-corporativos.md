@@ -9,7 +9,7 @@ affected: ["api.md §8"]
 ---
 # G12 · TLS/proxy para endpoints corporativos — `api.md` §8 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §8): `opts.tls = { ca_file?,
+**Resolución** (aplicada en [api.md](../contracts/api.md) §8): `opts.tls = { ca_file?,
 insecure? }` en `request`/`stream`; las variables de entorno
 `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` se respetan por defecto (el estándar
 de facto corporativo); defaults globales en `[net]` de `enu.toml`

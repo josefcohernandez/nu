@@ -12,7 +12,7 @@ Pregunta explícita: ¿estaba todo? Respuesta: no. Esta ronda ataca el bus
 bajo reentrada, las fronteras de datos binarios, los providers
 corporativos y de suscripción, el modelo de confianza del contenido del
 repo, y el interior de los workers. Hallazgos G10-G16, sin resolver, a
-[problemas.md](problemas.md).
+[problemas.md](../findings/README.md).
 
 ## Escenario 18: el bus de eventos bajo reentrada
 
@@ -96,8 +96,8 @@ enu.task.race(...)    -- (el escenario 4 ya lo asumió para multiplexar
 ```
 
 Menores anotados al pasar: rotación del fichero de `enu.log`
-(→ [P20](pospuesto.md)); propiedad de los `Timer` (¿mueren con la task?
+(→ [P20](../postponed/pospuesto.md)); propiedad de los `Timer` (¿mueren con la task?
 → convención `cleanup`); restricciones de versión en `requires` (se
-pliega a [P4](pospuesto.md) cuando se reabra).
+pliega a [P4](../postponed/pospuesto.md) cuando se reabra).
 
 ---

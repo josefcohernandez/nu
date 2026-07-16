@@ -8,14 +8,14 @@ date: "2026-06"
 # ADR-012 · Resultado del spike de ADR-007: el toolkit se construye en Lua
 
 **Estado:** Aceptada · 2026-06 (cierra la *validación pendiente* de
-[ADR-007](#adr-007--api-de-ui-expuesta-a-lua) y la **cuestión abierta nº1** de
-[arquitectura.md](arquitectura.md); ADR-007 asciende a Aceptada en consecuencia)
+[ADR-007](adr-007-api-de-ui-expuesta.md) y la **cuestión abierta nº1** de
+[arquitectura.md](../../core/arquitectura.md); ADR-007 asciende a Aceptada en consecuencia)
 
 **Contexto.** ADR-007 fijó la API de UI (celdas + regiones + compositor en Go,
 render caro en Go, **toolkit de widgets como extensión Lua**) con un **veto
 pre-comprometido**: si un toolkit en Lua no mantiene la UI fluida, se mueve la
 implementación del toolkit a Go (opción B clásica) conservando la API pública.
-La sesión S28 ([implementacion.md](implementacion.md), hito de veto) construyó
+La sesión S28 ([implementacion.md](../../plan/implementacion.md), hito de veto) construyó
 una versión **mínima e interna** de la primitiva —rejilla de celdas
 (`rune`+`style`), regiones, `blit` de un Block (S22) con viewport y recorte por
 ambos extremos (G28), diff de rejilla → ANSI a un buffer en memoria, coalescing
@@ -30,7 +30,7 @@ el **coste de cómputo** (componer + difar + codificar a ANSI + el cruce
 Go↔Lua), **no** la latencia física del terminal (ancho de banda del pty,
 vsync), que es idéntica se decida Lua o Go. Es exactamente lo que el veto pone
 en juego —el rendimiento de Lua sin JIT en el camino caliente, limitación nº8
-de [modelo-ejecucion.md](modelo-ejecucion.md)—; la física del TTY no discrimina
+de [modelo-ejecucion.md](../../core/modelo-ejecucion.md)—; la física del TTY no discrimina
 entre las dos opciones, así que excluirla no sesga la decisión.
 
 **Umbral de fluidez (pre-comprometido).** Caso (a) streaming markdown a

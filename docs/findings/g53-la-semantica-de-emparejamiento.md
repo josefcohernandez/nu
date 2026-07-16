@@ -11,11 +11,11 @@ adr: "ADR-023"
 ---
 # G53 · La semántica de emparejamiento de los patrones de permiso `tool[:argumento]` no está especificada, y en `bash` el encadenamiento la vuelve una frontera falsa — `agente.md` §5 / `chat.md` §5 / `guia-plugins.md` — **RESUELTO**
 
-**Resolución** (2026-07-16; aplicada en [agente.md](agente.md) §5 —la
-especificación—, [chat.md](chat.md) §5, [guia-plugins.md](guia-plugins.md)
-§5 y [arquitectura.md](arquitectura.md) —el ejemplo MCP pasa a allows de
-nombre exacto—; doctrina registrada en [ADR-023](adr.md); la alternativa
-mayor, pospuesta como [P39](pospuesto.md)). **Modelo Claude Code adaptado** — el matcher del
+**Resolución** (2026-07-16; aplicada en [agente.md](../contracts/agente.md) §5 —la
+especificación—, [chat.md](../contracts/chat.md) §5, [guia-plugins.md](../contracts/guia-plugins.md)
+§5 y [arquitectura.md](../core/arquitectura.md) —el ejemplo MCP pasa a allows de
+nombre exacto—; doctrina registrada en [ADR-023](../decisions/adr/README.md); la alternativa
+mayor, pospuesta como [P39](../postponed/pospuesto.md)). **Modelo Claude Code adaptado** — el matcher del
 harness de referencia, ajustado a la doctrina fail-closed del proyecto. La
 semántica de match pasa de implícita a contrato: patrón sin `:` = nombre
 exacto de la tool; `tool:arg` = glob anclado (`*` ⇒ `.*`, `^…$`, resto
@@ -37,7 +37,7 @@ subcomando**, no el string encadenado (P29). **Sin cambios en `api.md` ni
 bump de `enu.version.api`**: los permisos son vocabulario de producto y viven
 en la extensión — confirmado por el juez de filosofía al validar la
 propuesta. (Origen: SEC-02 de la
-[auditoría de seguridad](audits/auditoria-seguridad-2026-07-16.md).)
+[auditoría de seguridad](../audits/auditoria-seguridad-2026-07-16.md).)
 
 **Problema.** Ningún documento fija el algoritmo con que un permiso `allow`/`deny`
 de la forma `tool:argumento` casa contra una petición concreta. Con emparejamiento

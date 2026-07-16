@@ -9,8 +9,8 @@ affected: ["api.md §9.2"]
 ---
 # G22 · Resolución de colores semánticos entre core y toolkit — `api.md` §9.2 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §9.2,
-[arquitectura.md](arquitectura.md) y guía §6): opción (b) — el core solo
+**Resolución** (aplicada en [api.md](../contracts/api.md) §9.2,
+[arquitectura.md](../core/arquitectura.md) y guía §6): opción (b) — el core solo
 acepta colores **literales** (`#rrggbb`, índice 0-255; degradados a
 `enu.ui.caps().colors` al pintar); el vocabulario semántico y los themes
 son enteramente del toolkit, que resuelve nombre → literal al construir
@@ -29,7 +29,7 @@ para el mismo resultado).
 
 **Problema.** Un `Style` del core acepta nombres semánticos (`"accent"`,
 `"error"`), pero los themes son plugins del toolkit
-([chat.md](chat.md) §7): no está definido quién traduce nombre → color
+([chat.md](../contracts/chat.md) §7): no está definido quién traduce nombre → color
 concreto, ni cuándo (¿al construir el Block o al pintar?).
 
 **Impacto.** `Style` es API sagrada; el theming entero (y la regla "solo

@@ -10,7 +10,7 @@ affected: ["api.md §8 / runtime/ws.go"]
 ---
 # G52 · `enu.ws` no tiene vía binaria: `Ws:send` siempre manda frame de texto y `Ws:recv` no distingue el tipo de frame — `api.md` §8 / `runtime/ws.go` — **RESUELTO**
 
-**Resolución** (2026-07-14; adición a [api.md](api.md) §8, nivel de API 2→3).
+**Resolución** (2026-07-14; adición a [api.md](../contracts/api.md) §8, nivel de API 2→3).
 `Ws:send(data, opts?)` gana `opts.binary?: boolean`: con él, el frame sale
 binario (`MessageBinary`); sin él, el comportamiento actual (frame de texto)
 se conserva intacto — compatible con todo llamante existente. Y `Ws:recv()`

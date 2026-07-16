@@ -10,7 +10,7 @@ status: "vigente"
 
 Vista dinámica del sistema: cómo fluyen eventos, IO y pintado entre el estado
 Lua principal, las goroutines de Go y los workers. La vista estática está en
-[arquitectura.md](arquitectura.md); las firmas, en [api.md](api.md).
+[arquitectura.md](arquitectura.md); las firmas, en [api.md](../contracts/api.md).
 
 ## Topología
 
@@ -111,7 +111,7 @@ recibir el chunk ya parseado, pedir el Block, colocarlo.
    Además, cancelar **no interrumpe la primitiva ⏸ en vuelo**: la task ve
    `ECANCELED` al instante, pero la operación Go en curso (`fs.write`,
    `http.request`…) corre hasta su fin natural y sus efectos pueden aterrizar
-   después del cleanup ([P33](pospuesto.md)).
+   después del cleanup ([P33](../postponed/pospuesto.md)).
 3. **La frontera de workers solo cruza datos, nunca referencias.** Mensajes =
    valores JSON-ables copiados. No cruzan: closures, userdata ni **Blocks**.
    Consecuencia práctica: un worker no puede pre-renderizar UI; manda datos
@@ -125,7 +125,7 @@ recibir el chunk ya parseado, pedir el Block, colocarlo.
    y los `Eval` de `-e`/`-p`): mientras ningún bucle bombea, los timers de
    fondo (`enu.task.every`) no laten — se **pausan** (su petición en vuelo
    sigue su curso y el resultado espera) y el siguiente drenaje los reanuda.
-   En el modo interactivo el bombeo es **continuo** ([G44](problemas.md#g44),
+   En el modo interactivo el bombeo es **continuo** ([G44](../findings/g44-el-scheduler-no-se-bombea.md),
    resuelta y construida 2026-07-13): `PumpTasks` vive junto al bucle del
    driver — el estado del bombeo está en la `Instance`, un *kick* desde
    `Eval`/`EmitEvent`/`FeedInput` despierta el `select`, y `inst.mu` es el

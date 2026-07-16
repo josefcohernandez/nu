@@ -114,7 +114,7 @@ Rebobinar a un punto anterior y probar otro camino **no muta el fichero**
 de origen. **El fork copia el prefijo al transcript de la hija (G39)**: la
 sesión hija es **autocontenida** — su replay no sigue la cadena de padres, y
 su fichero viaja solo (lo que hace triviales exportar un fork o moverlo
-entre máquinas: el formato es la API, [P9](pospuesto.md)). El coste de
+entre máquinas: el formato es la API, [P9](../postponed/pospuesto.md)). El coste de
 duplicar el prefijo es irrelevante frente a esa robustez. `meta.parent =
 { id, entry }` es **navegacional**, no un puntero de replay: sirve para
 reconstruir el árbol de variantes leyendo los `meta`; `entry` es el índice

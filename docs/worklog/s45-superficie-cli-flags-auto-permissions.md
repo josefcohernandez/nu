@@ -8,7 +8,7 @@ status: "cerrada"
 # S45 — Superficie CLI (flags, --auto-permissions, --continue/G18, códigos de salida); cierra la Fase 8 y el plan (arquitectura nº5)
 
 **Qué es.** El ÚLTIMO eslabón del plan: la superficie de línea de comandos del binario `enu`.
-Cierra la cuestión abierta nº5 de [arquitectura.md](arquitectura.md), la Fase 8 y el plan
+Cierra la cuestión abierta nº5 de [arquitectura.md](../core/arquitectura.md), la Fase 8 y el plan
 entero (45/45). Vive en `main.go` (el binario), **NO en la API sagrada `enu.*`** (api.md): es la
 interfaz del ejecutable, no superficie Lua. El core sigue sin saber lo que es un agente
 (ADR-003): el CLI orquesta las extensiones `agent`/`sessions` por la API pública, exactamente

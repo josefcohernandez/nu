@@ -9,7 +9,7 @@ status: "borrador"
 # La extensión oficial de la malla (`mesh`): contrato
 
 Estado: **borrador para discusión — v0.1 construida**. Nace de la [Ronda 8 de
-pseudocódigo](pseudocodigo.md) ("kubernetes de agentes"): una malla de nodos
+pseudocódigo](../validation/README.md) ("kubernetes de agentes"): una malla de nodos
 `enu` headless que ejecutan trabajos declarativos sobre ramas de git, con el
 humano en las dos fronteras que importan (los Roles y los merges). Como el
 resto de extensiones oficiales, NO es API sagrada del core: es el contrato
@@ -30,7 +30,7 @@ incompletas (ADR-003). La Ronda 8 validó exactamente eso antes de construir
    sería producto encima del producto — cuando duela escribirlo a mano, se
    reabre.
 2. **Pull-only.** enu solo actúa de **cliente** (git, y en el futuro `enu.ws`
-   saliente): sin listener, [P1/P19](pospuesto.md) siguen dormidos.
+   saliente): sin listener, [P1/P19](../postponed/pospuesto.md) siguen dormidos.
 3. **Git es el único sustrato v0.1**: transporte, almacén y coordinación
    (claim por CAS de refs). La Ronda 8 (escenario 36) validó que la capa
    Role/Job es agnóstica al sustrato; el broker queda pospuesto con disparador
@@ -237,14 +237,14 @@ end
 | D6 | El controlador que estampa jobs queda fuera de v0.1 (los escribe un humano/script) | ¿Merece `mesh.job.emit(spec)` que valide y comitee el TOML? |
 | D7 | `source = "user"` añadido al enum de G40 (el rechazo interactivo también es dato) | Ya aplicado en agente.md §5; revertir si se prefiere el enum original |
 | D8 | La clave del meta del tool_result denegado es `denied` | Ya aplicado en agente.md §5 |
-| D9 | ~~Candidato a grieta del kernel: escrituras de handlers a upvalues locales de tasks suspendidas se perdían~~ | **DECIDIDA Y RESUELTA como [G41](problemas.md#g41)**: era un bug de gopher-lua (el desenrollado de `pcall` cerraba upvalues de frames vivos), blindado en el kernel — la semántica de Lua vuelve a ser la estándar, sin limitación que documentar |
+| D9 | ~~Candidato a grieta del kernel: escrituras de handlers a upvalues locales de tasks suspendidas se perdían~~ | **DECIDIDA Y RESUELTA como [G41](../findings/g41-un-error-capturado-por-pcall.md)**: era un bug de gopher-lua (el desenrollado de `pcall` cerraba upvalues de frames vivos), blindado en el kernel — la semántica de Lua vuelve a ser la estándar, sin limitación que documentar |
 
 ## 12. Relación con lo pospuesto
 
 - **Broker como segundo sustrato** (`enu.ws` saliente): validado como expresable
   (Ronda 8, escenario 36); se construirá cuando exista una malla real donde el
   polling de git no baste.
-- **Tool calls paralelas** ([P12](pospuesto.md)): un job sigue siendo secuencial
+- **Tool calls paralelas** ([P12](../postponed/pospuesto.md)): un job sigue siendo secuencial
   por dentro; el paralelismo de la malla es entre jobs/variantes.
-- **Workers anidados** ([P11](pospuesto.md)): irrelevante aquí — la carga es
+- **Workers anidados** ([P11](../postponed/pospuesto.md)): irrelevante aquí — la carga es
   LLM+IO y se solapa entre tasks (escenario 26).

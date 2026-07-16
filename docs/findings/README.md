@@ -6,17 +6,17 @@ status: "vigente"
 # Problemas abiertos
 
 Lista de trabajo viva: grietas encontradas en las rondas de validación
-([pseudocodigo.md](pseudocodigo.md)) y revisiones posteriores que están
+([pseudocodigo.md](../validation/README.md)) y revisiones posteriores que están
 **pendientes de resolver**.
 Método: se resuelven una a una, discutiendo opciones; al decidirse, la
 resolución se aplica a los documentos afectados y la entrada pasa a
-"Resuelto" con enlace al cambio. Distinto de [pospuesto.md](pospuesto.md):
+"Resuelto" con enlace al cambio. Distinto de [pospuesto.md](../postponed/pospuesto.md):
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
 **Estado: 52 registradas, 52 resueltas, 0 abiertas** (G53–G56 añadidas
 2026-07-16 desde la auditoría de seguridad
-([auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md)):
+([auditoria-seguridad-2026-07-16.md](../audits/auditoria-seguridad-2026-07-16.md)):
 grietas de diseño de SEC-02/03/04/07 —semántica de emparejamiento de permisos,
 control de redirects en `enu.http`, scrubbing de secretos del entorno, e
 identidad de un worker para las primitivas [W]—; las **cuatro resueltas** el
@@ -31,10 +31,10 @@ paso el data race de SEC-05). G52 añadida
 `Ws:recv` sin distinguir el tipo de frame — resuelta por adición a `api.md`
 §8, nivel de API 2→3; G44–G51
 añadidas 2026-07-12 desde la auditoría integral
-([auditoria-2026-07-12.md](audits/auditoria-2026-07-12.md)): G47–G51 —incoherencias
+([auditoria-2026-07-12.md](../audits/auditoria-2026-07-12.md)): G47–G51 —incoherencias
 documentales— resueltas el mismo día; G44 —el bombeo del scheduler— resuelta
 y **construida** el 2026-07-13 con la opción (b), `RunTasks` persistente
-(bitácora de [implementacion.md](implementacion.md)); G45 —la superficie [W]
+(bitácora de [implementacion.md](../plan/implementacion.md)); G45 —la superficie [W]
 de los workers— resuelta y **construida** el 2026-07-13 con la opción (a),
 marca worker-safe por snippet de preludio; G46 —el replay de `event`—
 resuelta y **construida** el 2026-07-13 con la opción (a) más la (c):

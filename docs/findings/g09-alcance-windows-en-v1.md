@@ -13,7 +13,7 @@ affected: ["transversal"]
 dentro de WSL2** (documentado como requisito, no como apología). Ventaja
 decisiva: dentro de WSL2 el contrato POSIX se cumple íntegro — cero
 especificación condicional, cero shell portable, cero semántica dual de
-señales. Windows nativo queda en pospuestos ([P18](pospuesto.md)) con su
+señales. Windows nativo queda en pospuestos ([P18](../postponed/pospuesto.md)) con su
 disparador. La promesa "cross-compile a todas las plataformas" se matiza en
 la arquitectura: el binario *compila* para Windows, el soporte v1 es WSL2.
 

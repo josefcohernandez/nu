@@ -8,7 +8,7 @@ date: "2026-06"
 # ADR-010 · Extensiones oficiales: distribuidas con nu, no activas por defecto
 
 **Estado:** Aceptada · 2026-06 (modifica una consecuencia de ADR-003 y el
-principio 5 de la filosofía) · **Refinada por [ADR-015](#adr-015--conjunto-oficial-de-producto-y-onramp-no-interactivo)** (qué es "el conjunto oficial" y cómo se activa sin TTY; no la reemplaza: "inactivas por defecto" sigue siendo de este ADR)
+principio 5 de la filosofía) · **Refinada por [ADR-015](adr-015-conjunto-oficial-de-producto.md)** (qué es "el conjunto oficial" y cómo se activa sin TTY; no la reemplaza: "inactivas por defecto" sigue siendo de este ADR)
 
 **Contexto.** ADR-003 decidió embeber las extensiones oficiales
 (`go:embed`) "preservando la experiencia batteries-included", lo que

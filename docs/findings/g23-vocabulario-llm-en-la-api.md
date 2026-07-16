@@ -9,10 +9,10 @@ affected: ["api.md §10", "providers.md §5"]
 ---
 # G23 · Vocabulario LLM en la API sagrada (`enu.text.approx_tokens`) — `api.md` §10 / `providers.md` §5 — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §10, [providers.md](providers.md)
-§4/§5 y [agente.md](agente.md) §8): la primitiva **sale del core**. Falla
+**Resolución** (aplicada en [api.md](../contracts/api.md) §10, [providers.md](../contracts/providers.md)
+§4/§5 y [agente.md](../contracts/agente.md) §8): la primitiva **sale del core**. Falla
 las dos varas a la vez: "token LLM" es vocabulario de producto
-([filosofia.md](filosofia.md) §2), y la heurística (~4 bytes/token) es una
+([filosofia.md](../core/filosofia.md) §2), y la heurística (~4 bytes/token) es una
 división en Lua puro — sin trabajo pesado no hay primitiva que justificar
 ("Lua decide, Go ejecuta"). A diferencia de markdown/highlighting, cuya
 concesión la sostiene el rendimiento, esta no tenía sostén. El helper pasa

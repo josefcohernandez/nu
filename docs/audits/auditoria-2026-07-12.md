@@ -30,7 +30,7 @@ Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 medi
 > rama: A-02, A-04, A-05, A-06, A-08, A-09, A-10, A-11, A-13, A-14, A-15,
 > A-16, A-18, A-20, A-23, A-25, A-26, A-32 (ver los commits que citan cada
 > id). Lo pendiente está **registrado en el flujo canónico de diseño**
-> ([problemas.md](../problemas.md) / [pospuesto.md](../pospuesto.md)):
+> ([problemas.md](../findings/README.md) / [pospuesto.md](../postponed/pospuesto.md)):
 > el trío del scheduler (A-01/A-03/A-34) es **G44** —resuelta y **construida**
 > el 2026-07-13 con la opción (b), `RunTasks` persistente (bitácora de
 > implementacion.md)—, la superficie [W] de

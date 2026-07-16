@@ -9,7 +9,7 @@ affected: ["api.md §12 / transversal"]
 ---
 # G11 · Datos no-UTF-8 en las fronteras JSON — `api.md` §12 / transversal — **RESUELTO**
 
-**Resolución** (aplicada en [api.md](api.md) §12 y guía §5): el codec es
+**Resolución** (aplicada en [api.md](../contracts/api.md) §12 y guía §5): el codec es
 estricto (`encode` lanza `EINVAL` ante UTF-8 inválido) y las tools sanean
 en el origen, visiblemente (`[output binario: NKB omitidos]`). Base64
 automático descartado (blob inesperado para el LLM, ambigüedad para el

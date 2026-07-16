@@ -10,8 +10,8 @@ affected: ["extensión agent / enu.proc §6"]
 ---
 # G55 · Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` — extensión `agent` / `enu.proc` §6 — **RESUELTO**
 
-**Resolución** (2026-07-16; [providers.md](providers.md) §4 +
-[agente.md](agente.md) §3 — el core queda **intacto**). Dos piezas, ambas en
+**Resolución** (2026-07-16; [providers.md](../contracts/providers.md) §4 +
+[agente.md](../contracts/agente.md) §3 — el core queda **intacto**). Dos piezas, ambas en
 las extensiones. (1) La extensión de providers gana
 `providers.secret_env_vars() -> string[]`: los **nombres** —nunca los
 valores— de las `api_key_env` de todos los providers declarados en
@@ -27,16 +27,16 @@ agente.md §11) ni los args de la tool (el modelo se autoconcedería el
 secreto por inyección de prompt); para un servidor MCP, el opt-in es su
 propia entrada de config con un `env` explícito. La mecánica es la que
 `enu.proc` ya ofrece — `opts.env` **reemplaza** el entorno heredado por
-llamada ([api.md](api.md) §6; la semántica de reemplazo quedó fijada en S16
-de [decisiones-implementacion.md](decisiones-implementacion.md)), y
+llamada ([api.md](../contracts/api.md) §6; la semántica de reemplazo quedó fijada en S16
+de [decisiones-implementacion.md](../worklog/README.md)), y
 "heredado menos estas" lo cubre el idioma `env -u` del SO —: cambia el
 **default de la extensión**, no el core.
 Advertencia para plugins que lancen subprocesos en
-[guia-plugins.md](guia-plugins.md) §5. Descartado: recortar dentro de
+[guia-plugins.md](../contracts/guia-plugins.md) §5. Descartado: recortar dentro de
 `enu.proc` (el core no sabe qué es un provider, ADR-003 — sería
 contaminarlo con vocabulario de producto) y el opt-in por argumento de la
 invocación (quien propone los args es el modelo: papel mojado ante prompt
-injection). Distinto de [P7](pospuesto.md) —transcripts—, que sigue
+injection). Distinto de [P7](../postponed/pospuesto.md) —transcripts—, que sigue
 pospuesto con nota cruzada. (Origen: SEC-04.)
 
 **Problema.** Las variables de entorno que portan las API keys de los providers

@@ -9,7 +9,7 @@ affected: ["sesiones.md"]
 ---
 # G5 · Doble reanudación de la misma sesión — `sesiones.md` — **RESUELTO**
 
-**Resolución** (aplicada en [sesiones.md](sesiones.md) §6): un escritor por
+**Resolución** (aplicada en [sesiones.md](../contracts/sesiones.md) §6): un escritor por
 sesión vía lockfile `<sesión>.jsonl.lock` con `{pid, hostname, started}`;
 lectores sin lock; locks huérfanos (pid muerto local) se limpian en
 silencio; conflicto real → aviso con fork por defecto / solo lectura /

@@ -138,7 +138,7 @@ No es grieta de API; es un patrón que debe estar escrito en la guía
 `enu.task.cleanup`.** Si el aborto (por `cancel()` o por watchdog) se
 entrega como error normal, cualquier `pcall` del ecosistema lo captura y
 el programa sigue como si nada (escenario 7). Resolución en
-[api.md](api.md) §1.3 y §3: el aborto desenrolla la task **sin pasar por
+[api.md](../contracts/api.md) §1.3 y §3: el aborto desenrolla la task **sin pasar por
 `pcall`**, y `enu.task.cleanup(fn)` registra liberadores LIFO que corren
 siempre (éxito, error o aborto) — el `defer` de esta casa.
 
@@ -155,7 +155,7 @@ Desde handlers síncronos: `task.spawn` como siempre.
 
 **F4 — Arranque y gobierno de plugins sin especificar.** No había forma de
 desactivar un plugin ni orden de carga definido (¿quién gana un keymap?).
-Resolución en [api.md](api.md) §14: fichero de configuración del runtime
+Resolución en [api.md](../contracts/api.md) §14: fichero de configuración del runtime
 `config.dir()/enu.toml` (`plugins.disabled`, presupuesto del watchdog) y
 orden canónico **core → plugins → init.lua del usuario → `core:ready`** —
 el usuario gana por ir último, sin sistema de prioridades.

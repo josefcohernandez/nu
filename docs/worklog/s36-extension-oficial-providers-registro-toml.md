@@ -9,7 +9,7 @@ status: "cerrada"
 
 Primera extensión de la **Fase 8**: ya no se toca el kernel, se escribe **Lua sobre la
 API pública congelada** (ADR-003, sin privilegio de kernel; el core no sabe lo que es un
-provider). El contrato es [providers.md](providers.md), no api.md.
+provider). El contrato es [providers.md](../contracts/providers.md), no api.md.
 
 ## Estructura de la extensión (plugin embebido)
 

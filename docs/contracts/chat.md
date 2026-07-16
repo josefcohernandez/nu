@@ -32,9 +32,9 @@ de terceros puede hacer todo lo que hace esta.
 ```
 
 Una columna, una sesión visible. Splits y vista multi-sesión: pospuesto
-([P14](pospuesto.md)).
+([P14](../postponed/pospuesto.md)).
 
-> ✅ **Pulido de producto** ([ADR-018](adr.md)). La columna se ve acabada, no como
+> ✅ **Pulido de producto** ([ADR-018](../decisions/adr/README.md)). La columna se ve acabada, no como
 > un kernel pelado: **bienvenida** al arrancar (banner + modelo + cwd + atajos) en vez
 > de una pantalla en blanco; **input enmarcado** (`toolkit.box`, borde redondeado) con
 > prompt `› ` y placeholder visible; una fila de **actividad** con spinner animado
@@ -61,7 +61,7 @@ indefinidamente.
 | `agent:permission.asked` | Diálogo modal (§5), encolado FIFO si ya hay uno visible. |
 | `agent:compact` | Marca visual de "historia compactada arriba". |
 
-> ✅ **Implementado** ([pospuesto.md](pospuesto.md) **P27**). El chat consume
+> ✅ **Implementado** ([pospuesto.md](../postponed/pospuesto.md) **P27**). El chat consume
 > también `agent:tool.progress` (progreso en vivo bajo la tool en curso) y
 > `agent:compact` (marca "historia compactada arriba", emitida ya por el agente
 > con **P25**).
@@ -73,7 +73,7 @@ tool de diff pinta diffs con colores y la de tests pinta su tabla, sin que
 
 ## 3. Input
 
-- Editor multilínea **enmarcado** ([ADR-018](adr.md)): vive en un `toolkit.box`
+- Editor multilínea **enmarcado** ([ADR-018](../decisions/adr/README.md)): vive en un `toolkit.box`
   (borde redondeado, realce de foco) con un prompt `› `; la caja **crece y encoge**
   con el contenido (hasta un máximo). El **placeholder** (las pistas de uso) se ve
   aunque el editor tenga el foco (antes se ocultaba justo al arrancar). `enter` envía,
@@ -84,7 +84,7 @@ tool de diff pinta diffs con colores y la de tests pinta su tabla, sin que
 - **Menciones `@`**: abre picker difuso de ficheros del repo
   (`enu.search.files` + `enu.search.fuzzy`); la mención inyecta la ruta y el
   agente decide leerla (no se incrusta el contenido a ciegas).
-  *(✅ Implementado: [pospuesto.md](pospuesto.md) **P26**, vía `chat.picker`.)*
+  *(✅ Implementado: [pospuesto.md](../postponed/pospuesto.md) **P26**, vía `chat.picker`.)*
 - **`/` al inicio**: autocompletado de comandos (§4) — `tab` abre el picker
   de comandos. *(✅ Implementado: **P29**.)*
 - Pegado multilínea correcto (evento `paste` de `enu.ui`).
@@ -109,7 +109,7 @@ reanuda vía `agent.session{ resume = id }`), `/fork`, `/compact`,
 `/permissions` (ver y editar la política de la sesión), `/think` (ver y
 cambiar el razonamiento, ADR-016), `/help`, `/quit`.
 
-> ✅ **Implementado** ([pospuesto.md](pospuesto.md) **P28**). Además de
+> ✅ **Implementado** ([pospuesto.md](../postponed/pospuesto.md) **P28**). Además de
 > `/model`, `/sessions`, `/compact`, `/clear`, `/help`, `/quit`, el chat trae
 > `/fork` (bifurca con `Session:fork` y sigue en la rama vía `Chat:switch_session`),
 > `/permissions` (ve y edita la política: `allow|deny <patrón>`, `mode ask|auto`)
@@ -135,7 +135,7 @@ truncar lo peligroso: el comando entero, la ruta entera) y opciones:
   encadenado, que bajo la semántica de emparejamiento por subcomando
   ([agente.md](agente.md) §5, G53) solo volvería a casar esa combinación
   exacta; cada patrón propuesto es además auditable por separado.
-  *(✅ Implementado: [pospuesto.md](pospuesto.md) **P29**. Tecla `s` = siempre
+  *(✅ Implementado: [pospuesto.md](../postponed/pospuesto.md) **P29**. Tecla `s` = siempre
   (sesión), `g` = siempre (global, persiste a `agent.toml`). La edición inline del
   patrón antes de aceptar queda como pulido menor; v1 usa el patrón sugerido.)*
 - **Denegar** (con nota opcional, que llega al modelo como rechazo).
@@ -147,7 +147,7 @@ los demás esperan en cola (y se señalan en la statusline).
 
 ## 6. Statusline
 
-Se pinta como una **barra** ([ADR-018](adr.md)): un fondo continuo (`bg_surface`)
+Se pinta como una **barra** ([ADR-018](../decisions/adr/README.md)): un fondo continuo (`bg_surface`)
 y, sobre él, los segmentos como **spans coloreados** por el theme (G22) —no un texto
 gris concatenado—. Cada segmento devuelve `{ text, style }` (un nombre semántico de
 color) o `""` para ocultarse; el chat los separa con un `·` atenuado y alinea el lado
@@ -175,12 +175,12 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
 - `chat` solo se activa en TTY interactivo — el test es `enu.has("ui")`
   ([api.md](api.md) §9, G20); en headless ni se carga (la
   separación motor/UI de [agente.md](agente.md) §1 es la que lo permite).
-- **Bienvenida** ([ADR-018](adr.md)). Mientras la conversación está vacía, el
+- **Bienvenida** ([ADR-018](../decisions/adr/README.md)). Mientras la conversación está vacía, el
   transcript muestra un saludo (identifica el harness, el **modelo** y el **cwd**
   activos, y recuerda los atajos) en vez de una pantalla en blanco; al primer mensaje
   lo sustituye la conversación. La calidad de la pantalla de arranque degradado
   (abajo) deja de ser la excepción.
-- **El chat posee la pantalla y al cerrarse apaga el binario** ([G36](problemas.md#g36)).
+- **El chat posee la pantalla y al cerrarse apaga el binario** ([G36](../findings/g36-el-conjunto-oficial-de-producto.md)).
   El conjunto oficial (ADR-015) activa también `repl`, pero el repl **cede**: solo
   auto-monta su UI si el chat no está activo (lo comprueba con `enu.plugin.list`, sin
   depender de chat). Y `Chat:quit` (y `ctrl+c`) emiten `core:shutdown`: salir del chat
@@ -191,7 +191,7 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
   (defaults < global < proyecto), o reanuda una existente
   (`agent.session{ resume = id }`, alimentado por el picker de
   `/sessions`).
-- **Arranque degradado ([ADR-017](adr.md), [G35](problemas.md)).** Si la sesión
+- **Arranque degradado ([ADR-017](../decisions/adr/README.md), [G35](../findings/README.md)).** Si la sesión
   inicial **no se puede construir por falta o rotura de config** —`agent.session`
   lanza `EINVAL` (no hay modelo), `EPROVIDER` (modelo/provider no resoluble en
   `providers.toml`) o `EAGENT`/`EPROVIDER` (TOML mal formado)—, `chat.start`
@@ -220,9 +220,9 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
 
 ## 10. Pospuesto
 
-Splits / vista multi-sesión ([P14](pospuesto.md)), búsqueda dentro del
-transcript ([P15](pospuesto.md)), modo vim del editor de input
-([P16](pospuesto.md)), render de imágenes en el transcript
-([P6](pospuesto.md)).
+Splits / vista multi-sesión ([P14](../postponed/pospuesto.md)), búsqueda dentro del
+transcript ([P15](../postponed/pospuesto.md)), modo vim del editor de input
+([P16](../postponed/pospuesto.md)), render de imágenes en el transcript
+([P6](../postponed/pospuesto.md)).
 
 <!-- /enu:interno -->

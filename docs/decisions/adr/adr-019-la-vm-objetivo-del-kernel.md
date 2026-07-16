@@ -7,7 +7,7 @@ date: "2026-07"
 ---
 # ADR-019 · La VM objetivo del kernel es PUC-Lua sobre wazero; gopher-lua queda en mantenimiento
 
-**Estado:** Aceptada · 2026-07 (dirección; la ejecución es por fases, sin fecha comprometida. Basada en el spike [spike/lua-wasm/INFORME.md](../spike/lua-wasm/INFORME.md); relacionada con ADR-011 —que la fase de migración reemplazará— y con [G31](problemas.md#g31)/[G41](problemas.md#g41))
+**Estado:** Aceptada · 2026-07 (dirección; la ejecución es por fases, sin fecha comprometida. Basada en el spike [spike/lua-wasm/INFORME.md](../../../spike/lua-wasm/INFORME.md); relacionada con ADR-011 —que la fase de migración reemplazará— y con [G31](../../findings/g31-el-puente-no-puede-ceder.md)/[G41](../../findings/g41-un-error-capturado-por-pcall.md))
 
 **Contexto.** gopher-lua —la VM sobre la que corre todo el Lua de nu— está sin
 mantenimiento efectivo: la v1.1.2 pineada es su última release, `state.go` no se
@@ -64,7 +64,7 @@ tablas 0,41×), peajes concentrados en las fronteras (llamada host ~1 µs, throw
   G41) se vuelve imposible por construcción en el destino; mientras tanto, el
   statu quo blindado sigue siendo operable.
 - La memoria lineal por instancia de WASM abre **aislamiento físico** para
-  workers y `caps` — [P2](pospuesto.md) (actores aislados) y [P3](pospuesto.md)
+  workers y `caps` — [P2](../../postponed/pospuesto.md) (actores aislados) y [P3](../../postponed/pospuesto.md)
   (plugins WASM) ganan un camino natural y barato el día de la migración.
 - Costes asumidos: ~+0,7 MB de binario; fronteras más caras (irrelevantes con
   el patrón "Lua decide, Go ejecuta", que ya minimiza cruces); una API

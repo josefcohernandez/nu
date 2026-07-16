@@ -7,9 +7,9 @@ date: "2026-06"
 ---
 # ADR-016 · Modelo canónico de `thinking` con `mode` y traducción por-modelo en el adaptador
 
-**Estado:** Aceptada · 2026-06 (resuelve [G34](problemas.md#g34--el-modelo-canónico-de-thinking-no-expresa-el-modo-adaptativo-opus-46-400ea-con-budget_tokens); **reabre y cierra** [P21](pospuesto.md), que sale de pospuestos)
+**Estado:** Aceptada · 2026-06 (resuelve [G34](../../findings/g34-el-modelo-canonico-de-thinking.md); **reabre y cierra** [P21](../../postponed/pospuesto.md), que sale de pospuestos)
 
-**Contexto.** El modelo canónico ([providers.md](providers.md) §2.1) congeló
+**Contexto.** El modelo canónico ([providers.md](../../contracts/providers.md) §2.1) congeló
 `thinking?: { budget?: integer }` y el adaptador `anthropic` lo traduce a la
 forma extended-thinking *legacy* `{type="enabled", budget_tokens=N}`. La familia
 Opus 4.6+ —incluido el modelo por defecto del proyecto, `claude-opus-4-8`—
@@ -18,8 +18,8 @@ Opus 4.6+ —incluido el modelo por defecto del proyecto, `claude-opus-4-8`—
 (el adaptador cumple el contrato congelado al pie) sino del **modelo canónico**,
 que (1) solo sabe pedir razonamiento por *presupuesto* y (2) no tiene forma de
 pedir el *modo adaptativo* que los modelos modernos exigen. Validada en
-[pseudocodigo.md](pseudocodigo.md) (Ronda 7, escenario 32) y registrada como
-[G34](problemas.md#g34). Estuvo pospuesta como **P21** mientras no hubo
+[pseudocodigo.md](../../validation/README.md) (Ronda 7, escenario 32) y registrada como
+[G34](../../findings/g34-el-modelo-canonico-de-thinking.md). Estuvo pospuesta como **P21** mientras no hubo
 consumidor; el disparador —el modelo por defecto ya es Opus 4.8— la reabre. Hoy
 la grieta es **latente** (el agente no rellena `req.thinking` por defecto), y se
 decide ahora, antes de cablear razonamiento, para no construir esa feature sobre

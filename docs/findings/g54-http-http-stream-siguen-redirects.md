@@ -10,7 +10,7 @@ affected: ["api.md §8"]
 ---
 # G54 · `enu.http`/`enu.http.stream` siguen redirects sin control: no es expresable no-seguirlos ni observar la cadena — `api.md` §8 — **RESUELTO**
 
-**Resolución** (2026-07-16; adición a [api.md](api.md) §8, nivel de API 3→4).
+**Resolución** (2026-07-16; adición a [api.md](../contracts/api.md) §8, nivel de API 3→4).
 `request` y `stream` ganan `opts.max_redirects?: number`: default **10** (la
 política que el cliente aplicaba de forma implícita pasa a contrato), `0` =
 no seguir ninguna. Agotado el presupuesto **no se lanza error nuevo**: se
@@ -31,7 +31,7 @@ acotado por la verificación adversarial de SEC-03: el eje robusto es la
 robo directo de credencial vía redirect se refutó (quien inyecta el `302` ya
 recibió la clave en la petición inicial). Recomendación de uso
 (`max_redirects = 0` ante URLs de terceros) añadida a
-[guia-plugins.md](guia-plugins.md) §5 y [providers.md](providers.md) §3.
+[guia-plugins.md](../contracts/guia-plugins.md) §5 y [providers.md](../contracts/providers.md) §3.
 **Implementación pendiente** (sesión de construcción, no este commit, por el
 protocolo "el contrato lidera, el código sigue": el kernel aún sigue la
 política implícita de Go y `APILevel` sigue en 3 hasta que se construya).
