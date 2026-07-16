@@ -9,7 +9,7 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 52 registradas, 50 resueltas, 2 abiertas** (G53–G56 añadidas
+**Estado: 52 registradas, 51 resueltas, 1 abierta** (G53–G56 añadidas
 2026-07-16 desde la auditoría de seguridad
 ([auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md)):
 grietas de diseño de SEC-02/03/04/07 —semántica de emparejamiento de permisos,
@@ -18,7 +18,9 @@ identidad de un worker para las primitivas [W]—; G53 **resuelta** el mismo
 día — emparejamiento por subcomando con fail-closed, ADR-023, alternativa
 mayor pospuesta como P39 —; G54 —control de redirects— **resuelta** el mismo
 día por adición a `api.md` §8 (`opts.max_redirects` y recorte de cabeceras
-cross-host, nivel de API 3→4); G55 y G56 siguen **abiertas** a la espera de
+cross-host, nivel de API 3→4); G55 —el scrubbing, de SEC-04— **resuelta** el
+mismo día en las extensiones (providers.md §4 + agente.md §3, core intacto);
+G56 sigue **abierta** a la espera de
 decisión del propietario. G52 añadida
 2026-07-14 desde A-38 de la auditoría integral — `Ws:send` sin vía binaria y
 `Ws:recv` sin distinguir el tipo de frame — resuelta por adición a `api.md`
@@ -1287,7 +1289,36 @@ API existente. Detectado en SEC-03 (2026-07-16).
 (o que un LLM las proponga) queda expuesto a SSRF por redirect, sin herramienta
 en la API para defenderse.
 
-## G55 · Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` — extensión `agent` / `enu.proc` §6 — **ABIERTO**
+## G55 · Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` — extensión `agent` / `enu.proc` §6 — **RESUELTO**
+
+**Resolución** (2026-07-16; [providers.md](providers.md) §4 +
+[agente.md](agente.md) §3 — el core queda **intacto**). Dos piezas, ambas en
+las extensiones. (1) La extensión de providers gana
+`providers.secret_env_vars() -> string[]`: los **nombres** —nunca los
+valores— de las `api_key_env` de todos los providers declarados en
+`providers.toml`, deduplicados; solo esa extensión sabe qué variables del
+entorno son credenciales ("provider" es vocabulario de producto, ADR-003),
+así que ella publica la lista y las demás la consumen. (2) La tool `bash` de
+la extensión `agent` (y el lanzamiento de servidores MCP por `enu.proc`)
+monta por defecto el entorno del hijo **sin** esas variables; el opt-in es
+explícito y nominal — `inherit_secrets = ["VAR", ...]` bajo `[tools.bash]`
+en el `agent.toml` del usuario, lista de nombres exactos sin comodín — y
+**no** puede concederlo ni el `agent.toml` del proyecto (amplía: se ignora,
+agente.md §11) ni los args de la tool (el modelo se autoconcedería el
+secreto por inyección de prompt); para un servidor MCP, el opt-in es su
+propia entrada de config con un `env` explícito. La mecánica es la que
+`enu.proc` ya ofrece — `opts.env` **reemplaza** el entorno heredado por
+llamada ([api.md](api.md) §6; la semántica de reemplazo quedó fijada en S16
+de [decisiones-implementacion.md](decisiones-implementacion.md)), y
+"heredado menos estas" lo cubre el idioma `env -u` del SO —: cambia el
+**default de la extensión**, no el core.
+Advertencia para plugins que lancen subprocesos en
+[guia-plugins.md](guia-plugins.md) §5. Descartado: recortar dentro de
+`enu.proc` (el core no sabe qué es un provider, ADR-003 — sería
+contaminarlo con vocabulario de producto) y el opt-in por argumento de la
+invocación (quien propone los args es el modelo: papel mojado ante prompt
+injection). Distinto de [P7](pospuesto.md) —transcripts—, que sigue
+pospuesto con nota cruzada. (Origen: SEC-04.)
 
 **Problema.** Las variables de entorno que portan las API keys de los providers
 (`api_key_env` y conocidas equivalentes) se propagan sin filtrar al entorno de
@@ -1298,11 +1329,6 @@ los *transcripts*, no en el *entorno* heredado. Detectado en SEC-04 (2026-07-16)
 
 **Impacto.** Exfiltración trivial de credenciales de LLM desde cualquier
 subproceso, sin que el usuario haya concedido acceso a esos secretos.
-
-**Dirección (a decidir).** Especificar en el contrato de la extensión `agent`
-(y/o en `enu.proc` §6) que las variables `api_key_env` conocidas se **recortan por
-defecto** del entorno de los subprocesos, con opt-in explícito para heredarlas
-cuando de verdad se necesiten. (Origen: SEC-04.)
 
 ## G56 · El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner — `api.md` §13/§16 / `agente.md` — **ABIERTO**
 

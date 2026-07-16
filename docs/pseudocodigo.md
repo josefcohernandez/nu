@@ -158,6 +158,13 @@ agent.tool{
 Veredicto: limpio. `read_line` + `progress` dan streaming de salida en vivo
 sin nada nuevo.
 
+*Nota posterior: G55 (2026-07-16, de SEC-04) invirtió el default de entorno
+que este sketch ilustra — la tool `bash` del contrato monta el entorno del
+hijo **sin** los secretos del provider (`providers.secret_env_vars()`,
+[agente.md](agente.md) §3); lo mismo vale para el `enu.proc.spawn(argv, {})`
+del cliente MCP del escenario 8. Ambos sketches reflejan el estado previo a
+esa resolución: no los copies como plantilla de lanzamiento de subprocesos.*
+
 ## Escenario 4: subagente en worker con proxy de tools (agente.md §9)
 
 ```lua

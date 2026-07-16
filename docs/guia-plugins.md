@@ -100,6 +100,16 @@ error({ code = "EINVAL", message = "filtro vacío", detail = { arg = "filter" } 
   en saltos cross-host (api.md §8) protege tus credenciales por defecto,
   pero la validación del *destino* es tuya: el core no sabe qué hosts son
   legítimos para tu tool.
+- **No regales secretos al hijo** (G55): si tu tool o plugin lanza
+  subprocesos que ejecutan código que no controlas (comandos propuestos por
+  el modelo, builds con `postinstall`), recuerda que sin `opts.env` el hijo
+  hereda el entorno completo — API keys incluidas. Dos vías: componer el
+  entorno **desde cero** con `opts.env` (presente, reemplaza el heredado —
+  [api.md](api.md) §6, semántica fijada en S16 de la bitácora), o el idioma
+  `env -u VAR ...` del SO para "heredado menos estas". En ambas, recorta
+  las variables secretas conocidas: `providers.secret_env_vars()`
+  te da la lista ([providers.md](providers.md) §4). Las tools oficiales ya
+  lo hacen por defecto ([agente.md](agente.md) §3).
 
 ## 6. UI: bloques, no celdas; y limpia al salir
 

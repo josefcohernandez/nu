@@ -151,6 +151,42 @@ agent.tool{
 - MCP encaja aquí sin caso especial: la extensión `mcp` registra cada tool
   remota con `agent.tool{...}` y su handler habla JSON-RPC por `enu.proc`.
 
+**Higiene del entorno de los subprocesos (G55, SEC-04).** Los comandos que la
+tool `bash` ejecuta los propone el modelo: heredarles el entorno completo del
+proceso regalaría la API key del provider a cualquier `env`, `curl` o
+`postinstall` hostil — el mismo secreto que paga las llamadas del agente, al
+alcance de todo el código no confiable que el agente corre. Por eso la tool
+`bash` monta por defecto el entorno del hijo **sin** las variables de
+`providers.secret_env_vars()` ([providers.md](providers.md) §4); el mismo
+recorte aplica a los servidores MCP que se lanzan por `enu.proc`. El core
+queda intacto: `enu.proc` ya da control total del entorno por llamada —
+`opts.env` presente **reemplaza** el entorno heredado ([api.md](api.md) §6;
+semántica de reemplazo fijada en S16 de
+[decisiones-implementacion.md](decisiones-implementacion.md)), y para
+"heredado menos estas" existe el idioma `env -u` del SO — lo que este contrato fija es
+el **default** con el que la extensión ejerce ese control, porque "provider"
+es vocabulario de producto y el recorte vive donde ese vocabulario existe
+(ADR-003). El opt-in para el caso legítimo (un script del repo que llama a la
+API con la misma clave) es explícito y nominal: `inherit_secrets = ["VAR",
+...]` bajo `[tools.bash]` en el `agent.toml` **del usuario** — lista de
+nombres exactos, sin comodín "todos": el opt-in nombra lo que regala,
+auditable de un vistazo (el espíritu del amortiguador 3 de §5: el riesgo se
+elige, no se hereda). No puede concederlo el `agent.toml` del proyecto (amplía
+permisos: se ignora, regla 1 de §11), ni los args de la tool (el modelo se
+autoconcedería el secreto por inyección de prompt), ni los `opts` de sesión —
+las sesiones las abre código orquestador arbitrario (drivers, subagentes) y
+un secreto se concede en un único sitio: la config del usuario.
+Para un servidor MCP, el
+opt-in es su propia entrada de configuración —escrita por el usuario, acto
+consciente como instalar un plugin (§11)—: un `env` explícito para ese
+servidor.
+
+> ⏳ **Pendiente de construcción** (G55): la extensión `0.1.0`, construida
+> antes de esta resolución, todavía hereda el entorno completo en sus
+> subprocesos. El recorte por defecto e `inherit_secrets` se implementarán
+> citando este contrato y `providers.secret_env_vars()`
+> ([providers.md](providers.md) §4).
+
 ## 4. Hooks
 
 Dos mecanismos, deliberadamente separados:
@@ -434,9 +470,12 @@ Sub:cancel()
 `config.dir()/agent.toml`: modelo por defecto, `max_turns`, umbral y modelo
 de compactación, **razonamiento por defecto** (`[thinking]` con `mode` y
 `budget`, ADR-016), política de retención de sesiones ([P10](pospuesto.md)),
-permisos globales. La precedencia es la estándar: defaults < global <
-proyecto (`<repo>/.enu/agent.toml`) < sesión (`opts`) — con la excepción de
-seguridad de §11: los permisos del proyecto solo recortan.
+permisos globales, herencia de secretos de la tool `bash` (`[tools.bash]
+inherit_secrets`, §3 — G55). La precedencia es la estándar: defaults < global <
+proyecto (`<repo>/.enu/agent.toml`) < sesión (`opts`) — con dos excepciones
+de seguridad: los permisos del proyecto solo recortan (§11), e
+`inherit_secrets` solo se honra del `agent.toml` **del usuario** — ni el del
+proyecto ni los `opts` de sesión pueden concederlo (§3).
 
 La extensión acuña su código de error estructurado, **`EAGENT`** (forma de
 api.md §1.4, como providers.md §3 acuña `EPROVIDER`): los errores propios del
@@ -459,9 +498,10 @@ El repo no es el usuario: su config la escribió un tercero. Dos reglas, sin
 sandbox ni diálogos constantes:
 
 1. **El repo solo recorta permisos, jamás amplía.** Los `deny` de
-   `<repo>/.enu/agent.toml` se honran siempre; sus `allow` y su `mode` se
-   **ignoran** — si el usuario los quiere, los copia a su config global o
-   los concede en sesión. Cero fricción, cierra el vector "clonar y abrir
+   `<repo>/.enu/agent.toml` se honran siempre; sus `allow`, su `mode` y su
+   `inherit_secrets` (§3, G55) se **ignoran** — si el usuario los quiere,
+   los copia a su config global (o, para `allow`/`mode`, los concede en
+   sesión). Cero fricción, cierra el vector "clonar y abrir
    ejecuta la voluntad del repo".
 2. **TOFU de una tecla para el contenido que llega al modelo.** La primera
    vez que enu se abre en un repo con `.enu/skills/` o `enu.md`, una sola

@@ -223,6 +223,20 @@ de [guia-plugins.md](guia-plugins.md) §5 tiene el porqué.)*
   `enu.text.approx_tokens` y salió de él (G23): "token" es vocabulario de
   esta extensión, y una división no merece primitiva. Para exactitud, el
   `count_tokens?` del adaptador (§3).
+- `providers.secret_env_vars() -> string[]` (G55): los **nombres** —nunca los
+  valores— de las variables de entorno que portan credenciales según el
+  registro: las `api_key_env` de todos los providers declarados en
+  `providers.toml`, deduplicadas. Existe porque solo esta extensión sabe qué
+  variables del entorno son secretos de LLM — "provider" y "API key" son
+  vocabulario de producto, invisible para el core (ADR-003) —, y otras
+  extensiones necesitan esa lista para no regalarlos: la tool `bash` de la
+  extensión `agent` (y el lanzamiento de servidores MCP) la usa para
+  **recortar por defecto** esas variables del entorno de sus subprocesos
+  ([agente.md](agente.md) §3, origen SEC-04). Es una foto del registro
+  vigente, no una promesa de secreto absoluto: una credencial que el usuario
+  exporte al margen del TOML no se conoce aquí — el contrato es honesto sobre
+  su alcance. *(⏳ Pendiente de construcción: la extensión `0.1.0` aún no la
+  expone; se implementará junto al recorte de [agente.md](agente.md) §3.)*
 
 **Suscripciones / OAuth (G13).** El camino v1 es el que no necesita
 servidor local: **device flow o pegado manual de código** (`enu.http.request`
