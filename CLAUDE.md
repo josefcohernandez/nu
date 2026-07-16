@@ -55,6 +55,7 @@ Todo vive en `docs/`. Orden de lectura sugerido (y dependencias conceptuales):
 | `docs/pospuesto.md` | Lo que se decidió no decidir todavía (P##), cada uno con su *disparador* de reapertura. |
 | `docs/implementacion.md` | Plan de construcción incremental: una feature por sesión (S##), ordenado por dependencias del kernel. |
 | `docs/decisiones-implementacion.md` | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
+| `docs/release.md` | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
 
 Además, dos carpetas por tipo de artefacto: `docs/audits/` (informes de
 auditoría fechados y cerrados) y `docs/archive/` (planes ya ejecutados que solo

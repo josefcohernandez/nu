@@ -37,6 +37,7 @@ entradas no se reescriben, se suceden.
 | [pseudocodigo.md](pseudocodigo.md) | El ejercicio de validación: rondas de pseudocódigo que torturan la API. |
 | [implementacion.md](implementacion.md) | Plan de construcción por sesiones (S##), con puntero ▶ y bitácora. |
 | [decisiones-implementacion.md](decisiones-implementacion.md) | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
+| [release.md](release.md) | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
 
 ## Capa 3 — [audits/](audits/) (informes fechados)
 
