@@ -15,7 +15,7 @@ import (
 // (filosofía §2): si alguna pieza no pudiera escribirse solo con la API pública,
 // faltaría una primitiva y sería un hallazgo, no un atajo.
 //
-// ADAPTACIÓN (docs/decisiones-implementacion.md S18): el texto del plan menciona
+// ADAPTACIÓN (docs/worklog/README.md S18): el texto del plan menciona
 // `enu.search.files` para el recorrido del repo, pero **esa primitiva es S27
 // (Fase 5), posterior a este checkpoint de Fase 3**. Aquí se ejercita con un
 // **recorrido recursivo en Lua sobre `enu.fs.list`** (disponible desde S14): la lista directa de un

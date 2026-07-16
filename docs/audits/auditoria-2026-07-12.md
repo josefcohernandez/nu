@@ -1,3 +1,9 @@
+---
+title: "Informe de auditoría integral — 12 de julio de 2026"
+type: "auditoria"
+date: "2026-07-12"
+status: "cerrada"
+---
 # Informe de auditoría integral — 12 de julio de 2026
 
 Auditoría del repositorio completo (contratos de `docs/`, kernel Go de
@@ -24,7 +30,7 @@ Los ítems llevan id `A-##` para referenciarlos. Severidad: 🔴 alta, 🟡 medi
 > rama: A-02, A-04, A-05, A-06, A-08, A-09, A-10, A-11, A-13, A-14, A-15,
 > A-16, A-18, A-20, A-23, A-25, A-26, A-32 (ver los commits que citan cada
 > id). Lo pendiente está **registrado en el flujo canónico de diseño**
-> ([problemas.md](../problemas.md) / [pospuesto.md](../pospuesto.md)):
+> ([problemas.md](../findings/README.md) / [pospuesto.md](../postponed/pospuesto.md)):
 > el trío del scheduler (A-01/A-03/A-34) es **G44** —resuelta y **construida**
 > el 2026-07-13 con la opción (b), `RunTasks` persistente (bitácora de
 > implementacion.md)—, la superficie [W] de
@@ -325,7 +331,7 @@ resultados: nunca se escribe, lee ni testea. Arreglo de una línea.
 
 ### 🟡 A-24 — §1.5 de api.md promete `opts.timeout_ms` en «toda función con IO»; casi ninguna lo tiene
 
-`docs/api.md:81` vs las firmas de §5/§6/§8/§11 y el código
+`docs/contracts/api.md:81` vs las firmas de §5/§6/§8/§11 y el código
 (`vmwasm_fs.go:46` descarta args extra) — solo `http.request/stream`,
 `proc.run` y `ws.connect` implementan timeout. El verificador reencuadra: es
 ante todo una **incoherencia interna de la espec** (§1.5 sobrepromete frente a
@@ -362,7 +368,7 @@ Menores pero peligrosos para el mantenedor:
 
 ### 🔴 A-27 — ADR-002 (Lua 5.1 vía gopher-lua) sigue «Aceptada» pese a que el baseline vigente es Lua 5.4/PUC/wazero
 
-`docs/adr.md:39-60` — la disciplina del ADR («nunca reescribir, marcar
+`docs/decisions/adr/README.md:39-60` — la disciplina del ADR («nunca reescribir, marcar
 Reemplazada») se aplicó a ADR-011 («Reemplazada por ADR-020») pero no a
 ADR-002, cuya decisión de implementación quedó igual de obsoleta por la misma
 migración M16/M17 (gopher-lua ya ni está en `go.mod`; api.md §1.2 rige 5.4).
@@ -373,7 +379,7 @@ quedó obsoleta y señale a ADR-019/020.
 
 ### 🟡 A-28 — `agent.session` y `Session:fork` sin marcador ⏸ pese a hacer IO suspendiente
 
-`docs/agente.md:26,34` — abrir con `resume` hace replay (`nu.fs.read` ⏸) y
+`docs/contracts/agente.md:26,34` — abrir con `resume` hace replay (`nu.fs.read` ⏸) y
 adquiere el lock con `nu.fs.write{exclusive}` ⏸ (sesiones.md §6); `fork` copia
 el prefijo al transcript hijo. Sus hermanas `send`/`compact` sí llevan ⏸.
 Ojo: el hallazgo original incluía `Session:close()` y el verificador lo
@@ -382,7 +388,7 @@ desde `nu.task.cleanup` (patrón de `Proc:kill`/`Ws:close`).
 
 ### 🟡 A-29 — `EAGENT` se cita en chat.md, adr.md y problemas.md pero el contrato del agente nunca lo acuña
 
-`docs/chat.md:180-181`, `adr.md:906`, `problemas.md:929` vs `agente.md` (única
+`docs/contracts/chat.md:180-181`, `adr.md:906`, `problemas.md:929` vs `agente.md` (única
 mención de error: EINVAL, §10) — providers.md sí acuña formalmente EPROVIDER;
 EAGENT solo existe en documentos que no son el contrato de `agent.session`.
 O se declara en agente.md o se retira de los demás.
@@ -396,7 +402,7 @@ intencional. Mismo valor, semántica contradictoria entre módulos de IO.
 
 ### 🟡 A-31 — chat.md §5 enseña `agent.permission.respond(id, "once")`, que en la API real **deniega**
 
-`docs/chat.md:115` vs `embedded/agent/lua/agent/init.lua:291`
+`docs/contracts/chat.md:115` vs `embedded/agent/lua/agent/init.lua:291`
 (`p.future:set(granted == true)`) — `"once" == true` es `false` en Lua: el
 ejemplo literal del contrato produce lo contrario de lo documentado. La UI
 oficial se salva porque pasa booleano; un integrador tercero que siga el
@@ -414,7 +420,7 @@ los permisos previos).
 
 ### 🔵 A-33 — El inventario del kernel en arquitectura.md omite `nu.yaml` y `nu.search`
 
-`docs/arquitectura.md:37-45` — la fila `data` enumera «Codecs JSON y TOML»
+`docs/core/arquitectura.md:37-45` — la fila `data` enumera «Codecs JSON y TOML»
 omitiendo YAML (api.md §12, necesario para skills), y `nu.search` (api.md §11)
 no aparece en ninguna fila. (`nu.sys` sí está representado como «entorno» en
 la fila io: esa parte del hallazgo original quedó refutada.)

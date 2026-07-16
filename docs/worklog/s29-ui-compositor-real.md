@@ -1,0 +1,18 @@
+---
+title: "`enu.ui` compositor real (§9.1)"
+type: "sesion"
+id: "S29"
+phase: 6
+status: "cerrada"
+---
+# S29 — `enu.ui` compositor real (§9.1)
+
+- **Modelo de composición (una rejilla por región).** El compositor mantiene una rejilla de pantalla (back/front para el diff) y una lista de regiones; cada región tiene **su propia rejilla** de su tamaño lógico. `blit`/`fill`/`clear` escriben en la rejilla de la región (persisten entre frames, como una ventana). Cada pintado compone apilando las regiones por z-order sobre la rejilla de pantalla, recortando cada una al rectángulo visible. Separar contenido (rejilla de región) de presentación (composite) hace G1 y G28 triviales y correctas por construcción.
+- **G1 (resize):** región fuera de pantalla no se toca; el composite la recorta; reaparece al crecer la pantalla (coords y rejilla intactas).
+- **G28 (blit = copia, nunca re-render):** `blit` copia la ventana visible del Block (offset negativo recorta el inicio, exceso el final); otro offset = otra copia; nunca reconstruye el Block (scroll barato).
+- **Coalescing:** los cambios se acumulan y se pintan como mucho cada ~30 ms (sin flush manual); el diff por runs emite solo lo cambiado; un frame idéntico emite 0 bytes. En headless/test se expone una vía interna (no pública) para forzar/inspeccionar el frame compuesto.
+- **`size()` headless:** con TTY real se lee del terminal; sin TTY un default inyectable para los tests (el gating de "enu.ui no existe sin TTY", G20, es S32).
+- **Spike de S28 eliminado:** `spike_compositor.go`/`spike_shim.go`/`spike_*_test.go` borrados; el modelo se promovió a `compositor.go` de producción. ADR-012 conserva las mediciones del veto.
+- **Solo estado principal (ADR-008):** todas las mutaciones bajo el token Lua; sin candado propio. `Region` es `ownedHandle` (reload S13 la destruye).
+- **Frontera:** S30 (ciclo de vida de Region), S31 (input), S32 (gating headless G20) NO adelantados. api.md intacto (APILevel 1).
+- **Nota de proceso:** el subagente de implementación escribió y verificó el código pero se colgó antes de commitear y del rastro; el orquestador re-verificó (build/vet/gofmt/`go test -race` completos verdes, spike retirado, superficie §9.1 exacta) y completó el rastro + commit + push. Implementación y tests son obra del subagente; el cierre (rastro/commit) lo hizo el orquestador.

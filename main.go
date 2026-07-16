@@ -370,7 +370,7 @@ func boolFlag(b bool) string {
 // upvalue ESCALAR (`denied = true`) desde ese thread no se propaga de vuelta al
 // thread del driver de forma fiable; mutar el CONTENIDO de una tabla capturada SÍ
 // (la tabla es una referencia). Es el mismo patrón que usan el agente y el chat para
-// el estado compartido entre handlers (ver docs/decisiones-implementacion.md S45).
+// el estado compartido entre handlers (ver docs/worklog/README.md S45).
 const agentDriver = `
 -- El modo agente exige las extensiones oficiales activas (ADR-010: inactivas por
 -- defecto). Si no lo están, un error accionable que nombra la línea de enu.toml a

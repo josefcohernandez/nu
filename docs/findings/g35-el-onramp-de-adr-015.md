@@ -1,0 +1,26 @@
+---
+title: "El onramp de ADR-015 activa los plugins pero no deja config de agente: el primer `enu` muere sin modelo y deja la UI atrapada"
+type: "hallazgo"
+id: "G35"
+status: "resuelto"
+date: "2026-06-27"
+origin: "uso del binario terminado (onramp de ADR-015)"
+resolution: "El onramp escribe plantillas activas de agent.toml/providers.toml y el chat degrada con gracia a una UI salible sin config."
+affected: ["ADR-015", "chat.md §8", "agente.md §10"]
+adr: "ADR-017"
+---
+# G35 · El onramp de ADR-015 activa los plugins pero no deja config de agente: el primer `enu` muere sin modelo y deja la UI atrapada — ADR-015 / `chat.md` §8 / `agente.md` §10 — **RESUELTO**
+
+**Resolución** (registrada en [ADR-017](../decisions/adr/adr-017-el-onramp-deja-config.md), que **refina** ADR-015; aplicada en [chat.md](../contracts/chat.md) §8, [agente.md](../contracts/agente.md) §10, [providers.md](../contracts/providers.md) y el binario): dos piezas, ninguna en la API sagrada (es superficie CLI, loader y Lua de extensión; `enu.version.api` no cambia).
+
+1. **Onramp completo: `enu --default-config` deja config de agente USABLE.** El modo persistente, además de escribir `plugins.enabled` en `enu.toml` (G33), escribe **plantillas activas** de `agent.toml` (`model = "anthropic/opus"`, `max_turns`) y `providers.toml` (provider `anthropic` con `base_url`, `api_key_env = "ANTHROPIC_API_KEY"` y el modelo `claude-opus-4-8`/alias `opus`) **solo si no existen** (nunca sobrescribe; atómico, idempotente — reusa `writeAtomic` y el patrón "no pisar TOML existente" de `writeEnabledPlugins`). Default **opinado a Anthropic** (la identidad del producto, un harness estilo claude-code). La clave **nunca** va al fichero (providers.md §1): vive en el entorno (`api_key_env`). El mensaje de éxito deja de ser engañoso ("ya puedes ejecutar el agente: enu -p") y pasa a ser **honesto y accionable**: lista los ficheros escritos y recuerda exportar `ANTHROPIC_API_KEY` (o editar `providers.toml`) antes de arrancar.
+
+2. **Degradación con gracia del chat (robustez, principio 5).** Si `chat.start` no puede construir la sesión inicial (`agent.session` lanza `EINVAL` por modelo ausente, `EPROVIDER` por provider/modelo no resoluble, o `EAGENT`/`EPROVIDER` por TOML roto), el chat **no muere al log**: monta una **UI mínima accionable y salible** —un texto que explica cómo configurar (`agent.toml`, `providers.toml`, la API key) y un keymap de salida (`esc`/`q`/`ctrl+c` → `core:shutdown`)—. Los errores **inesperados** (no de config) se siguen propagando como hoy. Como **red de seguridad** del kernel, el modo interactivo instala además un handler de salida de emergencia al fondo de la pila de input (cualquier app montada lo tapa), de modo que **ninguna** ruta deje la terminal en raw mode sin forma de salir con teclado.
+
+**Por qué plantillas activas y no comentadas.** Con la key en el entorno, `enu` *just works* tras un solo comando (la promesa "batteries-included" de ADR-015, ahora real). Sin la key, `providers.resolve` **no falla** (deja `api_key=nil`): el chat monta igual, la statusline muestra el modelo y el error por clave ausente sale **in-transcript** al primer turno (`agent:error` → `transcript:add_error`, que el chat ya renderiza) — mucho mejor que una pantalla muerta. Plantillas comentadas obligarían a editar TOML antes del primer arranque, justo la fricción que el onramp quería borrar.
+
+**Problema.** Aflora al *usar* el binario terminado (como G33, no en pseudocódigo ni construyendo): tras `enu --default-config`, ejecutar `enu` deja la terminal en blanco. El log lo dice: `ERROR [user] chat: no se pudo arrancar: agent.session requiere model ("proveedor/modelo") en opts o en agent.toml`. Dos capas: (a) el onramp activa los siete plugins pero **no deja `model`/`provider`**, así que `core:ready` → `chat.start` → `agent.session({model=nil})` lanza `EINVAL`; (b) el `pcall` del `init.lua` del chat manda el error a `enu.log.error` (a disco, nunca a pantalla, §15) y **no monta nada**, y como la pantalla desnuda (la única ruta que instala un handler de salida de emergencia) no se toma con plugins activos, el usuario **queda atrapado** —en raw mode `ctrl+c` no genera `SIGINT`—.
+
+**Impacto.** Es la **primera experiencia** de quien sigue el onramp de ADR-015 al pie de la letra: el comando que prometía dejar el harness listo lo deja roto e inservible. Bloquea por completo el arranque interactivo del producto. Barato de cerrar sobre la superficie CLI ya congelada (S45) y la Lua de las extensiones, sin tocar la API sagrada.
+
+**Opciones.** (a) **Onramp completo + degradación con gracia** (la elegida, ADR-017): el onramp deja config usable *y* el chat sobrevive a la falta de config. (b) Solo degradación: el chat monta una UI accionable, pero el primer `enu` sigue sin modelo y exige editar TOML a mano — deshace la ergonomía de ADR-015. (c) Solo onramp: escribir las plantillas, pero el chat seguiría muriendo si el usuario borra/rompe la config — deja el segundo defecto (UI atrapada) sin cerrar. (d) Un **modelo por defecto cableado en el agente** sin `providers.toml`: mete vocabulario de producto (qué modelo, qué endpoint, qué env) en el motor, contra ADR-003/ADR-005; descartada. (e) No hacer nada y documentar "edita `agent.toml`/`providers.toml`": hostil, justo lo que ADR-010/ADR-015 quisieron evitar.

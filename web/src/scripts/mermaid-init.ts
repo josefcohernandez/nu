@@ -1,5 +1,5 @@
 // Render client-side de los diagramas mermaid de la wiki (p. ej.
-// docs/modelo-ejecucion.md). El plugin remark-enlaces-wiki convierte cada
+// docs/core/modelo-ejecucion.md). El plugin remark-enlaces-wiki convierte cada
 // ```mermaid en `<pre class="mermaid">` con la fuente escapada; aquí se importa
 // mermaid dinámicamente SOLO si la página contiene alguno, se configura con las
 // custom properties del theme activo y se re-renderiza al cambiar data-theme.

@@ -1,11 +1,11 @@
 // Orden y agrupación del sidebar de /api. La sección /api/<slug> se genera desde
 // las 16 páginas de la colección `referencia` (presentación derivada de
-// docs/api.md, la superficie sagrada). Aquí vive SOLO la estructura de
+// docs/contracts/api.md, la superficie sagrada). Aquí vive SOLO la estructura de
 // navegación; el contenido sale de los .md tal cual.
 //
 // Decisiones ante el mock (que listaba módulos inexistentes: http, ws, re,
 // workers): manda el contenido REAL. El grupo `enu.*` ordena por la §N de
-// docs/api.md (enu raíz §2 … log §15); `convenciones` va suelta arriba y `cli`
+// docs/contracts/api.md (enu raíz §2 … log §15); `convenciones` va suelta arriba y `cli`
 // suelta al final (es superficie CLI, no `enu.*`, pero tiene página). El grupo
 // `extensiones/` enlaza a las páginas de la WIKI que las especifican —no hay
 // páginas /api para ellas y no se inventan—.
@@ -44,7 +44,7 @@ export interface ApiGroup {
   items: ApiItem[];
 }
 
-// El grupo `enu.*` en el orden de las secciones de docs/api.md.
+// El grupo `enu.*` en el orden de las secciones de docs/contracts/api.md.
 const ENU_MODULOS: ApiItem[] = [
   { label: 'enu', slug: 'enu' }, // §2 raíz
   { label: 'task', slug: 'task' }, // §3

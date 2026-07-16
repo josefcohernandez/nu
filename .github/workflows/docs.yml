@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       # Gate de coherencia: la referencia publicada no puede discrepar de
-      # docs/api.md (la fuente de verdad). Si falla, skill /sync-web.
+      # docs/contracts/api.md (la fuente de verdad). Si falla, skill /sync-web.
       - run: npm run check:drift
       # Gate de accesibilidad: --fg y --dim deben cumplir contraste AA (≥4.5:1)
       # sobre --bg en los 4 themes. --dim es texto de lectura (statusline,

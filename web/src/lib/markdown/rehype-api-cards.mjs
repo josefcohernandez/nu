@@ -3,7 +3,7 @@
 // patrón "fence de firma sin etiqueta + descripción siguiente" en la card de
 // función del diseño 13a, y etiqueta los ejemplos ```lua/```sh. No altera los
 // ficheros fuente: check-drift.mjs los sigue parseando tal cual (compara .md vs
-// docs/api.md, nunca este HTML).
+// docs/contracts/api.md, nunca este HTML).
 //
 // Corre DESPUÉS del resaltado de Shiki (así lo ordena @astrojs/markdown-remark:
 // rehypeShiki y luego los rehypePlugins del usuario). Por eso cada fence llega

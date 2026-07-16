@@ -184,7 +184,7 @@ function renderStatusRight(): void {
 }
 
 // ── Etiquetas ─────────────────────────────────────────────────────────────────
-// Nombre del documento en estilo ruta (docs/agente.md, api/fs, plugins),
+// Nombre del documento en estilo ruta (docs/contracts/agente.md, api/fs, plugins),
 // derivado de la URL del resultado — coherente con el chrome del terminal.
 function etiquetaDoc(url: string): string {
   let p = url;

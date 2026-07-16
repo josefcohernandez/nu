@@ -7,7 +7,7 @@ package runtime
 // (`plugins.enabled = ["repl"]`, igual que el gating de S12) y ejercita el
 // contrato desde Lua, requiriendo el módulo con `require("repl")`.
 //
-// Blinda el contrato de [arquitectura.md](../../docs/arquitectura.md)
+// Blinda el contrato de [arquitectura.md](../../docs/core/arquitectura.md)
 // §"Distribución" (G21):
 //
 //   - **ACTIVABLE SOLO** (G21, el criterio de hecho de S44): `enu` con SOLO `repl`

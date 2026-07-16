@@ -7,7 +7,7 @@ package runtime
 // (`plugins.enabled = ["providers"]`, igual que el gating de S12) y ejercita el
 // contrato desde Lua, requiriendo el módulo con `require("providers")`.
 //
-// Blinda el contrato de [providers.md](../../docs/providers.md):
+// Blinda el contrato de [providers.md](../../docs/contracts/providers.md):
 //
 //   - **registro TOML (§1)**: un `providers.toml` de prueba se carga; `list()` y
 //     `resolve("proveedor/alias")` devuelven los modelos/configs correctos; la

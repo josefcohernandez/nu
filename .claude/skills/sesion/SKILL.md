@@ -1,18 +1,20 @@
 ---
 name: sesion
-description: Ejecuta la sesión de implementación que marca el puntero ▶ de docs/implementacion.md con el ciclo BDD→TDD→juicio→DoD, y cierra moviendo puntero y bitácora en el mismo commit. Úsala cuando la tarea sea construir (no diseñar) y exista una sesión abierta en el plan; si la feature no está en el plan, antes va /planificar-sesion.
+description: Ejecuta la sesión de implementación que marca el puntero ▶ de docs/plan/estado.md con el ciclo BDD→TDD→juicio→DoD, y cierra moviendo puntero y bitácora en el mismo commit. Úsala cuando la tarea sea construir (no diseñar) y exista una sesión abierta en el plan; si la feature no está en el plan, antes va /planificar-sesion.
 ---
 
 # Sesión de implementación (BDD → TDD → juicio → DoD)
 
 Una sesión = una feature. El estado vive en el repo, no en tu memoria. Este
-protocolo envuelve el de `docs/implementacion.md` §"Protocolo de cada sesión"
+protocolo envuelve el de `docs/plan/implementacion.md` §"Protocolo de cada sesión"
 con las disciplinas BDD y TDD y el juicio clean-room.
 
 ## Pasos
 
-1. **Sitúate.** Lee el puntero ▶ y la última fila de la bitácora de
-   `docs/implementacion.md`. Implementa **solo** la sesión que marca el
+1. **Sitúate.** Lee el puntero ▶ y la última fila de la bitácora en
+   `docs/plan/estado.md` (el estado vivo); el detalle de la sesión —su
+   enunciado, dependencias y fase— está en `docs/plan/implementacion.md`.
+   Implementa **solo** la sesión que marca el
    puntero; verifica que sus dependencias ("Depende de") están cerradas. Si el
    puntero está en `—`, no hay nada que implementar: ofrece
    `/planificar-sesion`. Crea el worktree y la rama de la tarea con
@@ -55,11 +57,15 @@ con las disciplinas BDD y TDD y el juicio clean-room.
    4. No regresiona: la suite completa sigue verde.
    5. Deja rastro: `gofmt`, `go vet`, lint limpios.
 
-7. **Cierre — todo en el MISMO commit:** el código, el puntero ▶ avanzado a
-   la sesión siguiente (o `—`), la fila nueva de la bitácora (fecha, sesión,
-   commit, notas: hallazgos, desviaciones, lo que debe saber la siguiente) y,
-   si cerraste fase, el tablero marcado. Un commit que toca código sin mover
-   el puntero es una sesión a medias. **Si la sesión cierra fase**: ejecuta
+7. **Cierre — todo en el MISMO commit:** el código; en `docs/plan/estado.md`
+   el puntero ▶ avanzado a la sesión siguiente (o `—`), la fila nueva de la
+   bitácora (fecha, sesión, commit, notas: hallazgos, desviaciones, lo que
+   debe saber la siguiente) y, si cerraste fase, el tablero marcado; y la
+   entrada operativa de la sesión como fichero nuevo
+   `docs/worklog/sNN-<slug>.md` (frontmatter `type: sesion`, `id: SNN`,
+   `phase`, `status: cerrada`; las decisiones y desviaciones por debajo del
+   umbral de G##) más su fila en el índice `docs/worklog/README.md`. Un
+   commit que toca código sin mover el puntero es una sesión a medias. **Si la sesión cierra fase**: ejecuta
    antes su checkpoint 🔎 CP-N; si falla, el puntero no se mueve y la bitácora
    anota qué falló. Mensaje en español: `S##: <qué entrega>`, citando el G##
    si lo hubo. No abras PR salvo petición explícita. Si hay PR y se

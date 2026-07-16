@@ -1,3 +1,9 @@
+---
+title: "Informe de análisis de arquitectura"
+type: "auditoria"
+date: "2026-07-08"
+status: "cerrada"
+---
 # Informe de análisis de arquitectura
 
 **Fecha:** 2026-07-08 · **Base analizada:** `main` en `1fae5cb` (merge de la migración VM WASM, M17)

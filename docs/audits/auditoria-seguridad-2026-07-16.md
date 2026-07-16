@@ -1,3 +1,9 @@
+---
+title: "Auditoría de seguridad — 16 de julio de 2026"
+type: "auditoria"
+date: "2026-07-16"
+status: "cerrada"
+---
 # Auditoría de seguridad — 16 de julio de 2026
 
 Auditoría de seguridad del proyecto `enu` centrada en las dimensiones donde un
@@ -98,8 +104,8 @@ como recomendación priorizada.*
 
 ### 🔴 SEC-02 — El allow/deny sobre `bash:` es una frontera falsa: glob sobre string de shell, bypass por encadenamiento y allow que concede ejecución arbitraria
 
-**Superficie.** `docs/agente.md:206-207` (patrones allow/deny), `docs/agente.md:229-231`
-(razón: defensa headless ante prompt injection), `docs/agente.md:346-347` (las
+**Superficie.** `docs/contracts/agente.md:206-207` (patrones allow/deny), `docs/contracts/agente.md:229-231`
+(razón: defensa headless ante prompt injection), `docs/contracts/agente.md:346-347` (las
 `caps` no restringen tools). *Diseño.*
 
 **Descripción.** Los permisos son patrones `tool[:argumento]`
@@ -157,7 +163,7 @@ remite a los hooks / al worker sin `proc` / a `opts.tools` como la valla dura.
 ### 🔴 SEC-03 — `nu.http`/`nu.http.stream` siguen redirects sin control y reenvían cabeceras de credenciales (`x-api-key`, `x-goog-api-key`) a otro host
 
 **Superficie.** `internal/runtime/http.go:180`, `internal/runtime/http.go:253-262`,
-`internal/runtime/stream.go:367`, `docs/api.md:207`. *Diseño (corolario de
+`internal/runtime/stream.go:367`, `docs/contracts/api.md:207`. *Diseño (corolario de
 completitud).*
 
 **Descripción.** El cliente HTTP se construye **sin `CheckRedirect`** (ni en
@@ -212,7 +218,7 @@ cross-host. *La implementación en Go pertenece a otro workflow.*
 
 **Superficie.** `internal/runtime/proc.go:212-216`;
 `internal/runtime/embedded/providers/lua/providers/init.lua:270-272`;
-`docs/api.md` §6. *Diseño.*
+`docs/contracts/api.md` §6. *Diseño.*
 
 **Descripción.** La clave del LLM se lee del entorno del proceso `nu`
 (`api_key = nu.sys.env(prov.api_key_env)`; providers.md §1: «nunca la clave en
@@ -345,7 +351,7 @@ de assets. *Pertenece a otro workflow (infra); no se toca `release.yml`,
 
 ### 🔵 SEC-07 — El contrato [W] no define qué identidad/dueño porta un worker; las primitivas atribuidas por owner tuvieron que leer el estado del padre
 
-**Superficie.** `docs/api.md` §16 (marca [W]); `internal/runtime/vmwasm_log.go:9-15`;
+**Superficie.** `docs/contracts/api.md` §16 (marca [W]); `internal/runtime/vmwasm_log.go:9-15`;
 `internal/runtime/proc.go:404-417`. *Diseño.*
 
 **Descripción.** Un worker es un mini-runtime **sin ciclo de vida de plugins**
@@ -435,7 +441,7 @@ permitida** (typos y notas de doc en `docs/` que no cambien semántica de API).
 ## 3. Enrutamiento al flujo canónico — propuestas `G##`
 
 Los **cuatro hallazgos de diseño** (`es_diseno: true`) deben entrar en
-`docs/problemas.md` por el flujo canónico. **No se ha editado `problemas.md`**:
+`docs/findings/README.md` por el flujo canónico. **No se ha editado `problemas.md`**:
 lo que sigue son *propuestas* que el propietario aprobará y numerará (el
 contador vivo está en la cabecera de `problemas.md`; el último asignado es G52,
 con G42–G43 reservados, por lo que la primera libre es **G53**). Los cuatro

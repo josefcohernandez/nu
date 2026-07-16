@@ -345,7 +345,7 @@ func TestMCPToolTrustHeadlessDeny(t *testing.T) {
 // ocasionalmente NO observa el tool_result esperado —`out` distinto de "done", o el
 // texto del error del servidor ("explotó") ausente en `ERR_TEXT`—.
 //
-// DIAGNÓSTICO (2026-07): la nota original (`docs/decisiones-implementacion.md:3529`) atribuía el
+// DIAGNÓSTICO (2026-07): la nota original (`docs/worklog/README.md:3529`) atribuía el
 // flake a que "el handshake JSON-RPC excede el timing"; es INCORRECTO —no hay ningún
 // timeout en el camino de connect/handshake, `RunTasks` espera al lector—. La causa
 // real apunta a la QUIESCENCIA del scheduler (`internal/vmwasm/scheduler.go`,

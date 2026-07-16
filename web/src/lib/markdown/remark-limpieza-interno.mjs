@@ -166,7 +166,7 @@ function limpia(nodo) {
 export function remarkLimpiezaInterno() {
   return (tree, file) => {
     const ruta = (file?.path || file?.history?.[0] || '').replace(/\\/g, '/');
-    const esWikiRepo = /\/docs\/[^/]+\.md$/.test(ruta) && !ruta.includes('/content/docs/');
+    const esWikiRepo = /\/docs\/(core|contracts)\/[^/]+\.md$/.test(ruta) && !ruta.includes('/content/docs/');
     // La instantánea EN de la wiki conserva los marcadores de proceso
     // (<!-- enu:interno -->, (G##), > ✅ …) igual que la fuente ES: se limpia con
     // el mismo criterio, para que las páginas /en/docs no filtren trazabilidad.

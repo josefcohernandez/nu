@@ -5,7 +5,7 @@ package runtime
 // pública congelada (Fase 8, ADR-003: el core NO sabe lo que es un agente),
 // construido sobre las extensiones `providers` (S36/S37) y `sessions` (S38).
 // La prueba arranca un Runtime con las TRES activadas por `enu.toml` y ejercita el
-// contrato de [agente.md](../../docs/agente.md) desde Lua con `require("agent")`.
+// contrato de [agente.md](../../docs/contracts/agente.md) desde Lua con `require("agent")`.
 //
 // Blinda:
 //   - **el TURNO** (§2): un turno completo con una tool de prueba —el adaptador

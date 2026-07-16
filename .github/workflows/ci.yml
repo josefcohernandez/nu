@@ -159,7 +159,7 @@ jobs:
         run: go test -race -shuffle=on $(go list ./... | grep -v /internal/vmwasm)
 
   # La web de documentación (web/referencia/) es una presentación derivada de
-  # docs/api.md, la fuente de verdad. Este detector mecánico extrae el inventario
+  # docs/contracts/api.md, la fuente de verdad. Este detector mecánico extrae el inventario
   # de firmas y marcadores (⏸/[W]) de ambos lados y falla ante cualquier deriva:
   # una firma que cambió en la espec y no en la web, una función sin documentar,
   # o una que la web inventa. El trigger correcto es el cambio (no el calendario),

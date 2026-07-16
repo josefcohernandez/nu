@@ -3,7 +3,7 @@
 // y alterna el drawer móvil. Las páginas lo llaman una vez en un <script>.
 //
 //   initPager({
-//     context: 'docs/filosofia.md',  // parte izquierda de la statusline
+//     context: 'docs/core/filosofia.md',  // parte izquierda de la statusline
 //     pos: '1/22',                   // posición en la colección; opcional
 //     withPercent: true,             // intercala '· N%' derivado del scroll
 //     nextUrl, prevUrl,              // destinos de [n]/[p]; null si no hay

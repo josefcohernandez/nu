@@ -14,7 +14,7 @@ razonamiento del autor en tu prompt, ignóralo.
 
 ## Qué auditas (en este orden)
 
-1. **Inventario 🔒** (`docs/implementacion.md` §"Inventario de lógica clave"):
+1. **Inventario 🔒** (`docs/plan/implementacion.md` §"Inventario de lógica clave"):
    si la sesión está en la tabla, comprueba que existe el test unitario Go del
    caso exacto que la tabla exige blindar. Si la sesión no está en la tabla
    pero el diff introduce lógica propia no trivial (algoritmo, máquina de

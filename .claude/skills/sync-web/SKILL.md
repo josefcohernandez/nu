@@ -1,12 +1,12 @@
 ---
 name: sync-web
-description: Sincroniza la web de documentación (web/referencia/) con docs/api.md, la fuente de verdad, guiado por el detector mecánico check-drift. Úsala cuando el job "Coherencia web ↔ api.md" de CI esté en rojo, o como paso final de cualquier sesión/hallazgo que añada o toque firmas de api.md (el bump de nu.version.api es la señal).
+description: Sincroniza la web de documentación (web/referencia/) con docs/contracts/api.md, la fuente de verdad, guiado por el detector mecánico check-drift. Úsala cuando el job "Coherencia web ↔ api.md" de CI esté en rojo, o como paso final de cualquier sesión/hallazgo que añada o toque firmas de api.md (el bump de nu.version.api es la señal).
 ---
 
 # Sincronizar la web con la espec
 
 La web (`web/src/content/docs/referencia/`) es una **presentación derivada** de
-[docs/api.md](../../../docs/api.md): orientada a tareas, con prosa pedagógica y
+[docs/contracts/api.md](../../../docs/contracts/api.md): orientada a tareas, con prosa pedagógica y
 ejemplos verificados. La deriva mecánica (firmas, marcadores ⏸/[W], inventario)
 la detecta un script determinista; esta skill es la parte editorial que el
 script no puede hacer: redactar y verificar.
@@ -17,7 +17,7 @@ script no puede hacer: redactar y verificar.
    check:drift` desde `web/`). Cada discrepancia trae fichero:línea y qué dice
    cada lado. `--inventario` vuelca el índice derivado de api.md en JSON.
 
-2. **Decide la dirección del arreglo.** `docs/api.md` manda *siempre*
+2. **Decide la dirección del arreglo.** `docs/contracts/api.md` manda *siempre*
    (`web/README.md` lo declara). Si al mirar una discrepancia concluyes que la
    *espec* está mal, eso no se arregla editando la web ni la espec a la ligera:
    es un candidato a hallazgo → `/hallazgo`. Todo lo demás se arregla en la web.
@@ -53,13 +53,13 @@ script no puede hacer: redactar y verificar.
 
 ## Qué NO hace esta skill
 
-- No toca `docs/api.md` ni los contratos: la dirección espec→web es única.
+- No toca `docs/contracts/api.md` ni los contratos: la dirección espec→web es única.
 - No relaja el detector para "hacer pasar" una página: si un caso legítimo no
   parsea, se arregla el script explicando el caso en su cabecera, nunca
   añadiendo una excepción silenciosa a la comparación.
 - No la afecta el plugin de limpieza de la web (`remark-limpieza-interno`): su
   jurisdicción son los contratos de `docs/*.md`, nunca `referencia/`. Además,
-  `docs/api.md` ya **no** se publica como página wiki (`/docs/api` se retiró):
+  `docs/contracts/api.md` ya **no** se publica como página wiki (`/docs/api` se retiró):
   la única presentación web de la API es `/api`, derivada de
   `web/src/content/docs/referencia/`. El flujo espec→web de esta skill no
   cambia. (El alta/baja de páginas de la wiki lo lleva `/alta-wiki`.)

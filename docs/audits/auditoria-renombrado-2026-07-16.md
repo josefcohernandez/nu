@@ -1,3 +1,9 @@
+---
+title: "Auditoría del renombrado `nu` → `enu` — 16 de julio de 2026"
+type: "auditoria"
+date: "2026-07-16"
+status: "cerrada"
+---
 # Auditoría del renombrado `nu` → `enu` — 16 de julio de 2026
 
 Ejecución del renombrado decidido en
@@ -83,8 +89,8 @@ promoción (N-23).
 | # | Superficie | Clase | Estado |
 |---|---|---|---|
 | N-01 | `docs/` prosa + CLI (12 ficheros: problemas, providers, guia-plugins, malla, chat, sesiones, decisiones-implementacion, arquitectura, filosofia, agente, pseudocodigo, implementacion) | trivial | ✅ aplicado |
-| N-02 | `docs/api.md` — título (solo la línea 1; el resto es `nu.*` sagrado) | trivial | ✅ aplicado |
-| N-03 | `docs/sesiones.md` — ejemplo ilustrativo de slug (`/home/diego/enu`) | trivial | ✅ aplicado |
+| N-02 | `docs/contracts/api.md` — título (solo la línea 1; el resto es `nu.*` sagrado) | trivial | ✅ aplicado |
+| N-03 | `docs/contracts/sesiones.md` — ejemplo ilustrativo de slug (`/home/diego/enu`) | trivial | ✅ aplicado |
 | N-04 | `CONTRIBUTING.md` — prosa, `cd enu`, fork URL | trivial | ✅ aplicado |
 | N-05 | `install.sh` — `REPO` + URL de comentario (solo el slug del repo) | trivial | ✅ aplicado |
 | N-06 | `web/src/lib/const.ts` — `DOMAIN='enu.sh'`, `GITHUB_URL` | trivial | ✅ aplicado |
@@ -105,7 +111,7 @@ promoción (N-23).
 | N-21 | Wordmark `e/nu` + `og.png` (`generar-og.mjs`) | branding | ⏳ pendiente |
 | N-22 | `DOMAIN` real (`enu.sh`/`enu.dev`) + DNS | infra | ⏳ pendiente |
 | N-23 | `README.md` — portada completa | trivial | ⏳ otro WF (promoción) |
-| N-24 | `docs/adr.md` — menciones históricas del nombre | editorial | ⏳ pendiente |
+| N-24 | `docs/decisions/adr/README.md` — menciones históricas del nombre | editorial | ⏳ pendiente |
 
 ---
 
@@ -152,7 +158,7 @@ la bitácora histórica).
 Toda la API vive bajo el global `nu` (`nu.fs`, `nu.task`, `nu.version.api`, …),
 consagrado en **ADR-001**. **Por qué no se toca aquí:** "la API del core es
 sagrada, crece solo por adición; romper una firma rompe el mundo"
-([CLAUDE.md](../../CLAUDE.md); `docs/api.md`). Renombrar el namespace a `enu.*`
+([CLAUDE.md](../../CLAUDE.md); `docs/contracts/api.md`). Renombrar el namespace a `enu.*`
 sería el cambio más disruptivo posible —invalida cada plugin, cada snippet de
 `pseudocodigo.md`, cada test— y **no lo exige el rebranding**: el nombre del
 *producto* y el nombre del *namespace del runtime* pueden divergir sin coste (el
@@ -250,7 +256,7 @@ config, `nu.toml`, `.nu/`, `nu.md`). **No tocado a propósito:** lo gestiona el
 **workflow de la web de promoción**, que además debe decidir el wordmark de
 portada y coordina con N-15/N-16/N-17. Se deja para ese flujo.
 
-### N-24 · `docs/adr.md`
+### N-24 · `docs/decisions/adr/README.md`
 Menciones a `nu` como binario/proyecto en ADRs **ya aceptados** (ADR-001,
 ADR-010, ADR-013, …). **Por qué no se reescribe:** regla del flujo —"las
 entradas de ADR **nunca se reescriben** in-place". **Camino:** si se quiere

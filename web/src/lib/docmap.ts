@@ -115,13 +115,23 @@ export function gitPathLang(collection: Coleccion, slug: string, lang: Lang = 'e
   }
   switch (collection) {
     case 'wiki':
-      return `docs/${slug}.md`;
+      // docs/ se organiza por capas (core/ y contracts/); el slug de la web
+      // sigue siendo el basename, así que aquí se recupera la subcarpeta.
+      return `docs/${WIKI_DIR[slug] ?? 'contracts'}/${slug}.md`;
     case 'empezar':
       return `web/src/content/docs/empezando/${slug}.md`;
     case 'extensiones':
       return `web/src/content/docs/extensiones/${slug}.md`;
   }
 }
+
+// Subcarpeta de docs/ de cada página wiki publicada (el resto de contratos
+// publicados vive en contracts/).
+const WIKI_DIR: Record<string, string> = {
+  filosofia: 'core',
+  arquitectura: 'core',
+  'modelo-ejecucion': 'core',
+};
 
 // Compat: la ruta ES baked en cada DocEntry (la usa el wrapper ES; el EN pasa
 // por gitPathLang con lang='en').

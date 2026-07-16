@@ -4,7 +4,7 @@ package runtime
 // de caché del adaptador `anthropic` (P31), todos embebidos en
 // internal/runtime/embedded/providers/lua/providers/. Mismo criterio que S37
 // (providers_anthropic_test.go): contra un SSE GRABADO del dialecto, el adaptador
-// debe emitir el stream de Eventos CANÓNICO de [providers.md](../../docs/providers.md)
+// debe emitir el stream de Eventos CANÓNICO de [providers.md](../../docs/contracts/providers.md)
 // §2.3. Sin red real: un servidor httptest sirve el SSE y captura el cuerpo del
 // request (para verificar la traducción canónico -> dialecto y el cache_control).
 

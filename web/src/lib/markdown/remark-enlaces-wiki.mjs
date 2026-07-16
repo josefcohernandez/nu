@@ -101,7 +101,7 @@ export function remarkEnlacesWiki() {
       ruta.includes('/content/docs/empezando/') || ruta.includes('/content/en/empezando/');
     const esExtensiones =
       ruta.includes('/content/docs/extensiones/') || ruta.includes('/content/en/extensiones/');
-    const esWikiRepo = /\/docs\/[^/]+\.md$/.test(ruta) && !ruta.includes('/content/');
+    const esWikiRepo = /\/docs\/(core|contracts)\/[^/]+\.md$/.test(ruta) && !ruta.includes('/content/');
     const esWikiEn = ruta.includes('/content/en/wiki/');
     if (!esEmpezar && !esExtensiones && !esWikiRepo && !esWikiEn) return; // fuera de jurisdicción
 

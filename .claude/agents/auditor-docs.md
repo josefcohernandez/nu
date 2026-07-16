@@ -14,8 +14,15 @@ normalmente su diff sobre docs/). Respondes en español.
 
 ## Método
 
-Descubre el corpus **dinámicamente** con Glob (`docs/*.md` + `CLAUDE.md` +
-`README.md`): la lista de documentos crece y no debes asumirla.
+Descubre el corpus **dinámicamente** con Glob (`docs/**/*.md` + `CLAUDE.md` +
+`README.md`): la lista de documentos crece y no debes asumirla. La estructura
+de carpetas: `core/` y `contracts/` (los contratos vivos), `decisions/adr/`
+(un fichero por ADR), `findings/` (un fichero por G##), `postponed/`
+(pospuesto.md, la tabla P##), `validation/` (una ronda de pseudocódigo por
+fichero), `plan/` (implementacion.md + estado.md), `worklog/` (una sesión por
+fichero), `audits/`, `archive/`. Cada carpeta-registro tiene un `README.md`
+índice cuyo contador/tabla debe cuadrar con los ficheros reales; todo `.md`
+lleva frontmatter YAML cuyo `status`/`id` debe cuadrar con el texto.
 
 1. **Propagación de la resolución.** Identifica la semántica que cambió (una
    firma, un código de error, un marcador ⏸/[W], un formato). Con Grep, busca
@@ -24,7 +31,8 @@ Descubre el corpus **dinámicamente** con Glob (`docs/*.md` + `CLAUDE.md` +
    contratos — y comprueba que refleja la versión nueva. Lista cada fichero
    que la presuponía y quedó sin tocar.
 2. **Referencias íntegras.** Todo `G##`, `ADR-NNN`, `P##`, `H#`, `F#` citado
-   existe en su registro (problemas.md, adr.md, pospuesto.md) y está en el
+   existe en su registro (`findings/gNN-*.md`, `decisions/adr/adr-NNN-*.md`,
+   `postponed/pospuesto.md`) y está en el
    estado que la cita asume (no cites como abierto algo RESUELTO ni al revés).
    Los enlaces `[doc.md](doc.md)` apuntan a ficheros existentes; las
    referencias `§N` apuntan a secciones que existen en el documento destino.

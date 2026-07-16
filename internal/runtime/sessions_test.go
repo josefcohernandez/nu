@@ -7,7 +7,7 @@ package runtime
 // (`plugins.enabled = ["sessions"]`, igual que el gating de S12) y ejercita el
 // contrato desde Lua, requiriendo el módulo con `require("sessions")`.
 //
-// Blinda el contrato de [sesiones.md](../../docs/sesiones.md):
+// Blinda el contrato de [sesiones.md](../../docs/contracts/sesiones.md):
 //
 //   - **JSONL append-only (§1-§4)**: persistir varios mensajes y reanudar
 //     (replay) recupera las entradas en orden, con el `Message` canónico intacto;

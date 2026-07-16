@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de la extensión `mesh` (contrato: docs/malla.md). Lógica clave 🔒:
+// Tests de la extensión `mesh` (contrato: docs/contracts/malla.md). Lógica clave 🔒:
 //   - §2 specs: validación accionable de Role/Job y `to_session_opts` PURA;
 //   - §3 claim por CAS de refs contra un remoto REAL (bare local): dos nodos,
 //     uno gana; heartbeat con lease; release; claim_info con identidad;

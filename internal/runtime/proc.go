@@ -63,7 +63,7 @@ type luaProc struct {
 	s   *scheduler
 	cmd *exec.Cmd
 
-	// EL REPARTO DE CANDADOS es la decisión delicada de S16 (docs/decisiones-implementacion.md). El
+	// EL REPARTO DE CANDADOS es la decisión delicada de S16 (docs/worklog/README.md). El
 	// IO de un `Proc` (escribir/leer/esperar) **bloquea** en goroutines de fondo
 	// (sin token); `kill` corre síncrono (con token) y DEBE poder interrumpir ese IO
 	// —el patrón de vida del proceso es "cleanup mata el proceso colgado para que su

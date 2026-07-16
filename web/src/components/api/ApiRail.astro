@@ -1,8 +1,8 @@
 ---
 // Carril derecho de /api (200px): CTA "¿tu primer plugin?" (borde key) → /plugins,
 // índice `§ en esta página` (las funciones/secciones de la página; activo bright
-// vía scrollspy) y metadata "generada desde docs/api.md · <hash> · hace N días"
-// tomada de git (la fuente de la referencia es docs/api.md, no estas páginas).
+// vía scrollspy) y metadata "generada desde docs/contracts/api.md · <hash> · hace N días"
+// tomada de git (la fuente de la referencia es docs/contracts/api.md, no estas páginas).
 import { i18n, type Lang } from '../../lib/i18n';
 import { gitMeta } from '../../lib/gitmeta';
 
@@ -34,7 +34,7 @@ const secciones = headings
   .filter((h) => h.depth === 2)
   .map((h) => ({ slug: h.slug, label: etiquetaSeccion(h.text) }));
 
-const meta = gitMeta('docs/api.md');
+const meta = gitMeta('docs/contracts/api.md');
 const dias = meta
   ? lang === 'en'
     ? meta.diasDesde === 0

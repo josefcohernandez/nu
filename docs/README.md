@@ -1,10 +1,36 @@
+---
+title: "docs/ — el mapa de la documentación"
+type: "indice"
+status: "vigente"
+---
 # docs/ — el mapa de la documentación
 
 Este directorio **es** el proyecto: la API se diseñó y validó aquí antes de
 escribir el kernel, y sigue siendo la fuente de verdad cuando el código y un
 documento discrepan. Para que esa autoridad no se diluya, los ficheros se
 organizan por **capas** según su naturaleza, no por orden de llegada: un
-contrato vivo no pesa lo mismo que un informe fechado ya cerrado.
+contrato vivo no pesa lo mismo que un informe fechado ya cerrado. La capa se
+materializa en la estructura de carpetas (nombres de carpeta en inglés,
+ficheros en español) y cada documento declara sus metadatos en un
+**frontmatter YAML** (claves en inglés, valores en español): `type`, `status`,
+`id` y los campos propios de su tipo. Los registros (decisiones, hallazgos,
+rondas, sesiones) van a **un fichero por entrada**, con un `README.md` índice
+por carpeta que concentra el estado vivo (contadores, tablas).
+
+```
+docs/
+├── core/          Capa 1 · fundacionales (filosofía, arquitectura, modelo de ejecución)
+├── contracts/     Capa 1 · contratos de API y extensiones
+├── decisions/adr/ Capa 2 · un fichero por ADR + índice
+├── findings/      Capa 2 · un fichero por hallazgo G## + índice con el estado vivo
+├── postponed/     Capa 2 · pospuesto.md (la tabla P##, con disparadores)
+├── validation/    Capa 2 · una ronda de pseudocódigo por fichero + índice
+├── plan/          Capa 2 · implementacion.md (el plan) + estado.md (puntero ▶ y bitácora)
+├── worklog/       Capa 2 · una sesión de construcción por fichero + índice
+├── ops/           Capa 2 · runbooks operativos (release)
+├── audits/        Capa 3 · informes de auditoría fechados y cerrados
+└── archive/       Capa 4 · planes ya ejecutados, solo valor histórico
+```
 
 ## Capa 1 — Fuente de verdad (contratos vivos)
 
@@ -13,31 +39,33 @@ es el código. Orden de lectura sugerido:
 
 | Documento | Rol |
 |---|---|
-| [filosofia.md](filosofia.md) | Principios fundacionales y "lo que enu no es". El *porqué* del proyecto. |
-| [arquitectura.md](arquitectura.md) | Vista estática: las capas, el inventario de primitivas del kernel. |
-| [modelo-ejecucion.md](modelo-ejecucion.md) | Vista dinámica: concurrencia, comunicación, limitaciones. |
-| [api.md](api.md) | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
-| [providers.md](providers.md) | Contrato de la extensión oficial de providers. |
-| [agente.md](agente.md) | Contrato de la extensión oficial `agent` (motor headless). |
-| [sesiones.md](sesiones.md) | Contrato de persistencia: JSONL append-only. |
-| [chat.md](chat.md) | Contrato de la extensión oficial `chat` (la UI). |
-| [guia-plugins.md](guia-plugins.md) | Sabiduría práctica para autores de plugins + checklist. |
-| [malla.md](malla.md) | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
+| [core/filosofia.md](core/filosofia.md) | Principios fundacionales y "lo que enu no es". El *porqué* del proyecto. |
+| [core/arquitectura.md](core/arquitectura.md) | Vista estática: las capas, el inventario de primitivas del kernel. |
+| [core/modelo-ejecucion.md](core/modelo-ejecucion.md) | Vista dinámica: concurrencia, comunicación, limitaciones. |
+| [contracts/api.md](contracts/api.md) | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
+| [contracts/providers.md](contracts/providers.md) | Contrato de la extensión oficial de providers. |
+| [contracts/agente.md](contracts/agente.md) | Contrato de la extensión oficial `agent` (motor headless). |
+| [contracts/sesiones.md](contracts/sesiones.md) | Contrato de persistencia: JSONL append-only. |
+| [contracts/chat.md](contracts/chat.md) | Contrato de la extensión oficial `chat` (la UI). |
+| [contracts/guia-plugins.md](contracts/guia-plugins.md) | Sabiduría práctica para autores de plugins + checklist. |
+| [contracts/malla.md](contracts/malla.md) | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
 
 ## Capa 2 — Flujo de diseño y construcción
 
 El registro de cómo se decide y se construye. Append-only por convención: las
-entradas no se reescriben, se suceden.
+entradas no se reescriben, se suceden — y desde la reestructuración, cada
+entrada es un fichero.
 
-| Documento | Rol |
+| Carpeta / documento | Rol |
 |---|---|
-| [adr.md](adr.md) | Decisiones técnicas (ADR-NNN); las reemplazadas se marcan, nunca se borran. |
-| [problemas.md](problemas.md) | Grietas que la v1 necesita cerradas (G##, con estado vivo en su cabecera). |
-| [pospuesto.md](pospuesto.md) | Lo que se decidió no decidir todavía (P##), cada uno con su disparador. |
-| [pseudocodigo.md](pseudocodigo.md) | El ejercicio de validación: rondas de pseudocódigo que torturan la API. |
-| [implementacion.md](implementacion.md) | Plan de construcción por sesiones (S##), con puntero ▶ y bitácora. |
-| [decisiones-implementacion.md](decisiones-implementacion.md) | Bitácora operativa: decisiones y desviaciones por sesión, por debajo del umbral de `G##`. |
-| [release.md](release.md) | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
+| [decisions/adr/](decisions/adr/README.md) | Decisiones técnicas, un fichero por ADR (`adr-NNN-<slug>.md`); las reemplazadas se marcan (`superseded_by`), nunca se borran. |
+| [findings/](findings/README.md) | Grietas que la v1 necesita cerradas, un fichero por hallazgo (`gNN-<slug>.md`); el índice concentra el contador y la procedencia por lotes. |
+| [postponed/pospuesto.md](postponed/pospuesto.md) | Lo que se decidió no decidir todavía (P##), cada uno con su disparador. |
+| [validation/](validation/README.md) | El ejercicio de validación: una ronda de pseudocódigo por fichero (`ronda-N-<slug>.md`), escenarios con numeración global. |
+| [plan/implementacion.md](plan/implementacion.md) | Plan de construcción por sesiones (S##): protocolo, fases, grafo, política de tests. |
+| [plan/estado.md](plan/estado.md) | **El estado vivo del plan**: puntero ▶, tablero de fases y bitácora append-only. Lo que editan las skills al avanzar. |
+| [worklog/](worklog/README.md) | Bitácora operativa, un fichero por sesión (`sNN-<slug>.md`): decisiones y desviaciones por debajo del umbral de `G##`. |
+| [ops/release.md](ops/release.md) | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
 
 ## Capa 3 — [audits/](audits/) (informes fechados)
 
@@ -45,11 +73,23 @@ Auditorías puntuales del repo: cada informe lleva su fecha en el nombre, se
 cierra enrutando sus hallazgos al flujo canónico (G##/P##) y no vuelve a
 editarse salvo para anotar ese cierre. Aquí aterrizan las auditorías futuras.
 
-- [audits/informe-arquitectura-2026-07-08.md](audits/informe-arquitectura-2026-07-08.md) —
+- [informe-arquitectura-2026-07-08.md](audits/informe-arquitectura-2026-07-08.md) —
   análisis de arquitectura post-M17 (H-1…H-16); H-1/H-2 enrutados como G42/G43,
   cierre anotado en su nota de archivo.
-- [audits/auditoria-2026-07-12.md](audits/auditoria-2026-07-12.md) — auditoría
+- [auditoria-2026-07-12.md](audits/auditoria-2026-07-12.md) — auditoría
   integral (A-01…A-42); cerrada el 2026-07-14 sin A-## pendientes.
+- [analisis-nombres-2026-07-15.md](audits/analisis-nombres-2026-07-15.md) —
+  análisis del renombrado `nu` → `enu`.
+- [auditoria-web-diseno-2026-07-15.md](audits/auditoria-web-diseno-2026-07-15.md) —
+  auditoría de diseño de la web de docs.
+- [auditoria-promocion-reddit-2026-07-15.md](audits/auditoria-promocion-reddit-2026-07-15.md) —
+  auditoría de presentación pública (R-01…R-16).
+- [auditoria-renombrado-2026-07-16.md](audits/auditoria-renombrado-2026-07-16.md) —
+  verificación del renombrado total (N-##).
+- [auditoria-camino-desconocido-2026-07-16.md](audits/auditoria-camino-desconocido-2026-07-16.md) —
+  auditoría del camino no recorrido.
+- [auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md) —
+  auditoría de seguridad (SEC-01…SEC-08); enrutada a G53–G56.
 
 ## Capa 4 — [archive/](archive/) (ejecutado, no vigente)
 
@@ -61,13 +101,26 @@ histórico importa (los ADR y las bitácoras los citan), pero no gobiernan nada.
 - [archive/migracion-vm-censo.md](archive/migracion-vm-censo.md) — censo de la
   frontera VM (anexo de M01).
 
+## Frontmatter
+
+Todo `.md` de `docs/` abre con un bloque YAML. Campos comunes: `title`,
+`description` (opcional en entradas-registro), `type` (`contrato · adr ·
+hallazgo · ronda · sesion · plan · estado · pospuesto · runbook · auditoria ·
+archivo · indice`), `status` y `date` (cuando consta). Por tipo: los contratos
+llevan `layer` (`core`/`contracts`) y `web` (`wiki`/`api`/`none`); los ADR,
+`id` y `supersedes`/`superseded_by`; los hallazgos, `id`, `origin`,
+`resolution`, `affected` y `adr`; las rondas, `zone`, `scenarios` y
+`findings`; las sesiones, `id` y `phase`. El frontmatter **duplica el estado
+para las máquinas** (grep, la web, los agentes del flujo): el texto del
+documento sigue siendo el registro canónico, y ambos deben cuadrar.
+
 ## Publicación web
 
 La web de documentación (`web/`, GitHub Pages) publica **solo la Capa 1** —los
 contratos vivos— más las seis páginas locales de «empezar» y la referencia
-navegable derivada de `api.md`. Las **Capas 2-4 no se publican**: el flujo de
-diseño (`adr.md`, `problemas.md`, `pospuesto.md`, `pseudocodigo.md`,
-`implementacion.md`, `decisiones-implementacion.md`), `audits/` y `archive/` son
+navegable derivada de `contracts/api.md`. Las **Capas 2-4 no se publican**: el
+flujo de diseño (`decisions/`, `findings/`, `postponed/`, `validation/`,
+`plan/`, `worklog/`), `audits/` y `archive/` son
 el registro interno del proyecto y no sirven a un visitante.
 
 De la Capa 1 se publican **todos los contratos salvo `malla.md`**: la extensión
@@ -85,7 +138,8 @@ La transformación fuente→web es **mecánica y en build**, sin duplicar conten
   `web/src/lib/markdown/remark-limpieza-interno.mjs` la elimina al renderizar.
 - Los **marcadores de proceso** —referencias parentéticas `(G##)`, `(P##)`,
   `(S##)`, `(ADR-NNN)`, incluso en títulos, y los blockquotes de estado
-  `> ✅ …`— los barre el mismo plugin.
+  `> ✅ …`— los barre el mismo plugin. El frontmatter no llega al HTML: Astro
+  lo separa del cuerpo al cargar la colección.
 - **`docs/` conserva su trazabilidad intacta**: el flujo interno (jueces,
   `auditor-docs`, el propio diseño) necesita esos marcadores, y la limpieza vive
   solo en el pipeline de la web.
@@ -98,9 +152,7 @@ la wiki, la skill [/alta-wiki](../.claude/skills/alta-wiki/SKILL.md).
 
 ## Nota sobre nombres e idioma
 
-Las carpetas nuevas (`audits/`, `archive/`) ya usan nombres en inglés; los
-ficheros conservan sus nombres en español para no romper dos veces las
-referencias cruzadas (enlaces markdown, rutas en `.claude/` y citas en
-comentarios de código). El renombrado de ficheros y la documentación
-multi-idioma (inglés/español) quedan para la futura migración a inglés del
-repo, en una sola pasada.
+Desde la reestructuración de 2026-07-17, **todas las carpetas** de `docs/`
+usan nombres en inglés y los ficheros conservan sus nombres en español, igual
+que la prosa. La documentación multi-idioma (inglés/español) queda para la
+futura migración a inglés del repo, en una sola pasada.

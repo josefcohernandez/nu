@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// check-drift.mjs — detector de deriva entre docs/api.md (la fuente de verdad,
+// check-drift.mjs — detector de deriva entre docs/contracts/api.md (la fuente de verdad,
 // la "superficie sagrada" v1) y web/src/content/docs/referencia/ (su
 // presentación). Mecánico y determinista: extrae el inventario de callables
 // {nombre, firma, ⏸, [W]} de ambos lados y falla listando cada discrepancia.
@@ -36,7 +36,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const API_MD = join(RAIZ, "docs", "api.md");
+const API_MD = join(RAIZ, "docs", "contracts", "api.md");
 const REF_DIR = join(RAIZ, "web", "src", "content", "docs", "referencia");
 // Páginas sin superficie de API: convenciones (la notación de ejemplo
 // `enu.mod.fn(...)` parsearía como callable) y la CLI del binario.
@@ -277,14 +277,14 @@ for (const [nombre, a] of api) {
 }
 for (const [nombre, b] of web) {
   if (!api.has(nombre)) {
-    fallos.push(`SOBRA EN WEB      ${nombre} (${donde(b)}) — no existe en docs/api.md (¿deriva o errata?)`);
+    fallos.push(`SOBRA EN WEB      ${nombre} (${donde(b)}) — no existe en docs/contracts/api.md (¿deriva o errata?)`);
   }
 }
 
 if (fallos.length > 0) {
-  console.error(`Deriva entre docs/api.md y web/referencia (${fallos.length} discrepancias):\n`);
+  console.error(`Deriva entre docs/contracts/api.md y web/referencia (${fallos.length} discrepancias):\n`);
   for (const f of fallos) console.error("  " + f);
-  console.error("\ndocs/api.md es la fuente de verdad: corrige la web (o registra un hallazgo si la espec está mal).");
+  console.error("\ndocs/contracts/api.md es la fuente de verdad: corrige la web (o registra un hallazgo si la espec está mal).");
   process.exit(1);
 }
-console.log(`✓ web/referencia coherente con docs/api.md (${api.size} callables comprobados, ${web.size} en la web)`);
+console.log(`✓ web/referencia coherente con docs/contracts/api.md (${api.size} callables comprobados, ${web.size} en la web)`);

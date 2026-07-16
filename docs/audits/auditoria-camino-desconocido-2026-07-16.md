@@ -1,3 +1,9 @@
+---
+title: "Auditoría del «camino del desconocido» — 16 de julio de 2026"
+type: "auditoria"
+date: "2026-07-16"
+status: "cerrada"
+---
 # Auditoría del «camino del desconocido» — 16 de julio de 2026
 
 Auditoría **end-to-end empírica** del recorrido que hará un desconocido que
@@ -306,7 +312,7 @@ $ enu -v         → "flag provided but not defined: -v"; exit 2
 `-model`, `-default-config`; no hay flag de versión.
 
 **Matiz de trazabilidad.** No es un blind spot total: **ADR-013**
-(`docs/adr.md:~610-618`) ya documenta la ausencia como decisión consciente y
+(`docs/decisions/adr/README.md:~610-618`) ya documenta la ausencia como decisión consciente y
 **pendiente** («un flag `--version` sería un nice-to-have de producto … pendiente
 del dueño del proyecto»; la fuente de verdad observable hoy es `enu -e 'return
 nu.version.api'`). El flag sigue sin existir —la evidencia lo confirma— pero el

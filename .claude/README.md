@@ -2,7 +2,7 @@
 
 Meta-tooling de asistentes para desarrollar `nu`. No es parte de la espec del
 proyecto (eso vive en `docs/`): es la mecanización del flujo que `CLAUDE.md` y
-`docs/implementacion.md` ya exigen — SDD (los documentos son el proyecto), BDD
+`docs/plan/implementacion.md` ya exigen — SDD (los documentos son el proyecto), BDD
 (escenarios antes que código), TDD (rojo→verde→refactor), jueces clean-room y
 mutation testing como juez mecánico.
 
@@ -19,7 +19,7 @@ mutation testing como juez mecánico.
 | Toca la pasada periódica de salud (semanal/quincenal, o hace mucho de la última) | `/salud` (fuzzing con corpus acumulativo, estrés `-race`, govulncheck, rotación de mutación) |
 | La web de docs derivó de `api.md` (job "Coherencia web ↔ api.md" en rojo) o una sesión/hallazgo tocó firmas | `/sync-web` (el detector `web/scripts/check-drift.mjs` señala; la skill redacta y verifica) |
 | Doy de alta (o retiro) una página de la wiki de la web: nueva guía, página de extensión, o un contrato de `docs/` que pasa a publicarse | `/alta-wiki` (la checklist mecánica de puntos de contacto: docmap ↔ WIKI_SLUGS ↔ i18n + cierre en verde) |
-| El operador decide publicar una estable | `/release` (bump de versión → merge `develop→main` → tag → reintegración `main→develop`; envuelve `docs/release.md`, con puertas de confirmación en los pasos irreversibles) |
+| El operador decide publicar una estable | `/release` (bump de versión → merge `develop→main` → tag → reintegración `main→develop`; envuelve `docs/ops/release.md`, con puertas de confirmación en los pasos irreversibles) |
 
 ## Los cuatro flujos y cómo se encadenan
 

@@ -1,3 +1,9 @@
+---
+title: "Análisis de renombrado del proyecto — 15 de julio de 2026"
+type: "auditoria"
+date: "2026-07-15"
+status: "cerrada"
+---
 # Análisis de renombrado del proyecto — 15 de julio de 2026
 
 Estudio para resolver **R-04** de la
@@ -344,7 +350,7 @@ tesis**.
 - **Backronym:** **Extensible Native Userland** — **E**xtensible (todo es
   extensión Lua) · **N**ative (un binario Go estático, sin runtime que instalar) ·
   **U**serland (las extensiones Lua son el «userland» sobre el «kernel» Go). El
-  «e» vale además como guiño al modelo **Emacs** ([filosofia.md](../filosofia.md):
+  «e» vale además como guiño al modelo **Emacs** ([filosofia.md](../core/filosofia.md):
   «Emacs/Textadept, no Neovim»).
 
 **Disponibilidad verificada (16-jul):**

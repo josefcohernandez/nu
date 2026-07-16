@@ -24,7 +24,7 @@ const RAIZ = resolve(AQUI, '..', '..');
 
 // Aplica el plugin sobre `md` con una ruta que cae dentro de su jurisdicción
 // (un contrato del repo `docs/<x>.md`) salvo que se indique otra.
-function procesa(md, path = join(RAIZ, 'docs', 'fixture.md')) {
+function procesa(md, path = join(RAIZ, 'docs', 'contracts', 'fixture.md')) {
   const tree = unified().use(remarkParse).parse(md);
   remarkLimpiezaInterno()(tree, { path });
   return tree;

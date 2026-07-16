@@ -1,0 +1,26 @@
+---
+title: "El arranque sin TTY no tiene onramp y \"el conjunto oficial\" está sin definir"
+type: "hallazgo"
+id: "G33"
+status: "resuelto"
+date: "2026-06-23"
+origin: "uso del binario terminado (primer arranque sin TTY)"
+resolution: "El flag enu --default-config activa sin TTY el conjunto oficial de producto (siete plugins, sin example)."
+affected: ["api.md §14", "ADR-010", "G21"]
+adr: "ADR-015"
+---
+# G33 · El arranque sin TTY no tiene onramp y "el conjunto oficial" está sin definir — `api.md` §14 / ADR-010 / G21 — **RESUELTO**
+
+**Resolución** (registrada en [ADR-015](../decisions/adr/adr-015-conjunto-oficial-de-producto.md), que **refina** ADR-010; aplicada en [api.md](../contracts/api.md) §14, [arquitectura.md](../core/arquitectura.md) §5, [filosofia.md](../core/filosofia.md) §5 y el sitio de docs): dos piezas, ninguna en la API sagrada.
+
+1. **Onramp no interactivo: el flag CLI `enu --default-config`.** La pantalla de runtime desnudo de G21 resolvió el primer arranque **solo con TTY** (es UI; §14 lo cierra con "Sin TTY no hay pantalla: arranca desnudo"). El caso sin TTY —CI, Docker, scripts— quedaba sin un paso para activar el conjunto oficial: había que escribir `config.dir()/enu.toml` a mano. El flag lo cubre con **dos modos**: solo (`enu --default-config`) **escribe** `plugins.enabled` con el conjunto de producto y sale (idempotente, atómico, preservando el resto del fichero — reusa `writeEnabledPlugins`, la misma vía que la acción TTY); combinado con una acción headless (`--default-config -p '…'` / `-e '…'`) **no toca disco**: activa el conjunto **solo para ese proceso** (option interna `WithEnabledPlugins`) y ejecuta la acción. Vive en el **binario** (`main.go`), no en `enu.*`: es la superficie CLI de S45 —como `-e`/`-p`/`--continue`—, así que **`enu.version.api` no cambia** (a diferencia de G17/G32, que sí ampliaron la superficie sagrada). El core sigue sin saber lo que es un agente (ADR-003): el flag orquesta extensiones por la API pública, como podría un `init.lua`.
+
+2. **Definición de "el conjunto oficial de producto".** Hasta ahora "el conjunto oficial" era, de hecho, `embeddedNames()` (*todo* lo embebido), que incluye `example` — el plugin-andamiaje que existe **solo para probar el gating** de ADR-010 ([implementacion.md](../plan/implementacion.md), Fase 8). Meterlo en la config por defecto del usuario es ruido. Se fija el conjunto en las **siete de producto** —`providers, sessions, agent, mcp, chat, repl, toolkit`— = el catálogo embebido **menos `example`**, cerrado bajo dependencias (`agent → providers, sessions`; `mcp → agent`; `chat → toolkit, agent, providers, sessions`). Por **coherencia** (regla de oro del flujo: una semántica no se contradice entre documentos), la acción TTY de G21 pasa a activar **el mismo** conjunto: la pantalla desnuda y el flag enchufan lo mismo. La distinción "producto vs todo lo embebido" vive en una sola fuente (`officialProductSet`, derivada de `embeddedNames` filtrando `example`).
+
+**Mismo conjunto en ambos modos**, incluido `chat`: aunque `chat`/`repl` necesitan TTY, sus `init.lua` ya se auto-gatean con `if enu.has("ui")` — sin superficie de UI quedan inertes solos (G20/§9). Activarlos en headless no estorba, y omitirlos exigiría una segunda lista y un caso borde sin ganancia. Descartado.
+
+**Problema.** Dos grietas que afloran al *usar* el binario terminado para probarlo con sus extensiones oficiales (no en una ronda de pseudocódigo ni construyendo el kernel: usándolo). (a) ADR-010 deja las oficiales **inactivas por defecto** y G21 dio el onramp del primer arranque, pero **solo para TTY**; en headless (`enu -e`/CI/Docker) no hay forma de un paso de activar el conjunto: hay que editar `enu.toml` a mano, contradiciendo de hecho la ergonomía "de una tecla" que ADR-010 promete. (b) "El conjunto oficial" nunca se definió con precisión frente a `example`: `ActivateOfficial()` activa `embeddedNames()` entero, así que la acción TTY de hoy ya mete el plugin de pruebas en la config del usuario.
+
+**Impacto.** Es la **primera experiencia** de quien instala `enu` y quiere el harness en CI/contenedor — justo lo que ADR-010 dice proteger, pero por el lado no interactivo que G21 no cubrió. No bloquea ninguna sesión de construcción (el plan está cerrado, 45/45); es deuda de producto barata de saldar sobre la superficie CLI ya congelada (S45), sin tocar la API sagrada.
+
+**Opciones.** (a) **El flag `enu --default-config`** (la elegida): espejo no interactivo de la acción 1 de la pantalla, con modo efímero para Docker inmutable; vive en el binario, no roza `enu.*`. (b) Exponer la escritura a Lua (`enu.config.enable_official()`) y resolverlo con `enu -e`: **amplía la API sagrada** (`enu.version.api`++) para *empeorar* la ergonomía (`enu -e 'enu.config.enable_official()'` no es más fácil que el flag) — contradice el objetivo; descartada. (c) Un subcomando `enu init`: honesto semánticamente, pero estrena el **primer subcomando** del binario (hoy solo flags), una puerta a `enu run`/`enu chat`… que S45 evitó al mantener el binario delgado; prematuro por una sola necesidad. (d) No hacer nada y documentar "edita `enu.toml`": austero y hostil, justo lo que ADR-010 quiso evitar (es la opción (c) descartada en G21, ahora para el caso sin TTY).

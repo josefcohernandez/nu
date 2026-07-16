@@ -8,9 +8,9 @@ pager tipo `less(1)` y toda la navegación funciona con teclado real. La
 especificación de diseño completa vive en `design_handoff_nu_web/README.md`
 (tokens de los 4 themes, gramática visual TTY, las 8 pantallas canónicas).
 
-> La **fuente de verdad** de la API es [`docs/api.md`](../docs/api.md) (la
+> La **fuente de verdad** de la API es [`docs/contracts/api.md`](../docs/contracts/api.md) (la
 > "superficie sagrada" v1). La sección `/api` de este sitio la presenta de forma
-> orientada a tareas y con ejemplos. Si algo discrepa, manda `docs/api.md`.
+> orientada a tareas y con ejemplos. Si algo discrepa, manda `docs/contracts/api.md`.
 
 Esa relación se **verifica mecánicamente**: `npm run check:drift`
 ([`scripts/check-drift.mjs`](scripts/check-drift.mjs), sin dependencias) extrae
@@ -37,7 +37,7 @@ npm run preview  # sirve el build (necesario para probar la búsqueda)
 web/
 ├── astro.config.mjs              # base /enu/, shiki css-variables, plugins md
 ├── scripts/
-│   ├── check-drift.mjs           # detector de deriva web ↔ docs/api.md
+│   ├── check-drift.mjs           # detector de deriva web ↔ docs/contracts/api.md
 │   └── generar-og.mjs            # regenera public/og.png desde el wordmark
 ├── src/
 │   ├── content.config.ts         # colecciones: wiki (../docs), empezar, referencia
@@ -80,7 +80,7 @@ la colección de origen.
 EN afectada** —no se actualiza sola—. El picker de idioma navega a la página
 homóloga (`/enu/docs/x` ↔ `/enu/en/docs/x`), así que una página EN ausente sería
 un 404. Nota: `check:drift` vigila **solo la referencia ES** frente a
-`docs/api.md` (la superficie sagrada); la referencia EN, al ser instantánea, no
+`docs/contracts/api.md` (la superficie sagrada); la referencia EN, al ser instantánea, no
 entra en ese gate.
 
 ## Ejemplos verificados

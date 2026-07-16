@@ -1,3 +1,8 @@
+---
+title: "Censo de la frontera VM (M01)"
+type: "archivo"
+status: "ejecutado"
+---
 # Censo de la frontera VM (M01)
 
 Producido por [M01](migracion-vm.md#fase-a--cimientos-la-interfaz-de-vm-de-adr-019-fase-a).

@@ -1,11 +1,11 @@
 ---
 name: planificar-sesion
-description: Da de alta una feature nueva como sesión S## en docs/implementacion.md, pasando primero por la puerta SDD (¿la espec ya la cubre?) y por el juez de filosofía. Úsala cuando el usuario quiera una capacidad nueva y el puntero ▶ esté en '—' o la feature no exista en el plan. No implementa nada: deja el plan listo para /sesion.
+description: Da de alta una feature nueva como sesión S## en docs/plan/implementacion.md, pasando primero por la puerta SDD (¿la espec ya la cubre?) y por el juez de filosofía. Úsala cuando el usuario quiera una capacidad nueva y el puntero ▶ esté en '—' o la feature no exista en el plan. No implementa nada: deja el plan listo para /sesion.
 ---
 
 # Planificar una sesión nueva (la puerta SDD)
 
-El plan de construcción manda (`docs/implementacion.md`) y la API es sagrada:
+El plan de construcción manda (`docs/plan/implementacion.md`) y la API es sagrada:
 una feature entra al plan **solo** si su espec ya existe. Esta skill separa a
 fuego los dos modos del proyecto — diseño (no se escribe código) y
 construcción (el plan manda) — para que "añadir una sesión" no se convierta en
@@ -13,7 +13,7 @@ la vía de hecho para ampliar la API.
 
 ## Pasos
 
-1. **Puerta SDD.** Localiza la espec de la feature: el §N de `docs/api.md` o
+1. **Puerta SDD.** Localiza la espec de la feature: el §N de `docs/contracts/api.md` o
    del contrato de extensión (`agente.md`, `providers.md`, `sesiones.md`,
    `chat.md`) que la define con firma y semántica completas.
    - **Si no existe, o existe pero es ambigua o incompleta: PÁRATE.** No hay
@@ -43,8 +43,9 @@ la vía de hecho para ampliar la API.
    añade la fila al inventario 🔒 con **el caso exacto que el test debe
    blindar**. El inventario crece, nunca se relaja.
 
-5. **Actualizar el plan.** Añade la sesión a su tabla (o crea la fase),
-   apunta el puntero ▶ a ella si no hay otra sesión en curso, y deja el
+5. **Actualizar el plan.** Añade la sesión a su tabla en
+   `docs/plan/implementacion.md` (o crea la fase) y, en `docs/plan/estado.md`,
+   apunta el puntero ▶ a ella si no hay otra sesión en curso y deja el
    tablero consistente.
 
 6. **Commit de diseño** en español: `Plan: alta de S## (<feature>)`, citando

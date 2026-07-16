@@ -4,8 +4,12 @@ import { glob } from 'astro/loaders';
 // Cuatro colecciones de contenido, todas con el glob loader:
 //
 //  - `wiki`: los .md REALES del repo bajo docs/ (fuente de verdad de la
-//    documentación). Sin frontmatter — schema laxo/opcional. Se excluye
-//    README.md (es el mapa por capas, no una página de la wiki).
+//    documentación), enumerados EXPLÍCITAMENTE: docs/ se organiza por capas
+//    (core/, contracts/, findings/, worklog/…) y solo los contratos publicados
+//    de la Capa 1 son páginas de la wiki — un glob con comodines cargaría los
+//    registros internos (páginas fantasma). El generateId recorta la
+//    subcarpeta para que el slug siga siendo el basename (filosofia, no
+//    core/filosofia). Los .md llevan frontmatter title/description propio.
 //  - `empezar`: las páginas de "empezar" locales, con frontmatter
 //    title/description.
 //  - `extensiones`: páginas locales de las extensiones oficiales que no tienen
@@ -15,8 +19,22 @@ import { glob } from 'astro/loaders';
 //    title/description. NO se tocan: el detector check-drift y el CI dependen
 //    de ellos.
 const wiki = defineCollection({
-  loader: glob({ pattern: ['*.md', '!README.md'], base: '../docs' }),
-  // Los .md del repo no llevan frontmatter: todo opcional.
+  loader: glob({
+    pattern: [
+      'core/filosofia.md',
+      'core/arquitectura.md',
+      'core/modelo-ejecucion.md',
+      'contracts/guia-plugins.md',
+      'contracts/providers.md',
+      'contracts/agente.md',
+      'contracts/sesiones.md',
+      'contracts/chat.md',
+    ],
+    base: '../docs',
+    generateId: ({ entry }) => entry.split('/').pop()!.replace(/\.md$/, ''),
+  }),
+  // El frontmatter de docs/ trae más campos (type, layer, web, status…):
+  // aquí solo se tipan los que la web usa; el resto se ignora.
   schema: z.object({
     title: z.string().optional(),
     description: z.string().optional(),

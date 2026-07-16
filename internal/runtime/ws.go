@@ -29,7 +29,7 @@ import (
 // mismo patrón que `Proc:read_line`/`Proc:write` (S16), no el de `Stream` (que sí
 // necesita un productor de fondo porque el body llega aunque nadie lo pida).
 //
-// LA LIBRERÍA (docs/decisiones-implementacion.md S21). Se usa `github.com/coder/websocket`
+// LA LIBRERÍA (docs/worklog/README.md S21). Se usa `github.com/coder/websocket`
 // (antes `nhooyr.io/websocket`): **puro-Go, sin dependencias transitivas**
 // (`CGO_ENABLED=0` intacto, ADR-001), API limpia basada en `context.Context`
 // (encaja con la cancelación de tasks) y mantenida. La alternativa

@@ -7,7 +7,7 @@
 #
 # El PROCEDIMIENTO completo (bump de versión, merge develop→main, y la reintegración
 # main→develop posterior que evita el aviso "main had recent pushes" de GitHub) está
-# en el runbook docs/release.md. Este workflow es solo el tramo de tag → release.
+# en el runbook docs/ops/release.md. Este workflow es solo el tramo de tag → release.
 #
 # Versionado (estrategia A de ADR-013): la fuente de verdad de la versión son las
 # constantes de internal/runtime/enu.go (expuestas como `enu.version`). Este workflow

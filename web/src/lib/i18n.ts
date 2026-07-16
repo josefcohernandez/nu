@@ -57,7 +57,7 @@ export interface Dict {
   ctaTitle: string; // "¿tu primer plugin?"
   ctaBody: string; // cuerpo del CTA
   ctaLink: string; // "guia-plugins.md →"
-  genFrom: string; // "generada desde docs/api.md · "
+  genFrom: string; // "generada desde docs/contracts/api.md · "
   sagrada: string; // "la API v1 es sagrada: crece solo por adición"
   adrLink: string; // "adr-003 →"
   firstMod: string; // "(primer módulo)"
@@ -123,7 +123,7 @@ export const i18n: Record<Lang, Dict> = {
     ctaTitle: '¿tu primer plugin?',
     ctaBody: 'plugin.toml + init.lua. La guía te lleva de cero a un comando slash propio.',
     ctaLink: 'guia-plugins.md →',
-    genFrom: 'generada desde docs/api.md · ',
+    genFrom: 'generada desde docs/contracts/api.md · ',
     sagrada: 'la API v1 es sagrada: crece solo por adición',
     adrLink: 'adr-003 →',
     firstMod: '(primer módulo)',
@@ -186,7 +186,7 @@ export const i18n: Record<Lang, Dict> = {
     ctaTitle: 'your first plugin?',
     ctaBody: 'plugin.toml + init.lua. The guide takes you from zero to your own slash command.',
     ctaLink: 'guia-plugins.md →',
-    genFrom: 'generated from docs/api.md · ',
+    genFrom: 'generated from docs/contracts/api.md · ',
     sagrada: 'the v1 API is sacred: it grows only by addition',
     adrLink: 'adr-003 →',
     firstMod: '(first module)',

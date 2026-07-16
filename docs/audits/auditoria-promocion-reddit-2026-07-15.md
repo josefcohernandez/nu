@@ -1,3 +1,9 @@
+---
+title: "Auditoría de preparación para promoción (Reddit / HN) — 15 de julio de 2026"
+type: "auditoria"
+date: "2026-07-15"
+status: "cerrada"
+---
 # Auditoría de preparación para promoción (Reddit / HN) — 15 de julio de 2026
 
 Auditoría de la preparación de `nu` para promocionarse en comunidades técnicas
@@ -712,7 +718,7 @@ Quien instale y ejecute verá español.
    en inglés (la wiki profunda EN ya está).
 2. Traducir a EN los strings de uso/error de `main.go` — es una **sesión de
    implementación** (toca código Go), no una tarea de promoción; sigue el
-   protocolo de `docs/implementacion.md` si se abre.
+   protocolo de `docs/plan/implementacion.md` si se abre.
 3. Mantener el `[es]` marcador de W-04 en los enlaces que aún lleven a contenido
    solo español, para gestionar la expectativa antes del clic.
 

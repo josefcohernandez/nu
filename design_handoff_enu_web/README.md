@@ -74,7 +74,7 @@ Escala (sobre card 720–960px; escalar en producción):
 - **Cursor**: bloque 9×17px en `key`, animación blink 1.1s step-end (`@keyframes` 0-49% opacity 1, 50-100% opacity 0). Respetar `prefers-reduced-motion`.
 - **Selección activa en listas**: fila invertida (`bg` sobre `key`) con prefijo `▸`.
 - **Prohibido**: emojis, iconos SVG, border-radius (salvo ninguno: todo es rectangular), sombras, gradientes.
-- **Statusline**: una sola, abajo, en todas las páginas. Izquierda = contexto (`docs/filosofia.md · 8% · 1/15`, `api/fs · 8% · 1/12`, `plugins/primer-plugin · 1/3`, `404 · 0/15`); derecha = teclas disponibles.
+- **Statusline**: una sola, abajo, en todas las páginas. Izquierda = contexto (`docs/core/filosofia.md · 8% · 1/15`, `api/fs · 8% · 1/12`, `plugins/primer-plugin · 1/3`, `404 · 0/15`); derecha = teclas disponibles.
 
 ## Screens
 
@@ -103,7 +103,7 @@ Copy EN: "Your coding agent." / "Your rules."; "Install it with one line. Use it
 
 ### 12a — Wiki `/docs/<slug>`
 
-Grid 3 columnas: sidebar 240px (borde derecho) + contenido (max ~68ch) + carril derecho 180px. Header: wordmark + nav (docs activo) + ruta `docs/filosofia.md` (dim, fichero en bright) + nota de idioma + `github ↗`.
+Grid 3 columnas: sidebar 240px (borde derecho) + contenido (max ~68ch) + carril derecho 180px. Header: wordmark + nav (docs activo) + ruta `docs/core/filosofia.md` (dim, fichero en bright) + nota de idioma + `github ↗`.
 
 Sidebar: grupos `empezar/ espec/ extensiones/ proceso/` (nombres de grupo en `dim` con `/`), ficheros `.md` indentados, activo invertido con `▸`. Contenido: título + `═`, cita `│`, prosa, bloques de código (fondo `border`, `$` en `key`), tablas como grid 2 columnas con borde inferior `border` por fila (header en `dim`). Pie de contenido: prev/next separados por borde superior (next en `key` con `→`). Carril derecho: `§ en esta página` (activo bright, resto dim) + bloque de metadata `última edición / <commit en key> · hace N días`.
 
@@ -113,11 +113,11 @@ Sidebar: grupos `empezar/ espec/ extensiones/ proceso/` (nombres de grupo en `di
 - `extensiones/`: providers, agente, sesiones, chat, guia-plugins, malla
 - `proceso/`: problemas, pospuesto, pseudocodigo, implementacion, decisiones-implementacion
 
-Nota: `docs/api.md` (la espec) permanece en el árbol; la sección `/api` es la **referencia navegable generada desde él** — su carril derecho lo declara ("generada desde docs/api.md · <commit>").
+Nota: `docs/contracts/api.md` (la espec) permanece en el árbol; la sección `/api` es la **referencia navegable generada desde él** — su carril derecho lo declara ("generada desde docs/contracts/api.md · <commit>").
 
 ### 13a — API `/api/<módulo>`
 
-Misma estructura 3 columnas (sidebar 210px). Header derecha: `api v1 · estable` (estable en `key`). Sidebar: grupo `nu.*` con los 12 módulos (fs, proc, http, ws, search, text, re, ui, events, task, workers, codecs), grupo `extensiones/` con contratos (agent.tool, chat.command, providers). Contenido: título `nu.fs` + `═`, intro, **cards de función**: caja con borde `border`, fila superior `read(path) → string, err` (nombre en `key` 600, params en `fg`, retorno en `dim`; si pasa por permisos, sufijo `· [permiso]`), fila inferior descripción 12px. Ejemplo de código Lua con syntax colors del theme (keywords `key`, strings `c2` o `fg`, comentarios `dim`), etiquetado `ejemplo — pruébalo con nu -e`. Carril: card CTA "¿tu primer plugin?" (borde `key`) → /plugins, `§ en esta página` con las funciones, y metadata "generada desde docs/api.md · commit".
+Misma estructura 3 columnas (sidebar 210px). Header derecha: `api v1 · estable` (estable en `key`). Sidebar: grupo `nu.*` con los 12 módulos (fs, proc, http, ws, search, text, re, ui, events, task, workers, codecs), grupo `extensiones/` con contratos (agent.tool, chat.command, providers). Contenido: título `nu.fs` + `═`, intro, **cards de función**: caja con borde `border`, fila superior `read(path) → string, err` (nombre en `key` 600, params en `fg`, retorno en `dim`; si pasa por permisos, sufijo `· [permiso]`), fila inferior descripción 12px. Ejemplo de código Lua con syntax colors del theme (keywords `key`, strings `c2` o `fg`, comentarios `dim`), etiquetado `ejemplo — pruébalo con nu -e`. Carril: card CTA "¿tu primer plugin?" (borde `key`) → /plugins, `§ en esta página` con las funciones, y metadata "generada desde docs/contracts/api.md · commit".
 
 ### 14b — Plugins `/plugins`
 

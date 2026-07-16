@@ -4,7 +4,7 @@ package runtime
 // internal/runtime/embedded/providers/lua/providers/adapter_anthropic.lua). Es
 // el PRIMER dialecto real: Lua sobre la API pública congelada (ADR-003) que
 // habla la Messages API de Anthropic vía `enu.http.stream` (S20) y traduce su SSE
-// al stream de Eventos CANÓNICO de [providers.md](../../docs/providers.md) §2.3.
+// al stream de Eventos CANÓNICO de [providers.md](../../docs/contracts/providers.md) §2.3.
 //
 // Como NO hay red, se GRABA un SSE de Anthropic realista (la secuencia de
 // eventos `message_start`, `content_block_*` de tipos text/tool_use/thinking,

@@ -22,7 +22,7 @@ ya, contaminaría a cualquier juez que lea `implementacion.md`.
 
 | El diff... | Panel |
 |---|---|
-| Es de una sesión 🔒, o toca `docs/api.md`/contratos, o toca scheduler/cancelación/eventos/workers | **Completo**: `juez-espec` + `juez-tests` + `juez-concurrencia` (en paralelo) |
+| Es de una sesión 🔒, o toca `docs/contracts/api.md`/contratos, o toca scheduler/cancelación/eventos/workers | **Completo**: `juez-espec` + `juez-tests` + `juez-concurrencia` (en paralelo) |
 | Implementa lógica propia fuera de lo anterior | `juez-espec` + `juez-tests` |
 | Es un wrapper fino sobre stdlib/librería | Solo `juez-espec` |
 | Es glue de paso, docs o render visual | Ninguno (basta el DoD normal) |

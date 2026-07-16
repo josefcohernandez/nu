@@ -178,7 +178,7 @@ type fuzzyMatch struct {
 
 // fuzzyScore calcula el score de `query` contra `cand` con un scorer de
 // **subsecuencia con bonus** estilo fzf simplificado (decisión propia,
-// docs/decisiones-implementacion.md S27): los caracteres de `query` deben aparecer en `cand`
+// docs/worklog/README.md S27): los caracteres de `query` deben aparecer en `cand`
 // en el mismo orden (no necesariamente contiguos); el score premia las
 // coincidencias **contiguas** y las que caen en un **inicio de palabra** (tras
 // un separador `/`, `_`, `-`, `.`, espacio, o un cambio de minúscula→mayúscula,

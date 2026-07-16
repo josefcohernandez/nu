@@ -18,7 +18,7 @@ import (
 // incorporado, la lógica 🔒)—. Es lo que pide ADR-005: los adaptadores de
 // providers viven en Lua y consumen SSE de un endpoint que va emitiendo tokens.
 //
-// REUSA TODO S19 (docs/decisiones-implementacion.md S19/S20): el parseo de `opts`
+// REUSA TODO S19 (docs/worklog/README.md S19/S20): el parseo de `opts`
 // (`parseReqOpts`), el modelo del cliente reutilizable vs por-petición
 // (`clientFor`, con TLS/proxy de G12) y el mapeo de errores de transporte
 // (`classifyTransportError`/`httpError`, que ya deciden el código del core fuera

@@ -19,7 +19,7 @@ export interface GitMeta {
 
 /**
  * Último commit que tocó `ruta` (relativa a la raíz del repo, p. ej.
- * 'docs/api.md' o 'web/src/content/docs/empezando/instalacion.md').
+ * 'docs/contracts/api.md' o 'web/src/content/docs/empezando/instalacion.md').
  * Devuelve null si git no conoce el fichero (sin commits todavía).
  */
 export function gitMeta(ruta: string): GitMeta | null {

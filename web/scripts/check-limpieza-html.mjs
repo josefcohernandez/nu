@@ -16,7 +16,7 @@
 // o `npm run check:limpieza[:fuente]`.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -35,11 +35,22 @@ const DOCS = join(RAIZ, 'docs');
 const RE_APERTURA_SOLA = /^<!--\s*enu:interno\s*-->$/;
 const RE_CIERRE_SOLA = /^<!--\s*\/enu:interno\s*-->$/;
 
+// docs/ se organiza en subcarpetas por capas: el barrido es recursivo.
+function mdRecursivo(dir) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...mdRecursivo(p));
+    else if (e.name.endsWith('.md')) out.push(p);
+  }
+  return out;
+}
+
 function verificaFuente() {
   const fallos = [];
-  for (const fichero of readdirSync(DOCS).sort()) {
-    if (!fichero.endsWith('.md')) continue;
-    const lineas = readFileSync(join(DOCS, fichero), 'utf8').split('\n');
+  for (const ruta of mdRecursivo(DOCS)) {
+    const fichero = relative(DOCS, ruta);
+    const lineas = readFileSync(ruta, 'utf8').split('\n');
     let abiertaEn = 0; // nº de línea (1-based) de la apertura sin cerrar, o 0
     lineas.forEach((linea, i) => {
       const n = i + 1;

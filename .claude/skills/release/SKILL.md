@@ -1,11 +1,11 @@
 ---
 name: release
-description: Corta una release estable de enu — bump de versión, merge develop→main, tag vX.Y.Z (dispara release.yml) y reintegración main→develop. Envuelve el runbook docs/release.md y se para pidiendo OK antes de cada paso irreversible (push a main, push del tag). Úsala solo cuando el operador decida publicar una estable; nunca la inicies tú.
+description: Corta una release estable de enu — bump de versión, merge develop→main, tag vX.Y.Z (dispara release.yml) y reintegración main→develop. Envuelve el runbook docs/ops/release.md y se para pidiendo OK antes de cada paso irreversible (push a main, push del tag). Úsala solo cuando el operador decida publicar una estable; nunca la inicies tú.
 ---
 
 # Cortar una release estable (/release)
 
-Mecaniza el runbook [docs/release.md](../../../docs/release.md) —que sigue siendo
+Mecaniza el runbook [docs/ops/release.md](../../../docs/ops/release.md) —que sigue siendo
 el **protocolo canónico**; esta skill lo *conduce*, no lo duplica—. Una release es
 acción **del operador** y **outward-facing** (crea una GitHub Release pública y
 redespliega la web; ADR-013 la enmarca como "el operador crea el tag a mano"). Por
@@ -16,14 +16,14 @@ eso la skill **se para pidiendo OK explícito antes de cada paso irreversible** 
 
 - Acuerda con el operador el número `vX.Y.Z` (semver: **patch** = correcciones;
   **minor** = adiciones a la API, que además suben `APILevel`).
-- Verifica precondiciones (docs/release.md §Precondiciones): los worktrees de las
+- Verifica precondiciones (docs/ops/release.md §Precondiciones): los worktrees de las
   tareas están cerrados y su trabajo integrado en `develop`; CI de `develop` en
   verde (`gh run list --branch develop --limit 5`). Si un worktree sigue vivo con
   trabajo sin integrar, **PÁRATE y avisa**: quedaría fuera de la estable.
 
 ## Pasos
 
-Cada bloque sigue su §N de docs/release.md; aquí se marcan las **⛔ puertas**.
+Cada bloque sigue su §N de docs/ops/release.md; aquí se marcan las **⛔ puertas**.
 
 1. **Bump de versión** (§1). Toca los 4 sitios en el mismo commit:
    `internal/runtime/enu.go` (`VersionMajor/Minor/Patch`; `APILevel` **solo** si

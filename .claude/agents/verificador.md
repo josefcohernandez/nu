@@ -29,7 +29,7 @@ Según el tipo de hallazgo:
   (protegido por el token de ejecución, por un canal, por el orden del event
   loop)? Un interleaving con un paso imposible mata el hallazgo.
 - **Supuesto hueco de la API** (de una ronda o de un G## propuesto): intenta
-  escribir la composición con la API existente (`docs/api.md` completa, no
+  escribir la composición con la API existente (`docs/contracts/api.md` completa, no
   solo el §N citado) que resuelve el escenario. Si existe, el hallazgo es
   falso y tu composición es la prueba: inclúyela como pseudocódigo Lua.
 - **Supuesto hueco de tests**: busca con Grep en todos los `*_test.go` del

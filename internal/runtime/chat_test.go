@@ -6,7 +6,7 @@ package runtime
 // chat—), construida sobre el toolkit de widgets (S42), el agente (S39), providers
 // (S36/S37) y sessions (S38). La prueba arranca un Runtime con las CINCO
 // extensiones (toolkit, providers, sessions, agent, chat) activadas por `enu.toml`
-// y ejercita el contrato de [chat.md](../../docs/chat.md) desde Lua.
+// y ejercita el contrato de [chat.md](../../docs/contracts/chat.md) desde Lua.
 //
 // Blinda:
 //   - **layout** (§1): una `toolkit.app` con vbox transcript/input/statusline +
@@ -22,7 +22,7 @@ package runtime
 //     agente corre el turno → `agent:delta` streaming se pinta con markdown en el
 //     transcript del chat (el Block compuesto crece). El provider REAL (CP-11
 //     original) requiere red/credenciales y NO es ejecutable headless en CI
-//     (limitación del entorno, documentada en docs/decisiones-implementacion.md S43).
+//     (limitación del entorno, documentada en docs/worklog/README.md S43).
 //
 // La UI es headless en los tests (sin TTY, G20): el arnés fuerza `enu.ui` con
 // `WithForceUI(true)` (como toolkit_test.go) y un tamaño conocido (`WithUISize`)
@@ -544,7 +544,7 @@ func TestChatStatusline(t *testing.T) {
 // CP-11 (dogfooding): la sesión de chat de extremo a extremo contra un SSE
 // GRABADO del adaptador anthropic. ADAPTACIÓN: el CP-11 original pide un provider
 // REAL; en este entorno NO hay red ni credenciales, así que se ejercita contra el
-// SSE grabado (como CP-9). Documentado en docs/decisiones-implementacion.md S43.
+// SSE grabado (como CP-9). Documentado en docs/worklog/README.md S43.
 // ---------------------------------------------------------------------------
 
 // chatAnthropicProvidersToml: un providers.toml cuyo provider `anthropic` apunta su

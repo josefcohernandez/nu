@@ -1,6 +1,6 @@
 ---
 name: ronda
-description: Ejecuta una ronda nueva de pseudocódigo contra la API (docs/pseudocodigo.md) — el ejercicio SDD de validación — con fan-out paralelo de escenaristas y verificación adversarial de cada candidato a hallazgo. Úsala para torturar una zona de la API o de los contratos antes de congelar un diseño, o proactivamente cuando una zona lleve tiempo sin torturar.
+description: Ejecuta una ronda nueva de pseudocódigo contra la API (docs/validation/README.md) — el ejercicio SDD de validación — con fan-out paralelo de escenaristas y verificación adversarial de cada candidato a hallazgo. Úsala para torturar una zona de la API o de los contratos antes de congelar un diseño, o proactivamente cuando una zona lleve tiempo sin torturar.
 ---
 
 # Ronda de pseudocódigo (torturar la API)
@@ -13,8 +13,9 @@ lo que ya se componía.
 
 ## Pasos
 
-1. **Elegir la zona.** Lee las rondas previas de `docs/pseudocodigo.md` (y el
-   estado de `problemas.md`) para ver qué zonas ya fueron torturadas (caminos
+1. **Elegir la zona.** Lee el índice de rondas previas en
+   `docs/validation/README.md` (y el
+   estado de `docs/findings/README.md`) para ver qué zonas ya fueron torturadas (caminos
    feos, orquestación por un tercero...). Propón al usuario la zona y el
    ángulo de esta ronda: una extensión concreta, una combinación de
    primitivas, un tipo de autor de plugin (novato, hostil, con prisa), un
@@ -38,17 +39,21 @@ lo que ya se componía.
 
 5. **Triaje** con el usuario, candidato a candidato:
    - `REAL` y la v1 lo necesita → **G##** vía `/hallazgo`.
-   - `REAL` pero puede esperar → **P##** en `docs/pospuesto.md`, siempre con
+   - `REAL` pero puede esperar → **P##** en `docs/postponed/pospuesto.md`, siempre con
      su **disparador** (la señal concreta que indica reabrirlo).
    - `FALSO POSITIVO` → *demostrado-expresable*: la composición del
      verificador se documenta en la ronda (es tan valiosa como un hallazgo:
      enseña el patrón).
 
-6. **Documentar la ronda** en `docs/pseudocodigo.md` con su formato: título
-   de ronda numerada, escenarios numerados y titulados con su pseudocódigo
-   citando los §N que ejercitan, y la sección final `## Hallazgos` con cada
-   uno en negrita (`**G## — <título>.**`), dónde apareció y su estado.
-   Actualiza los contadores/menciones en `problemas.md` y `CLAUDE.md` si
-   citan el número de rondas.
+6. **Documentar la ronda** creando `docs/validation/ronda-N-<slug>.md` con
+   frontmatter de tipo ronda (`id: ronda-N`, `zone`, `scenarios: [números]`,
+   `findings: [G##...]`, `status: cerrada`) y su formato: título de ronda
+   numerada como H1, escenarios numerados y titulados con su pseudocódigo
+   citando los §N que ejercitan (la numeración de escenarios es global y
+   continúa la de la ronda anterior), y la sección final `## Hallazgos` con
+   cada uno en negrita (`**G## — <título>.**`), dónde apareció y su estado.
+   Añade su fila al índice de `docs/validation/README.md` y actualiza los
+   contadores/menciones en `docs/findings/README.md` y `CLAUDE.md` si citan
+   el número de rondas.
 
 7. **Commit** en español: `Ronda N de pseudocódigo: <zona torturada>`.
