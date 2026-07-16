@@ -361,6 +361,25 @@ scheduler propio, múltiples tasks, timers y futures (todo `enu.task` [W]).
 **Sin watchdog**: los workers existen precisamente para quemar CPU a gusto;
 el control es `terminate()` desde el principal más las `caps`.
 
+**Identidad de un worker (G56, ADR-024)**: un worker porta como identidad el
+plugin dueño vigente en el momento de `enu.worker.spawn`, capturada en el
+estado principal —donde la pila de dueños es coherente por construcción
+(single-threaded, ADR-004)— e **inmutable** durante toda la vida del worker.
+La razón: dentro del worker no existe `enu.plugin` ni ciclo de vida alguno,
+así que no hay pila propia que consultar, y consultar la del padre desde otra
+goroutine daría una atribución no determinista (valdría lo que el principal
+estuviera haciendo en ese instante) además de una carrera de datos — la
+identidad viaja **copiada** en el spawn, como los mensajes, nunca leída en
+vivo del runtime padre. Toda primitiva [W] atribuida por dueño usa esa
+identidad fija: `enu.log` (§15) la anota como plugin de origen y los procesos
+de `enu.proc` (§6) lanzados desde el worker se registran bajo ese plugin. En
+los artefactos de atribución se anota distinguible como `<plugin> (worker)` —
+p. ej. `agent (worker)`— para que la traza diga quién *y desde dónde*.
+Consecuencia de supervisión: como el estado principal posee todos los workers
+([P11](pospuesto.md)), un `enu.plugin.reload` (§14) del plugin dueño sigue
+soltando también los procesos lanzados por sus workers — el árbol de
+supervisión no tiene fugas por la frontera del worker.
+
 ---
 
 ## 14. `enu.plugin` y loader
@@ -415,7 +434,7 @@ theme, overrides) por construcción, sin sistema de prioridades.
 |---|---|
 | `enu.plugin.current() -> {name, version, dir}` | Plugin en cuyo contexto corre el código. |
 | `enu.plugin.list() -> {name, version, source: "builtin"\|"user", enabled}[]` | |
-| `enu.plugin.reload(name)` ⏸ | Herramienta de desarrollo, **best-effort** (G2): suelta todos los handles del plugin (el core los etiqueta por dueño vía `plugin.current()`), emite `core:plugin.unload` (las extensiones limpian sus registros: tools, comandos...), vacía la caché de `require` del plugin y recarga su `init.lua`. Un plugin con efectos globales exóticos puede no descargarse limpio — para iterar, no para producción. |
+| `enu.plugin.reload(name)` ⏸ | Herramienta de desarrollo, **best-effort** (G2): suelta todos los handles del plugin (el core los etiqueta por dueño vía `plugin.current()`; los creados desde sus workers portan la identidad capturada en el spawn —§13, G56— y caen bajo el mismo dueño), emite `core:plugin.unload` (las extensiones limpian sus registros: tools, comandos...), vacía la caché de `require` del plugin y recarga su `init.lua`. Un plugin con efectos globales exóticos puede no descargarse limpio — para iterar, no para producción. |
 | `enu.config.dir() -> string` [W] / `enu.config.data_dir() -> string` [W] | `~/.config/enu` y `~/.local/share/enu` (o equivalentes por plataforma). |
 
 ---
@@ -424,7 +443,7 @@ theme, overrides) por construcción, sin sistema de prioridades.
 
 | Firma | Semántica |
 |---|---|
-| `enu.log.debug/info/warn/error(fmt, ...)` | A fichero en `data_dir`, con plugin de origen anotado. `print` es alias de `info`. Nunca a la pantalla: la UI es de las extensiones. |
+| `enu.log.debug/info/warn/error(fmt, ...)` | A fichero en `data_dir`, con plugin de origen anotado. Desde un worker, el plugin anotado es la identidad capturada en el spawn, distinguida como `<plugin> (worker)` (§13, G56). `print` es alias de `info`. Nunca a la pantalla: la UI es de las extensiones. |
 
 ---
 
@@ -433,6 +452,11 @@ theme, overrides) por construcción, sin sistema de prioridades.
 | Disponible [W] | Solo estado principal |
 |---|---|
 | `task`, `fs` (salvo `watch`), `proc`, `sys`, `http`, `ws`, `text`, `re`, `search`, `json`, `toml`, `yaml`, `log`, `config.dir`, `config.data_dir` | `ui`, `events`, `fs.watch`, `worker.spawn`, `plugin` |
+
+Las primitivas [W] que atribuyen por dueño (`log`, el registro de procesos
+de `proc`) usan dentro de un worker la **identidad capturada en el spawn**
+(§13, G56): fija durante toda la vida del worker, anotada como
+`<plugin> (worker)`, jamás una consulta en vivo al estado del principal.
 
 ---
 

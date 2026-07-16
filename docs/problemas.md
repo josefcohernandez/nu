@@ -9,19 +9,19 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 52 registradas, 51 resueltas, 1 abierta** (G53–G56 añadidas
+**Estado: 52 registradas, 52 resueltas, 0 abiertas** (G53–G56 añadidas
 2026-07-16 desde la auditoría de seguridad
 ([auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md)):
 grietas de diseño de SEC-02/03/04/07 —semántica de emparejamiento de permisos,
 control de redirects en `enu.http`, scrubbing de secretos del entorno, e
-identidad de un worker para las primitivas [W]—; G53 **resuelta** el mismo
-día — emparejamiento por subcomando con fail-closed, ADR-023, alternativa
-mayor pospuesta como P39 —; G54 —control de redirects— **resuelta** el mismo
-día por adición a `api.md` §8 (`opts.max_redirects` y recorte de cabeceras
-cross-host, nivel de API 3→4); G55 —el scrubbing, de SEC-04— **resuelta** el
-mismo día en las extensiones (providers.md §4 + agente.md §3, core intacto);
-G56 sigue **abierta** a la espera de
-decisión del propietario. G52 añadida
+identidad de un worker para las primitivas [W]—; las **cuatro resueltas** el
+mismo día: G53 — emparejamiento por subcomando con fail-closed, ADR-023,
+alternativa mayor pospuesta como P39 —; G54 —control de redirects— por
+adición a `api.md` §8 (`opts.max_redirects` y recorte de cabeceras
+cross-host, nivel de API 3→4); G55 —el scrubbing, de SEC-04— en las
+extensiones (providers.md §4 + agente.md §3, core intacto); y G56 —la
+identidad del worker— con la foto del dueño en el spawn (ADR-024; cierra de
+paso el data race de SEC-05). G52 añadida
 2026-07-14 desde A-38 de la auditoría integral — `Ws:send` sin vía binaria y
 `Ws:recv` sin distinguir el tipo de frame — resuelta por adición a `api.md`
 §8, nivel de API 2→3; G44–G51
@@ -1330,7 +1330,32 @@ los *transcripts*, no en el *entorno* heredado. Detectado en SEC-04 (2026-07-16)
 **Impacto.** Exfiltración trivial de credenciales de LLM desde cualquier
 subproceso, sin que el usuario haya concedido acceso a esos secretos.
 
-## G56 · El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner — `api.md` §13/§16 / `agente.md` — **ABIERTO**
+## G56 · El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner — `api.md` §13/§16 / `agente.md` — **RESUELTO**
+
+**Resolución** (2026-07-16; ADR-024; aclaración semántica en
+[api.md](api.md) §13/§14/§15/§16 y [agente.md](agente.md) §9 — sin firma
+nueva: `enu.version.api` no se mueve). **Foto del dueño en el spawn**: un
+worker porta como identidad el plugin dueño vigente en el momento de
+`enu.worker.spawn`, capturada en el estado principal —donde la pila de dueños
+es coherente por construcción— e **inmutable** durante toda su vida. Toda
+primitiva [W] atribuida por dueño usa esa identidad fija: `enu.log` la anota
+como plugin de origen y los procesos de `enu.proc` lanzados desde el worker
+se registran bajo ese plugin; en los artefactos de atribución se distingue
+como `<plugin> (worker)` (p. ej. `agent (worker)`), para que la traza diga
+quién *y desde dónde*. Consecuencia de supervisión: `enu.plugin.reload` del
+plugin dueño sigue soltando también los procesos lanzados por sus workers —
+coherente con el árbol de supervisión en el que el estado principal posee
+todos los workers (P11, que no se reabre: nada aquí necesita workers
+anidados). Alternativas descartadas: el owner fijo `"worker"` (pierde la
+traza de *qué plugin* lo lanzó y saca esos procesos del alcance de `reload`:
+fuga de supervisión), el nombre del módulo como owner (el módulo no es
+identidad ante el loader — la identidad es el nombre del plugin, G26), y
+negar la atribución en workers (dejaría `log`/`proc` [W] de segunda clase y
+procesos huérfanos sin dueño). Cierra de paso **SEC-05**: al viajar la
+identidad **copiada** en el spawn —como los mensajes— y quedar prohibida la
+lectura en vivo de `rt.ownerStack` del padre desde la goroutine del worker,
+el data race deja de existir **por diseño**, no por candado. (Origen: SEC-07
+de [auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md).)
 
 **Problema.** Las primitivas marcadas [W] que se atribuyen a un "dueño" (p. ej.
 `enu.log`, `enu.proc`) no tienen definido bajo qué identidad corren cuando se
@@ -1343,9 +1368,3 @@ de paso la causa raíz de SEC-05.
 **Impacto.** Comportamiento indefinido (y no determinista, por la carrera) en la
 atribución de logs y procesos lanzados desde workers; ambigüedad de auditoría
 sobre "quién hizo qué".
-
-**Dirección (a decidir).** Fijar en `api.md` §13/§16 y `agente.md` bajo qué
-identidad corren las primitivas [W] en un worker: owner fijo (`"worker"` o el
-nombre del módulo), o negar la atribución en ese contexto. La decisión debe
-permitir retirar la lectura de `rt.ownerStack` del padre. (Origen: SEC-07;
-elimina el data race de SEC-05.)

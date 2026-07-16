@@ -446,6 +446,11 @@ Sub:cancel()
     pipeline porque la ejecución nunca ocurre en su lado. Dos vallas para
     dos riesgos: los *permisos* heredados limitan qué tools usa el
     subagente; las *caps* limitan qué hace su código Lua directamente.
+  - Atribución y supervisión: el worker porta la identidad del plugin
+    `agent` capturada en el spawn ([api.md](api.md) §13, G56) — los logs y
+    los procesos que su lado Lua lance directamente (si sus `caps` lo
+    permiten) se anotan como `agent (worker)` y quedan registrados bajo
+    `agent`, así que un `plugin.reload` del agente también los recoge.
   - Latencia del proxy irrelevante (microsegundos vs segundos del LLM).
   - Límite honesto: los streams de los subagentes van en paralelo de
     verdad (ahí está la ganancia), pero sus tool calls se intercalan como
