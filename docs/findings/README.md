@@ -39,9 +39,11 @@ de los workers— resuelta y **construida** el 2026-07-13 con la opción (a),
 marca worker-safe por snippet de preludio; G46 —el replay de `event`—
 resuelta y **construida** el 2026-07-13 con la opción (a) más la (c):
 precedencia `opts > transcript > agent.toml` y allow/deny reaplicados en
-orden. Los números G42–G43 están **reservados**: los
-usa la rama `claude/ux-producto-pulido` (retry con backoff y `agent:error`
-estructurado), aún sin fusionar. G41 añadida 2026-07-03 desde la
+orden. Los números G42–G43 son un **hueco histórico**: se reservaron en su
+día para un trabajo (retry con backoff y `agent:error` estructurado) que
+nunca llegó a registrarlos —la rama que los apartó, `claude/ux-producto-pulido`,
+se fusionó el 2026-06-28 aportando otros hallazgos (G36/G37, PR #63)— y la
+numeración, append-only, no los reutiliza. G41 añadida 2026-07-03 desde la
 construcción — un handler que escribía en un upvalue de una task suspendida
 "perdía" la escritura: bug de gopher-lua en el desenrollado de `pcall`,
 blindado en el kernel el mismo día; G38-G40
@@ -95,9 +97,10 @@ añaden aquí con el mismo método.
 
 ## Índice
 
-> Los números G24–G25 y G42–G43 no existen como fichero: G24–G25 nunca se
-> asignaron y G42–G43 están **reservados** para la rama `claude/ux-producto-pulido`
-> (aún sin fusionar).
+> Los números G24–G25 y G42–G43 no existen como fichero: son huecos
+> históricos que **nunca se asignaron** (G42–G43 se reservaron para un trabajo
+> que acabó fusionado con otros números — G36/G37, PR #63). La numeración es
+> append-only: el próximo hallazgo es G57, los huecos no se reutilizan.
 
 | # | Título | Docs afectados | Estado | Fichero |
 |---|---|---|---|---|
