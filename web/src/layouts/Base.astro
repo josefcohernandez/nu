@@ -14,6 +14,10 @@ import '@fontsource/ibm-plex-sans/400-italic.css';
 import '@fontsource/ibm-plex-sans/600.css';
 import '../styles/tokens.css';
 import '../styles/global.css';
+// Admonitions (:::note/:::tip/:::caution): una sola definición para las dos
+// superficies de contenido markdown (.markdown de la wiki y .api-prose de la
+// referencia), por eso se importa aquí y no en cada página.
+import '../styles/admonitions.css';
 
 interface Props {
   title?: string;

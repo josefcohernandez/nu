@@ -1,0 +1,51 @@
+/* Admonitions (:::note / :::tip / :::caution → <aside class="admonition …">,
+ * ver src/lib/markdown/remark-admonitions.mjs). Hoja propia porque el contenido
+ * markdown se renderiza en DOS superficies con CSS distinto (.markdown de la
+ * wiki y .api-prose de la referencia); definirlo una vez aquí, importado desde
+ * Base.astro, evita duplicarlo en ambas.
+ *
+ * Gramática visual del terminal (misma que markdown.css): sin border-radius,
+ * sin sombras; caja con borde 1px como .examples-card, título en mono con
+ * marcador [i]/[*]/[!] coloreado con tokens del theme. Los selectores llevan
+ * el elemento (aside/p) a propósito: ganan en especificidad a los `.markdown p`
+ * / `.api-prose p` de cada superficie sin depender del orden de import. */
+
+aside.admonition {
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+  margin: 0 0 22px;
+}
+
+aside.admonition p.admonition-title {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: var(--fs-6);
+  font-weight: 600;
+  color: var(--bright);
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+aside.admonition p.admonition-title::before {
+  font-weight: 400;
+  margin-right: 8px;
+}
+aside.admonition-note p.admonition-title::before {
+  content: '[i]';
+  color: var(--c3);
+}
+aside.admonition-tip p.admonition-title::before {
+  content: '[*]';
+  color: var(--c2);
+}
+aside.admonition-caution p.admonition-title::before {
+  content: '[!]';
+  color: var(--c4);
+}
+
+/* El cuerpo hereda la tipografía de prosa de su superficie (.markdown p /
+ * .api-prose p); aquí solo se compactan los márgenes dentro de la caja. */
+aside.admonition > p {
+  margin: 0 0 10px;
+}
+aside.admonition > :last-child {
+  margin-bottom: 0;
+}

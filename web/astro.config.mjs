@@ -1,7 +1,9 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import remarkDirective from 'remark-directive';
 import { remarkLimpiezaInterno } from './src/lib/markdown/remark-limpieza-interno.mjs';
 import { remarkEnlacesWiki } from './src/lib/markdown/remark-enlaces-wiki.mjs';
+import { remarkAdmonitions } from './src/lib/markdown/remark-admonitions.mjs';
 import { rehypeApiCards } from './src/lib/markdown/rehype-api-cards.mjs';
 
 // El sitio se publica bajo /enu/ en GitHub Pages (project page). Si se sirve en
@@ -16,9 +18,11 @@ export default defineConfig({
   // enlaza concatenando `${BASE}ruta` (sin barra se generarían /enudocs, etc.).
   base: '/enu/',
   markdown: {
-    // Limpieza PRIMERO: los bloques internos se van con sus enlaces antes de
-    // que remark-enlaces-wiki los reescriba.
-    remarkPlugins: [remarkLimpiezaInterno, remarkEnlacesWiki],
+    // remark-directive extiende el PARSER (gramática `:::`); limpieza PRIMERO
+    // entre los transforms: los bloques internos se van con sus enlaces antes
+    // de que remark-enlaces-wiki los reescriba; admonitions al FINAL, sobre el
+    // árbol ya limpio y con los enlaces resueltos.
+    remarkPlugins: [remarkDirective, remarkLimpiezaInterno, remarkEnlacesWiki, remarkAdmonitions],
     rehypePlugins: [rehypeApiCards],
     shikiConfig: {
       theme: 'css-variables',
