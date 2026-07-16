@@ -1,3 +1,12 @@
+---
+title: "El primer arranque de ADR-010 no tiene dueño"
+type: "hallazgo"
+id: "G21"
+status: "resuelto"
+origin: "revisión de coherencia de la documentación completa"
+resolution: "El runtime desnudo pinta una pantalla fija pre-Lua de activación (versión, rutas, extensiones, acciones), sumando la extensión oficial repl."
+affected: ["ADR-010", "api.md §14"]
+---
 # G21 · El primer arranque de ADR-010 no tiene dueño — ADR-010 / `api.md` §14 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §14,

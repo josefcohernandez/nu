@@ -1,3 +1,13 @@
+---
+title: "El scheduler no se bombea fuera de los `Eval`: el modo interactivo no ejecuta tasks y los timers de fondo mueren en cada quiescencia"
+type: "hallazgo"
+id: "G44"
+status: "resuelto"
+date: "2026-07-13"
+origin: "auditoría integral 2026-07-12"
+resolution: "RunTasks pasa a ser persistente en la Instance: la quiescencia ya no cancela el fondo y un canal de kick despierta el bucle."
+affected: ["api.md §3", "modelo-ejecucion.md"]
+---
 # G44 · El scheduler no se bombea fuera de los `Eval`: el modo interactivo no ejecuta tasks y los timers de fondo mueren en cada quiescencia — `api.md` §3 / `modelo-ejecucion.md` — **RESUELTO**
 
 **Resolución** (2026-07-13; opción (b) — **`RunTasks` persistente**. Decidida y **construida el mismo día** en la misma rama: la sesión `G44 (kernel)` de la bitácora de [implementacion.md](implementacion.md); `scheduler.go`/`driver.go` son zona 🔒 y llevan sus tests nombrando G44). Tres piezas:

@@ -1,3 +1,12 @@
+---
+title: "Alcance Windows en v1"
+type: "hallazgo"
+id: "G9"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "v1 soporta Linux/macOS nativos; Windows se usa dentro de WSL2, y Windows nativo queda pospuesto como P18."
+affected: ["transversal"]
+---
 # G9 · Alcance Windows en v1 — transversal — **RESUELTO**
 
 **Resolución**: v1 soporta Linux y macOS nativos; en Windows, **enu se usa

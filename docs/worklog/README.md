@@ -1,3 +1,8 @@
+---
+title: "Decisiones y desviaciones de implementación"
+type: "indice"
+status: "vigente"
+---
 # Decisiones y desviaciones de implementación
 
 Este fichero recoge decisiones de implementación que no estaban especificadas al

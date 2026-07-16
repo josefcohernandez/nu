@@ -1,3 +1,10 @@
+---
+title: "`enu.text` (width/wrap/truncate) + tipo `Block` + `enu.ui.block`/`caps`/`Style` (api.md §10, §9.2, 🔒)"
+type: "sesion"
+id: "S22"
+phase: 5
+status: "cerrada"
+---
 # S22 — `enu.text` (width/wrap/truncate) + tipo `Block` + `enu.ui.block`/`caps`/`Style` (api.md §10, §9.2, 🔒)
 
 Abre la **Fase 5 (Texto y búsqueda)**. Sesión fundacional: el tipo `Block` que se

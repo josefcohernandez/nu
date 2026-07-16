@@ -1,3 +1,11 @@
+---
+title: "Ronda 3: las zonas sin torturar"
+type: "ronda"
+id: "ronda-3"
+zone: "las zonas sin torturar"
+status: "cerrada"
+scenarios: [12, 13, 14, 15, 16, 17]
+---
 # Ronda 3: las zonas sin torturar
 
 Cambio de método: esta ronda **no aplica resoluciones** — cada grieta va a

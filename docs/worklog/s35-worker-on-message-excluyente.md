@@ -1,3 +1,10 @@
+---
+title: "`Worker:on_message` (excluyente con `recv`, G8) + tasks/timers/futures dentro del worker + `terminate` (api.md §13, 🔒; cierra Fase 7 — CP-8)"
+type: "sesion"
+id: "S35"
+phase: 7
+status: "cerrada"
+---
 # S35 — `Worker:on_message` (excluyente con `recv`, G8) + tasks/timers/futures dentro del worker + `terminate` (api.md §13, 🔒; cierra Fase 7 — CP-8)
 
 S35 cierra la Fase 7. La feature de superficie es `Worker:on_message`; el resto del

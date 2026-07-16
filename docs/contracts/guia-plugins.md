@@ -1,3 +1,11 @@
+---
+title: "Guía de desarrollo de plugins"
+description: "Sabiduría práctica para autores de plugins, con checklist."
+type: "contrato"
+layer: "contracts"
+web: "wiki"
+status: "vigente"
+---
 # Guía de desarrollo de plugins
 
 Estado: viva — crece con cada lección aprendida. No es un contrato: es la

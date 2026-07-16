@@ -1,3 +1,10 @@
+---
+title: "Extensión oficial `agent` (motor headless: turno, tools, permisos, hooks, eventos `agent:*`); CP-10 (agente.md)"
+type: "sesion"
+id: "S39"
+phase: 8
+status: "cerrada"
+---
 # S39 — Extensión oficial `agent` (motor headless: turno, tools, permisos, hooks, eventos `agent:*`); CP-10 (agente.md)
 
 Cuarto eslabón de la Fase 8: el **motor headless** del harness, Lua puro sobre la API pública

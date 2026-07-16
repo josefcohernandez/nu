@@ -1,3 +1,10 @@
+---
+# editado mecánicamente por las skills sesion/planificar-sesion
+title: "Estado de la implementación"
+description: "El estado vivo del plan: puntero ▶, tablero de fases y bitácora append-only."
+type: "estado"
+status: "vivo"
+---
 # Estado de la implementación
 
 El estado vivo del [plan de implementación](implementacion.md): el puntero ▶,

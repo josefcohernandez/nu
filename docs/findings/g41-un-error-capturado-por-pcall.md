@@ -1,3 +1,13 @@
+---
+title: "Un error capturado por `pcall` cierra upvalues de frames VIVOS (y el aborto no cerraba los suyos bajo el arreglo)"
+type: "hallazgo"
+id: "G41"
+status: "resuelto"
+date: "2026-07-03"
+origin: "construcción (bug de gopher-lua destapado al construir los tests de G40)"
+resolution: "Se blinda gopher-lua para que pcall solo cierre los upvalues del tramo desenrollado, no los de frames vivos por debajo."
+affected: ["gopher-lua / cancel.go / scheduler.go"]
+---
 # G41 · Un error capturado por `pcall` cierra upvalues de frames VIVOS (y el aborto no cerraba los suyos bajo el arreglo) — gopher-lua / `cancel.go` / `scheduler.go` — **RESUELTO**
 
 **Resolución** (aplicada en `cancel.go` y `scheduler.go`; la API pública no cambia — al contrario: la semántica de Lua pasa a ser la ESTÁNDAR, sin asteriscos que documentar en api.md). Tres piezas que se sostienen juntas:

@@ -1,3 +1,10 @@
+---
+title: "SPIKE de ADR-007 (compositor + toolkit Lua mínimos; HITO DE VETO)"
+type: "sesion"
+id: "S28"
+phase: 6
+status: "cerrada"
+---
 # S28 — SPIKE de ADR-007 (compositor + toolkit Lua mínimos; HITO DE VETO)
 
 S28 no es una feature de la API: es el **hito de veto** que valida ADR-007

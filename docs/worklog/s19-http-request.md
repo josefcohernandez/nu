@@ -1,3 +1,10 @@
+---
+title: "`enu.http.request` (api.md §8)"
+type: "sesion"
+id: "S19"
+phase: 4
+status: "cerrada"
+---
 # S19 — `enu.http.request` (api.md §8)
 
 Primera sesión de la **Fase 4 (Red)**. Implementa **solo** `enu.http.request(opts)

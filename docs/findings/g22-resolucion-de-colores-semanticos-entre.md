@@ -1,3 +1,12 @@
+---
+title: "Resolución de colores semánticos entre core y toolkit"
+type: "hallazgo"
+id: "G22"
+status: "resuelto"
+origin: "revisión de coherencia de la documentación completa"
+resolution: "El core solo acepta colores literales; el vocabulario semántico y los themes son enteramente responsabilidad del toolkit."
+affected: ["api.md §9.2"]
+---
 # G22 · Resolución de colores semánticos entre core y toolkit — `api.md` §9.2 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §9.2,

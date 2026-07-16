@@ -1,3 +1,12 @@
+---
+title: "El interior de un worker: scheduler propio y watchdog"
+type: "hallazgo"
+id: "G15"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "Cada worker es un mini-runtime completo (loop, multi-task, timers) sin watchdog; el control es terminate() más caps."
+affected: ["api.md §13", "modelo-ejecucion.md"]
+---
 # G15 · El interior de un worker: scheduler propio y watchdog — `api.md` §13 / `modelo-ejecucion.md` — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §13): cada worker es un

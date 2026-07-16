@@ -1,3 +1,9 @@
+---
+title: "Discusiones pospuestas"
+description: "Lo que se decidió no decidir todavía (P##), cada uno con su disparador de reapertura."
+type: "pospuesto"
+status: "vigente"
+---
 # Discusiones pospuestas
 
 Registro de todo lo que se ha decidido **no decidir todavía**. Cada entrada

@@ -1,3 +1,10 @@
+---
+title: "codecs `enu.json` / `enu.toml` / `enu.yaml` (api.md §12)"
+type: "sesion"
+id: "S18"
+phase: 3
+status: "cerrada"
+---
 # S18 — codecs `enu.json` / `enu.toml` / `enu.yaml` (api.md §12)
 
 Tres pares `encode`/`decode` (`codecs.go`), **ninguno ⏸** (CPU puro: parsean o

@@ -1,3 +1,12 @@
+---
+title: "Namespaces de extensión reservados al core"
+type: "hallazgo"
+id: "G26"
+status: "resuelto"
+origin: "revisión filosófico-técnica del proyecto"
+resolution: "El core solo reserva core: y ui:; la unicidad del nombre de plugin, garantía del loader, protege a las extensiones entre sí."
+affected: ["api.md §4 / guía §7", "agente.md §4"]
+---
 # G26 · Namespaces de extensión reservados al core — `api.md` §4 / guía §7 / `agente.md` §4 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §4 y §14, [guia-plugins.md](guia-plugins.md)

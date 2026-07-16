@@ -1,3 +1,10 @@
+---
+title: "Modelo canónico de `thinking` con `mode` y traducción por-modelo en el adaptador"
+type: "adr"
+id: "ADR-016"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-016 · Modelo canónico de `thinking` con `mode` y traducción por-modelo en el adaptador
 
 **Estado:** Aceptada · 2026-06 (resuelve [G34](problemas.md#g34--el-modelo-canónico-de-thinking-no-expresa-el-modo-adaptativo-opus-46-400ea-con-budget_tokens); **reabre y cierra** [P21](pospuesto.md), que sale de pospuestos)

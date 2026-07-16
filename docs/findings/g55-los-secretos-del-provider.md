@@ -1,3 +1,13 @@
+---
+title: "Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc`"
+type: "hallazgo"
+id: "G55"
+status: "resuelto"
+date: "2026-07-16"
+origin: "auditoría de seguridad 2026-07-16 (SEC-04)"
+resolution: "providers.secret_env_vars() lista los nombres de api_key_env, y bash/enu.proc excluyen esas variables del entorno del hijo por defecto."
+affected: ["extensión agent / enu.proc §6"]
+---
 # G55 · Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` — extensión `agent` / `enu.proc` §6 — **RESUELTO**
 
 **Resolución** (2026-07-16; [providers.md](providers.md) §4 +

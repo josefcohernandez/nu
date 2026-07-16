@@ -1,3 +1,12 @@
+---
+title: "Semántica de `fs.watch`"
+type: "hallazgo"
+id: "G7"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "fs.watch admite recursive y gitignore=true por defecto, entregando eventos en lotes con debounce de unos 50 ms."
+affected: ["api.md §5"]
+---
 # G7 · Semántica de `fs.watch` — `api.md` §5 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §5): `watch(path, opts?, fn)`

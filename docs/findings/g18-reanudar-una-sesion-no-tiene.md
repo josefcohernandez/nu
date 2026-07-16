@@ -1,3 +1,12 @@
+---
+title: "Reanudar una sesión no tiene API"
+type: "hallazgo"
+id: "G18"
+status: "resuelto"
+origin: "revisión de coherencia de la documentación completa"
+resolution: "agent.session{resume=id} reabre una sesión existente con replay del transcript y adquisición del lock de escritor."
+affected: ["agente.md §2"]
+---
 # G18 · Reanudar una sesión no tiene API — `agente.md` §2 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §2 y

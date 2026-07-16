@@ -1,3 +1,14 @@
+---
+title: "La semántica de emparejamiento de los patrones de permiso `tool[:argumento]` no está especificada, y en `bash` el encadenamiento la vuelve una frontera falsa"
+type: "hallazgo"
+id: "G53"
+status: "resuelto"
+date: "2026-07-16"
+origin: "auditoría de seguridad 2026-07-16 (SEC-02)"
+resolution: "Los permisos tool:argumento se especifican como glob anclado y bash se descompone por operadores, con fail-closed ante lo no modelable."
+affected: ["agente.md §5", "chat.md §5", "guia-plugins.md"]
+adr: "ADR-023"
+---
 # G53 · La semántica de emparejamiento de los patrones de permiso `tool[:argumento]` no está especificada, y en `bash` el encadenamiento la vuelve una frontera falsa — `agente.md` §5 / `chat.md` §5 / `guia-plugins.md` — **RESUELTO**
 
 **Resolución** (2026-07-16; aplicada en [agente.md](agente.md) §5 —la

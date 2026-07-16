@@ -1,3 +1,10 @@
+---
+title: "La VM objetivo del kernel es PUC-Lua sobre wazero; gopher-lua queda en mantenimiento"
+type: "adr"
+id: "ADR-019"
+status: "aceptada"
+date: "2026-07"
+---
 # ADR-019 · La VM objetivo del kernel es PUC-Lua sobre wazero; gopher-lua queda en mantenimiento
 
 **Estado:** Aceptada · 2026-07 (dirección; la ejecución es por fases, sin fecha comprometida. Basada en el spike [spike/lua-wasm/INFORME.md](../spike/lua-wasm/INFORME.md); relacionada con ADR-011 —que la fase de migración reemplazará— y con [G31](problemas.md#g31)/[G41](problemas.md#g41))

@@ -1,3 +1,12 @@
+---
+title: "Ronda 2: los caminos feos"
+type: "ronda"
+id: "ronda-2"
+zone: "los caminos feos"
+status: "cerrada"
+scenarios: [7, 8, 9, 10, 11]
+findings: ["F1", "F2", "F3", "F4", "F5"]
+---
 # Ronda 2: los caminos feos
 
 Misma regla, peor intención: cancelaciones a mitad de todo, recursos

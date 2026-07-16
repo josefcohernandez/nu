@@ -1,3 +1,10 @@
+---
+title: "`enu.text.markdown` (render completo, streaming-safe, themable) (api.md §10, 🔒)"
+type: "sesion"
+id: "S23"
+phase: 5
+status: "cerrada"
+---
 # S23 — `enu.text.markdown` (render completo, streaming-safe, themable) (api.md §10, 🔒)
 
 `enu.text.markdown(s, opts) -> Block` renderiza markdown completo a un `Block` de

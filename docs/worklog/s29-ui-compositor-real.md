@@ -1,3 +1,10 @@
+---
+title: "`enu.ui` compositor real (§9.1)"
+type: "sesion"
+id: "S29"
+phase: 6
+status: "cerrada"
+---
 # S29 — `enu.ui` compositor real (§9.1)
 
 - **Modelo de composición (una rejilla por región).** El compositor mantiene una rejilla de pantalla (back/front para el diff) y una lista de regiones; cada región tiene **su propia rejilla** de su tamaño lógico. `blit`/`fill`/`clear` escriben en la rejilla de la región (persisten entre frames, como una ventana). Cada pintado compone apilando las regiones por z-order sobre la rejilla de pantalla, recortando cada una al rectángulo visible. Separar contenido (rejilla de región) de presentación (composite) hace G1 y G28 triviales y correctas por construcción.

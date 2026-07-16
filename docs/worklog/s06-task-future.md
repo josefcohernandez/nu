@@ -1,3 +1,10 @@
+---
+title: "`enu.task.future` (rendez-vous de un solo uso, api.md §3)"
+type: "sesion"
+id: "S06"
+phase: 1
+status: "cerrada"
+---
 # S06 — `enu.task.future` (rendez-vous de un solo uso, api.md §3)
 
 ## Desviación de procedimiento: rama desde `origin/main`

@@ -1,3 +1,13 @@
+---
+title: "`enu.ws` no tiene vía binaria: `Ws:send` siempre manda frame de texto y `Ws:recv` no distingue el tipo de frame"
+type: "hallazgo"
+id: "G52"
+status: "resuelto"
+date: "2026-07-14"
+origin: "auditoría integral (hallazgo A-38)"
+resolution: "Ws:send gana opts.binary y Ws:recv devuelve un segundo valor binary, dando vía binaria explícita sin romper llamantes existentes."
+affected: ["api.md §8 / runtime/ws.go"]
+---
 # G52 · `enu.ws` no tiene vía binaria: `Ws:send` siempre manda frame de texto y `Ws:recv` no distingue el tipo de frame — `api.md` §8 / `runtime/ws.go` — **RESUELTO**
 
 **Resolución** (2026-07-14; adición a [api.md](api.md) §8, nivel de API 2→3).

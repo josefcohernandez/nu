@@ -1,3 +1,10 @@
+---
+title: "Licencia: Apache 2.0"
+type: "adr"
+id: "ADR-014"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-014 · Licencia: Apache 2.0
 
 **Estado:** Aceptada · 2026-06

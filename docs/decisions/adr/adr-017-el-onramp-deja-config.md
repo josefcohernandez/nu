@@ -1,3 +1,10 @@
+---
+title: "El onramp deja config de agente usable y el chat degrada con gracia"
+type: "adr"
+id: "ADR-017"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-017 · El onramp deja config de agente usable y el chat degrada con gracia
 
 **Estado:** Aceptada · 2026-06 (**refina** [ADR-015](#adr-015--conjunto-oficial-de-producto-y-onramp-no-interactivo); resuelve [G35](problemas.md#g35--el-onramp-de-adr-015-activa-los-plugins-pero-no-deja-config-de-agente-el-primer-nu-muere-sin-modelo-y-deja-la-ui-atrapada))

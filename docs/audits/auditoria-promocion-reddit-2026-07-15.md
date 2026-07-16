@@ -1,3 +1,9 @@
+---
+title: "Auditoría de preparación para promoción (Reddit / HN) — 15 de julio de 2026"
+type: "auditoria"
+date: "2026-07-15"
+status: "cerrada"
+---
 # Auditoría de preparación para promoción (Reddit / HN) — 15 de julio de 2026
 
 Auditoría de la preparación de `nu` para promocionarse en comunidades técnicas

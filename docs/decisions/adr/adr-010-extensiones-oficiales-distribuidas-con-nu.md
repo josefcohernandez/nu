@@ -1,3 +1,10 @@
+---
+title: "Extensiones oficiales: distribuidas con nu, no activas por defecto"
+type: "adr"
+id: "ADR-010"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-010 · Extensiones oficiales: distribuidas con nu, no activas por defecto
 
 **Estado:** Aceptada · 2026-06 (modifica una consecuencia de ADR-003 y el

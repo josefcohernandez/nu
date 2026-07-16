@@ -1,3 +1,10 @@
+---
+title: "Renombrado total del proyecto y de la API: `nu` → `enu`"
+type: "adr"
+id: "ADR-022"
+status: "aceptada"
+date: "2026-07-16"
+---
 # ADR-022 · Renombrado total del proyecto y de la API: `nu` → `enu`
 
 **Estado:** Aceptada · 2026-07-16 (**reemplaza** la decisión 1 de

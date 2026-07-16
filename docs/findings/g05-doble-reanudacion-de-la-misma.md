@@ -1,3 +1,12 @@
+---
+title: "Doble reanudación de la misma sesión"
+type: "hallazgo"
+id: "G5"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "Un escritor por sesión vía lockfile con pid/hostname/started; huérfanos se limpian solos y el conflicto real ofrece fork/solo-lectura/forzar."
+affected: ["sesiones.md"]
+---
 # G5 · Doble reanudación de la misma sesión — `sesiones.md` — **RESUELTO**
 
 **Resolución** (aplicada en [sesiones.md](sesiones.md) §6): un escritor por

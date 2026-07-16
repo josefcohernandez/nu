@@ -1,3 +1,12 @@
+---
+title: "Hot-reload de plugins (ciclo de desarrollo)"
+type: "hallazgo"
+id: "G2"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "enu.plugin.reload(name) recarga plugins best-effort limpiando registros por dueño, como herramienta de desarrollo, no garantía de producción."
+affected: ["loader", "api.md §14"]
+---
 # G2 · Hot-reload de plugins (ciclo de desarrollo) — loader / `api.md` §14 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §14 y §4):

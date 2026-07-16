@@ -1,3 +1,12 @@
+---
+title: "Ronda 8: una malla distribuida de agentes (\"kubernetes de agentes\")"
+type: "ronda"
+id: "ronda-8"
+zone: "una malla distribuida de agentes (\"kubernetes de agentes\")"
+status: "cerrada"
+scenarios: [33, 34, 35, 36]
+findings: ["G38", "G39", "G40"]
+---
 # Ronda 8: una malla distribuida de agentes ("kubernetes de agentes")
 
 Pregunta del stress test: si la **unidad de trabajo es la rama/worktree** y la

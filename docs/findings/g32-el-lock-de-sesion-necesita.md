@@ -1,3 +1,13 @@
+---
+title: "El lock de sesión necesita el pid PROPIO y la API no lo expone"
+type: "hallazgo"
+id: "G32"
+status: "resuelto"
+date: "2026-06-22"
+origin: "construcción de la extensión sesiones (S38)"
+resolution: "enu.sys.pid() expone el pid propio del proceso, cuarta primitiva que completa el lockfile de sesiones (API 1→2)."
+affected: ["api.md §7", "sesiones.md §6"]
+---
 # G32 · El lock de sesión necesita el pid PROPIO y la API no lo expone — `api.md` §7 / `sesiones.md` §6 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §7/§16/§17 y

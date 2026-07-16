@@ -1,3 +1,13 @@
+---
+title: "Las denegaciones de permisos no son observables como dato"
+type: "hallazgo"
+id: "G40"
+status: "resuelto"
+date: "2026-07-02"
+origin: "ronda 8 de pseudocódigo (malla distribuida de agentes sobre git)"
+resolution: "Toda denegación emite agent:permission.denied y viaja también en el meta del tool_result, con tool.end especificado para denegaciones."
+affected: ["agente.md §4/§5"]
+---
 # G40 · Las denegaciones de permisos no son observables como dato — `agente.md` §4/§5 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §4 —el evento nuevo en la lista de notificaciones— y §5 —párrafo "La denegación viaja como dato"—): la opción (c) más la sub-decisión (d). El principio: la prosa accionable es *presentación*, no el portador (coherente con los errores estructurados de api.md §1.4). Toda denegación produce **una sola vez** el objeto `{ id, tool, args?, source = "deny"|"hook"|"default"|"headless", pattern?, suggested? }` con dos destinos para dos consumidores distintos:

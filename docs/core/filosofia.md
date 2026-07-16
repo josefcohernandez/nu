@@ -1,3 +1,11 @@
+---
+title: "Filosofía de enu"
+description: "Principios fundacionales y lo que enu no es: el porqué del proyecto."
+type: "contrato"
+layer: "core"
+web: "wiki"
+status: "vigente"
+---
 # Filosofía de enu
 
 > *Un runtime de Lua orientado a terminal cuya killer app es un coding harness.*

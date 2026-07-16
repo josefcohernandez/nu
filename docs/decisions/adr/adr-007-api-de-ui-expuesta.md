@@ -1,3 +1,10 @@
+---
+title: "API de UI expuesta a Lua"
+type: "adr"
+id: "ADR-007"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-007 · API de UI expuesta a Lua
 
 **Estado:** Aceptada · 2026-06 (la *validación pendiente por spike* la cerró el

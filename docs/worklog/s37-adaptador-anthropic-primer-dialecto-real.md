@@ -1,3 +1,10 @@
+---
+title: "Adaptador Anthropic (primer dialecto real); CP-9"
+type: "sesion"
+id: "S37"
+phase: 8
+status: "cerrada"
+---
 # S37 — Adaptador Anthropic (primer dialecto real); CP-9
 
 Implementé el adaptador `anthropic` (providers.md §3) como módulo

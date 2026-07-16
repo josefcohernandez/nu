@@ -1,3 +1,10 @@
+---
+title: "Extensión oficial `mcp` (capa 2: cliente JSON-RPC/stdio; mapeo de tools + confianza) (arquitectura.md §capa 2, cierra cuestión abierta nº4)"
+type: "sesion"
+id: "S41"
+phase: 8
+status: "cerrada"
+---
 # S41 — Extensión oficial `mcp` (capa 2: cliente JSON-RPC/stdio; mapeo de tools + confianza) (arquitectura.md §capa 2, cierra cuestión abierta nº4)
 
 Sexto eslabón de la Fase 8. **Lua puro sobre la API pública congelada** (ADR-003, sin privilegio

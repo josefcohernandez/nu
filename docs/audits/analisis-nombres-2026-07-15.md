@@ -1,3 +1,9 @@
+---
+title: "Análisis de renombrado del proyecto — 15 de julio de 2026"
+type: "auditoria"
+date: "2026-07-15"
+status: "cerrada"
+---
 # Análisis de renombrado del proyecto — 15 de julio de 2026
 
 Estudio para resolver **R-04** de la

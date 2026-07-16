@@ -1,3 +1,12 @@
+---
+title: "Comportamiento ante resize"
+type: "hallazgo"
+id: "G1"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "El core recorta sin error las regiones fuera de pantalla; recolocarse es del dueño de la región (su ui:resize), sin anclajes declarativos."
+affected: ["api.md §9"]
+---
 # G1 · Comportamiento ante resize — `api.md` §9 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §9.1 y

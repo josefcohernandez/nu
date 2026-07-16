@@ -1,3 +1,10 @@
+---
+title: "Conjunto oficial de producto y onramp no interactivo"
+type: "adr"
+id: "ADR-015"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-015 · Conjunto oficial de producto y onramp no interactivo
 
 **Estado:** Aceptada · 2026-06 (**refina** [ADR-010](#adr-010--extensiones-oficiales-distribuidas-con-nu-no-activas-por-defecto); resuelve [G33](problemas.md#g33--el-arranque-sin-tty-no-tiene-onramp-y-el-conjunto-oficial-está-sin-definir)) · **Refinada por [ADR-017](#adr-017--el-onramp-deja-config-de-agente-usable-y-el-chat-degrada-con-gracia)** (el onramp deja también config de agente usable) y por **ADR-018** (qué significa "el conjunto oficial" con TTY: el repl cede la pantalla al chat, G36); ninguna la reemplaza: el "conjunto oficial" y los dos modos siguen siendo de este ADR

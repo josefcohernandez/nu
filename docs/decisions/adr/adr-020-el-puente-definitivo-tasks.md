@@ -1,3 +1,11 @@
+---
+title: "El puente ⏸ definitivo: tasks como corrutinas Lua nativas (reemplaza ADR-011 en la conmutación)"
+type: "adr"
+id: "ADR-020"
+status: "aceptada"
+date: "2026-07"
+supersedes: ["ADR-011"]
+---
 # ADR-020 · El puente ⏸ definitivo: tasks como corrutinas Lua nativas (reemplaza ADR-011 en la conmutación)
 
 **Estado:** Aceptada · 2026-07 (diseña el puente ⏸ del backend wasm de [ADR-019]; **reemplaza a [ADR-011](#adr-011--realización-del-scheduler-goroutine-por-task--token-de-ejecución-lua)** cuando wasm sea la VM por defecto —conmutación M16 de [migracion-vm.md](archive/migracion-vm.md)—; hasta entonces ambos coexisten tras el selector de backend, ADR-011 para gopher y este para wasm). No cambia la semántica observable de [api.md](api.md) §1.3 ni ninguna firma.

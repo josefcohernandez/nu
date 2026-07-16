@@ -1,3 +1,10 @@
+---
+title: "Extensión oficial `repl` (REPL de Lua sobre la API pública, activable solo, G21) (arquitectura §Distribución)"
+type: "sesion"
+id: "S44"
+phase: 8
+status: "cerrada"
+---
 # S44 — Extensión oficial `repl` (REPL de Lua sobre la API pública, activable solo, G21) (arquitectura §Distribución)
 
 Noveno eslabón de la Fase 8: **Lua puro sobre la API congelada** (ADR-003, sin privilegio de

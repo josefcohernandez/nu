@@ -1,3 +1,8 @@
+---
+title: "Problemas abiertos"
+type: "indice"
+status: "vigente"
+---
 # Problemas abiertos
 
 Lista de trabajo viva: grietas encontradas en las rondas de validación

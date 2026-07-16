@@ -1,3 +1,12 @@
+---
+title: "Ratón en coordenadas globales sin traducción a región (hit-testing)"
+type: "hallazgo"
+id: "G29"
+status: "resuelto"
+origin: "ronda 6 de pseudocódigo (harness de coding sobre enu.ui)"
+resolution: "El mapeo pantalla→contenido para el hit-testing del ratón queda como responsabilidad del toolkit, no del core."
+affected: ["api.md §9.1/§9.3"]
+---
 # G29 · Ratón en coordenadas globales sin traducción a región (hit-testing) — `api.md` §9.1/§9.3 — **RESUELTO**
 
 **Resolución** (aplicada en [guia-plugins.md](guia-plugins.md) §6): opción

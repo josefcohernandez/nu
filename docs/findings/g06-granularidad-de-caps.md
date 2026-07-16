@@ -1,3 +1,13 @@
+---
+title: "Granularidad de `caps`"
+type: "hallazgo"
+id: "G6"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "Caps por función y por módulo con deny-by-default para funciones futuras; el vocabulario curado vive en la extensión del agente."
+affected: ["api.md §13"]
+adr: "ADR-010"
+---
 # G6 · Granularidad de `caps` — `api.md` §13 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §13, [agente.md](agente.md)

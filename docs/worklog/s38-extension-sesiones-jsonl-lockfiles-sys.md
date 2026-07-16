@@ -1,3 +1,10 @@
+---
+title: "Extensión sesiones (JSONL, lockfiles) + enu.sys.pid (G32, APILevel 1→2)"
+type: "sesion"
+id: "S38"
+phase: 8
+status: "cerrada"
+---
 # S38 — Extensión sesiones (JSONL, lockfiles) + enu.sys.pid (G32, APILevel 1→2)
 
 **Hallazgo G32 (corolario de completitud).** El lockfile de `sesiones.md §6` graba la

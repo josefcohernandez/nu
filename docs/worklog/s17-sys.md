@@ -1,3 +1,10 @@
+---
+title: "`enu.sys` (api.md §7)"
+type: "sesion"
+id: "S17"
+phase: 3
+status: "cerrada"
+---
 # S17 — `enu.sys` (api.md §7)
 
 Entorno y reloj. Wrappers finos sobre la stdlib (`platform`/`now_ms`/`mono_ms`/

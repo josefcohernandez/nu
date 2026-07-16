@@ -1,3 +1,12 @@
+---
+title: "TLS/proxy para endpoints corporativos"
+type: "hallazgo"
+id: "G12"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "opts.tls (ca_file/insecure) en request/stream y respeto por defecto de las variables HTTP_PROXY/HTTPS_PROXY/NO_PROXY."
+affected: ["api.md §8"]
+---
 # G12 · TLS/proxy para endpoints corporativos — `api.md` §8 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §8): `opts.tls = { ca_file?,

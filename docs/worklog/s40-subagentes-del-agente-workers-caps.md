@@ -1,3 +1,10 @@
+---
+title: "Subagentes del agente (workers + caps recortadas + digesto al padre) (agente.md §9)"
+type: "sesion"
+id: "S40"
+phase: 8
+status: "cerrada"
+---
 # S40 — Subagentes del agente (workers + caps recortadas + digesto al padre) (agente.md §9)
 
 ## Qué pedía la sesión

@@ -1,3 +1,13 @@
+---
+title: "`api.md` §1.5 promete `opts.timeout_ms` universal y no define el valor 0, que hoy diverge entre módulos"
+type: "hallazgo"
+id: "G47"
+status: "resuelto"
+date: "2026-07-12"
+origin: "auditoría integral 2026-07-12"
+resolution: "La promesa de opts.timeout_ms se acota a las firmas que ya lo listan, definiendo el valor 0 por módulo con su porqué."
+affected: ["api.md §1.5/§5/§6/§8"]
+---
 # G47 · `api.md` §1.5 promete `opts.timeout_ms` universal y no define el valor 0, que hoy diverge entre módulos — `api.md` §1.5/§5/§6/§8 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §1.5; opción (a)). La promesa se **acota a las firmas que lo listan** — `enu.proc.run`, `enu.http.request`, `enu.http.stream`, `enu.ws.connect` —, que es lo que el código implementa y las propias firmas de §5-§8 siempre dijeron: la frase universal de §1.5 era la anomalía, no el código. Y el valor frontera queda definido donde existe: en `proc.run`, `0` (el default) significa *sin límite* (un proceso local puede legítimamente no tener techo); en `http`/`ws` el plazo existe siempre (default 30 000 ms) y `0` es `EINVAL` — una petición de red sin techo no es un caso soportado—. La divergencia deja de ser silenciosa: es semántica documentada con su porqué. Añadir `timeout_ms` a más firmas (p. ej. `enu.fs.*` sobre montajes de red) queda como **adición futura** compatible (la API crece solo por adición); no se promete hasta que exista.

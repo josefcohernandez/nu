@@ -1,3 +1,9 @@
+---
+title: "Informe de auditoría integral — 12 de julio de 2026"
+type: "auditoria"
+date: "2026-07-12"
+status: "cerrada"
+---
 # Informe de auditoría integral — 12 de julio de 2026
 
 Auditoría del repositorio completo (contratos de `docs/`, kernel Go de

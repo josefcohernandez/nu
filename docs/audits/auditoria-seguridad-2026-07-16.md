@@ -1,3 +1,9 @@
+---
+title: "Auditoría de seguridad — 16 de julio de 2026"
+type: "auditoria"
+date: "2026-07-16"
+status: "cerrada"
+---
 # Auditoría de seguridad — 16 de julio de 2026
 
 Auditoría de seguridad del proyecto `enu` centrada en las dimensiones donde un

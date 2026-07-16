@@ -1,3 +1,10 @@
+---
+title: "`enu.task.all` / `enu.task.race` (api.md §3)"
+type: "sesion"
+id: "S07"
+phase: 1
+status: "cerrada"
+---
 # S07 — `enu.task.all` / `enu.task.race` (api.md §3)
 
 ## La frontera S07/S08: substrato de cancelación interno (decisión clave)

@@ -1,3 +1,11 @@
+---
+title: "Providers de LLM: registro TOML y contrato del adaptador"
+description: "Contrato de la extensión oficial de providers: registro TOML + adaptadores Lua."
+type: "contrato"
+layer: "contracts"
+web: "wiki"
+status: "vigente"
+---
 # Providers de LLM: registro TOML y contrato del adaptador
 
 Estado: **borrador para discusión**. Este documento define el contrato de la

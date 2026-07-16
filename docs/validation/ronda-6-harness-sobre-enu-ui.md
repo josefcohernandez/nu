@@ -1,3 +1,12 @@
+---
+title: "Ronda 6: reconstruir un harness estilo claude-code sobre `enu.ui`"
+type: "ronda"
+id: "ronda-6"
+zone: "reconstruir un harness estilo claude-code sobre `enu.ui`"
+status: "cerrada"
+scenarios: [28, 29, 30, 31]
+findings: ["G28", "G29", "G30"]
+---
 # Ronda 6: reconstruir un harness estilo claude-code sobre `enu.ui`
 
 Pregunta del stress test: ¿se puede montar la TUI de un harness de coding

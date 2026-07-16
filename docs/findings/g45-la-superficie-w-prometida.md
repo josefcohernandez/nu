@@ -1,3 +1,13 @@
+---
+title: "La superficie [W] prometida en `api.md` §16 no llega a los workers: los wrappers Lua de `extraPreludio` no cruzan"
+type: "hallazgo"
+id: "G45"
+status: "resuelto"
+date: "2026-07-13"
+origin: "auditoría integral 2026-07-12"
+resolution: "AddPreludioW etiqueta los wrappers Lua worker-safe y spawnWorker los copia solo si sus thunks pasan los caps del worker."
+affected: ["api.md §16 / vmwasm/worker.go"]
+---
 # G45 · La superficie [W] prometida en `api.md` §16 no llega a los workers: los wrappers Lua de `extraPreludio` no cruzan — `api.md` §16 / `vmwasm/worker.go` — **RESUELTO**
 
 **Resolución** (2026-07-13; opción (a), construida el mismo día — detalle en la

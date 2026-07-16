@@ -1,3 +1,12 @@
+---
+title: "Cambio de modelo a mitad de sesión sin API"
+type: "hallazgo"
+id: "G19"
+status: "resuelto"
+origin: "revisión de coherencia de la documentación completa"
+resolution: "Session:set_model valida contra el registro de providers, persiste un evento en el transcript y aplica desde el siguiente request."
+affected: ["agente.md §2", "chat.md §4"]
+---
 # G19 · Cambio de modelo a mitad de sesión sin API — `agente.md` §2 / `chat.md` §4 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §2 y

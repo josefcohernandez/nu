@@ -1,3 +1,9 @@
+---
+title: "Cortar una release estable de `enu`"
+description: "Runbook operativo para cortar una release estable de enu."
+type: "runbook"
+status: "vigente"
+---
 # Cortar una release estable de `enu`
 
 Runbook **operativo** del operador: los *pasos* para publicar una versión

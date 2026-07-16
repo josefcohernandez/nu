@@ -1,3 +1,10 @@
+---
+title: "TUI: librería del kernel"
+type: "adr"
+id: "ADR-006"
+status: "propuesta"
+date: "2026-06"
+---
 # ADR-006 · TUI: librería del kernel
 
 **Estado:** Propuesta · 2026-06

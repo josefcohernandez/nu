@@ -1,3 +1,13 @@
+---
+title: "El puente ⏸ no puede ceder a través de `pcall`/tail call en gopher-lua"
+type: "hallazgo"
+id: "G31"
+status: "resuelto"
+origin: "construcción del kernel (S04, el puente de suspensión)"
+resolution: "El scheduler se realiza con una goroutine por task y un único token de ejecución Lua, sin yields de corrutina."
+affected: ["api.md §1.3/§1.4"]
+adr: "ADR-011"
+---
 # G31 · El puente ⏸ no puede ceder a través de `pcall`/tail call en gopher-lua — `api.md` §1.3/§1.4 — **RESUELTO**
 
 **Resolución** (decisión en [adr.md](adr.md) ADR-011; sin cambios en

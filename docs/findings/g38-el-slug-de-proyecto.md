@@ -1,3 +1,13 @@
+---
+title: "El slug de proyecto de `sessions/<proyecto>/` no está especificado"
+type: "hallazgo"
+id: "G38"
+status: "resuelto"
+date: "2026-07-02"
+origin: "ronda 8 de pseudocódigo (malla distribuida de agentes sobre git)"
+resolution: "El algoritmo cwd→slug se congela como parte del formato, con sessions.slug/dir como helpers públicos de la extensión."
+affected: ["sesiones.md §2/§7"]
+---
 # G38 · El slug de proyecto de `sessions/<proyecto>/` no está especificado — `sesiones.md` §2/§7 — **RESUELTO**
 
 **Resolución** (aplicada en [sesiones.md](sesiones.md) §2): la opción (c), con el **algoritmo actual congelado tal cual**. Dos piezas:

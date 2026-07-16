@@ -1,3 +1,10 @@
+---
+title: "resto de `enu.ui`: clipboard OSC 52 + eventos `ui:*` + gating headless G20 (api.md §9.2, §9, §4, §2)"
+type: "sesion"
+id: "S32"
+phase: 6
+status: "cerrada"
+---
 # S32 — resto de `enu.ui`: clipboard OSC 52 + eventos `ui:*` + gating headless G20 (api.md §9.2, §9, §4, §2)
 
 ## GATING HEADLESS (G20, la decisión central)

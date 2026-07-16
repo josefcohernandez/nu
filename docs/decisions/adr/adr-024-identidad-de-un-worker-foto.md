@@ -1,3 +1,10 @@
+---
+title: "Identidad de un worker: foto del plugin dueño en el spawn, inmutable"
+type: "adr"
+id: "ADR-024"
+status: "aceptada"
+date: "2026-07-16"
+---
 # ADR-024 · Identidad de un worker: foto del plugin dueño en el spawn, inmutable
 
 **Estado:** Aceptada · 2026-07-16 · resuelve G56 (SEC-07; cierra de paso SEC-05)

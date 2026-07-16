@@ -1,3 +1,10 @@
+---
+title: "Lua (gopher-lua) como lenguaje de extensión"
+type: "adr"
+id: "ADR-002"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-002 · Lua (gopher-lua) como lenguaje de extensión
 
 **Estado:** Aceptada · 2026-06 · *Nota (2026-07-12, G50): el núcleo de la

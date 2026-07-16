@@ -1,3 +1,10 @@
+---
+title: "Cancelación pública: `Task:cancel` + `enu.task.cleanup` + desenrollado no capturable (api.md §1.3, §3)"
+type: "sesion"
+id: "S08"
+phase: 1
+status: "cerrada"
+---
 # S08 — Cancelación pública: `Task:cancel` + `enu.task.cleanup` + desenrollado no capturable (api.md §1.3, §3)
 
 S08 está en el inventario 🔒 y es un **hito de veto** (valida ADR-008). El punto

@@ -1,3 +1,12 @@
+---
+title: "`enu.task.all` no especifica el orden de los resultados"
+type: "hallazgo"
+id: "G27"
+status: "resuelto"
+origin: "ronda 5 de pseudocódigo (orquestación de agentes por un tercero)"
+resolution: "enu.task.all devuelve resultados alineados con los inputs (semántica Promise.all), independientemente del orden de terminación."
+affected: ["api.md §3"]
+---
 # G27 · `enu.task.all` no especifica el orden de los resultados — `api.md` §3 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §3): `enu.task.all` devuelve los

@@ -1,3 +1,10 @@
+---
+title: "Baseline completo y reproducible de lint antes de congelar v1"
+type: "adr"
+id: "ADR-021"
+status: "aceptada"
+date: "2026-07"
+---
 # ADR-021 · Baseline completo y reproducible de lint antes de congelar v1
 
 **Estado:** Aceptada · 2026-07 (**refina** [ADR-013](#adr-013--integración-continua-y-publicación-de-releases), punto 5; no cambia el resto de su política de CI ni la superficie de [api.md](api.md))

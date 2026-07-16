@@ -1,3 +1,12 @@
+---
+title: "Multi-sesión: atribución de eventos y modales concurrentes"
+type: "hallazgo"
+id: "G3"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "session_id obligatorio en todo payload agent:*, chat filtra por sesión activa y los modales de permisos se encolan en FIFO sin timeout."
+affected: ["agente.md §4", "chat.md"]
+---
 # G3 · Multi-sesión: atribución de eventos y modales concurrentes — `agente.md` §4 / `chat.md` — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §4-§5 y

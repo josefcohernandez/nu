@@ -1,3 +1,10 @@
+---
+title: "loader de plugins (api.md §14)"
+type: "sesion"
+id: "S11"
+phase: 2
+status: "cerrada"
+---
 # S11 — loader de plugins (api.md §14)
 
 Superficie nueva exacta: `enu.plugin.current()`, `enu.plugin.list()`,

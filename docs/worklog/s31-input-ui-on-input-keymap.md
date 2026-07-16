@@ -1,3 +1,10 @@
+---
+title: "input (`enu.ui.on_input` / `keymap`) (api.md §9.3)"
+type: "sesion"
+id: "S31"
+phase: 6
+status: "cerrada"
+---
 # S31 — input (`enu.ui.on_input` / `keymap`) (api.md §9.3)
 
 Sesión 🔒 (pila de input + resolución de secuencias con timeout). Sin hallazgos

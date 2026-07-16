@@ -1,3 +1,11 @@
+---
+title: "API del core de enu — especificación v1 (borrador)"
+description: "La API v1 del core — la superficie sagrada: firmas y semánticas."
+type: "contrato"
+layer: "contracts"
+web: "api"
+status: "vigente"
+---
 # API del core de enu — especificación v1 (borrador)
 
 Estado: **borrador para discusión**. Cuando se congele, esta superficie es la

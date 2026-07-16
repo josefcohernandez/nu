@@ -1,3 +1,11 @@
+---
+title: "Ronda 4: ángulos nuevos (verificación de completitud)"
+type: "ronda"
+id: "ronda-4"
+zone: "ángulos nuevos (verificación de completitud)"
+status: "cerrada"
+scenarios: [18, 19, 20, 21, 22, 23]
+---
 # Ronda 4: ángulos nuevos (verificación de completitud)
 
 Pregunta explícita: ¿estaba todo? Respuesta: no. Esta ronda ataca el bus

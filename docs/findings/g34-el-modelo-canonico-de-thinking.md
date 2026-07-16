@@ -1,3 +1,14 @@
+---
+title: "El modelo canónico de `thinking` no expresa el modo adaptativo (Opus 4.6+ 400ea con `budget_tokens`)"
+type: "hallazgo"
+id: "G34"
+status: "resuelto"
+date: "2026-06-27"
+origin: "ronda 7 de pseudocódigo (validación del control de razonamiento)"
+resolution: "thinking gana mode ('off'/'adaptive'/'budget') y el dialecto de razonamiento por modelo se declara como dato en providers.toml."
+affected: ["providers.md §2.1/§3"]
+adr: "ADR-016"
+---
 # G34 · El modelo canónico de `thinking` no expresa el modo adaptativo (Opus 4.6+ 400ea con `budget_tokens`) — `providers.md` §2.1/§3 — **RESUELTO**
 
 **Resolución** (registrada en [ADR-016](adr.md#adr-016--modelo-canónico-de-thinking-con-mode-y-traducción-por-modelo-en-el-adaptador), que **reabre y cierra** [P21](pospuesto.md); aplicada en [providers.md](providers.md) §2.1/§3 y la nota `⚠` del adaptador `anthropic`): el parámetro canónico crece **por adición** a `thinking?: { mode?: "off"|"adaptive"|"budget", budget? }` —con `{budget=N}` como **alias compatible** de `mode="budget"`, así que la forma congelada sigue válida—, y el **dialecto de razonamiento de cada modelo se declara como DATO** en el `providers.toml` (`thinking = "adaptive"|"budget"|"none"`, default `"budget"`), que viaja en el `ModelInfo` y el adaptador lee para traducir **por-modelo** (`adaptive` → `{type="adaptive"}`, `budget` → `{type="enabled", budget_tokens=N}`, degradando entre ambos según el dialecto; `none`/ausente → no se envía, degradación declarada §3 ob.5). El adaptador sigue siendo un **traductor puro** (ADR-003/ADR-005): cero tablas de versiones de modelos en el código. La superficie sagrada `enu.*` no cambia (es contrato de extensión). **Implementado** (sesión de construcción posterior al ADR, como manda el protocolo "el contrato lidera, el código sigue"): `thinking_to_wire` en `adapter_anthropic.lua` traduce por dialecto, `resolve` lleva `model.thinking` al `ModelInfo`, y `providers_p21_test.go` blinda las ocho combinaciones (dialecto × modo); el bloque legacy `budget_tokens` incondicional ya no existe.

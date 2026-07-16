@@ -1,3 +1,10 @@
+---
+title: "Go como lenguaje del core"
+type: "adr"
+id: "ADR-001"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-001 · Go como lenguaje del core
 
 **Estado:** Aceptada · 2026-06

@@ -1,3 +1,12 @@
+---
+title: "Ronda 1: pseudocódigo de punta a punta"
+type: "ronda"
+id: "ronda-1"
+zone: "pseudocódigo de punta a punta"
+status: "cerrada"
+scenarios: [1, 2, 3, 4, 5, 6]
+findings: ["H1", "H2", "H3"]
+---
 # Ronda 1: pseudocódigo de punta a punta
 
 ## Escenario 1: adaptador Anthropic (providers.md §3)

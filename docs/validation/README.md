@@ -1,3 +1,8 @@
+---
+title: "Rondas de validación por pseudocódigo"
+type: "indice"
+status: "vigente"
+---
 # Rondas de validación por pseudocódigo
 
 Estado: ejercicio de validación previo a congelar la API. Regla del juego:

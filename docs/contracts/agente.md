@@ -1,3 +1,11 @@
+---
+title: "La extensión oficial del agente: contrato"
+description: "Contrato de la extensión oficial agent: motor headless (turno, tools, permisos, subagentes)."
+type: "contrato"
+layer: "contracts"
+web: "wiki"
+status: "vigente"
+---
 # La extensión oficial del agente: contrato
 
 Estado: **borrador para discusión**. Como providers y sesiones, esto NO es

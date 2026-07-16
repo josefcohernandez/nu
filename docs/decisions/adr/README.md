@@ -1,3 +1,8 @@
+---
+title: "Registro de decisiones técnicas (ADR)"
+type: "indice"
+status: "vigente"
+---
 # Registro de decisiones técnicas (ADR)
 
 Formato ligero: contexto → decisión → consecuencias. Una entrada por decisión,

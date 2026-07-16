@@ -1,3 +1,10 @@
+---
+title: "Granularidad de aislamiento: workers por tarea, estado principal compartido"
+type: "adr"
+id: "ADR-008"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-008 · Granularidad de aislamiento: workers por tarea, estado principal compartido
 
 **Estado:** Aceptada · 2026-06

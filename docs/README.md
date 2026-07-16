@@ -1,3 +1,8 @@
+---
+title: "docs/ — el mapa de la documentación"
+type: "indice"
+status: "vigente"
+---
 # docs/ — el mapa de la documentación
 
 Este directorio **es** el proyecto: la API se diseñó y validó aquí antes de

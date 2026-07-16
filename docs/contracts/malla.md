@@ -1,3 +1,11 @@
+---
+title: "La extensión oficial de la malla (`mesh`): contrato"
+description: "Contrato de la extensión oficial mesh (borrador v0.1; su §11 sigue abierta)."
+type: "contrato"
+layer: "contracts"
+web: "none"
+status: "borrador"
+---
 # La extensión oficial de la malla (`mesh`): contrato
 
 Estado: **borrador para discusión — v0.1 construida**. Nace de la [Ronda 8 de

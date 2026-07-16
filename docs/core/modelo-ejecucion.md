@@ -1,3 +1,11 @@
+---
+title: "Modelo de ejecución: comunicación y orquestación"
+description: "Vista dinámica: concurrencia, comunicación y limitaciones."
+type: "contrato"
+layer: "core"
+web: "wiki"
+status: "vigente"
+---
 # Modelo de ejecución: comunicación y orquestación
 
 Vista dinámica del sistema: cómo fluyen eventos, IO y pintado entre el estado

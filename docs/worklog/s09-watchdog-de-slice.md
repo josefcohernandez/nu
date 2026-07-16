@@ -1,3 +1,10 @@
+---
+title: "Watchdog de slice (api.md §1.3)"
+type: "sesion"
+id: "S09"
+phase: 1
+status: "cerrada"
+---
 # S09 — Watchdog de slice (api.md §1.3)
 
 ## Interrumpir un slice de CPU puro: `LState.SetContext` (decisión clave, hito de veto)

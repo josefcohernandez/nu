@@ -1,3 +1,10 @@
+---
+title: "Resultado del spike de ADR-007: el toolkit se construye en Lua"
+type: "adr"
+id: "ADR-012"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-012 · Resultado del spike de ADR-007: el toolkit se construye en Lua
 
 **Estado:** Aceptada · 2026-06 (cierra la *validación pendiente* de

@@ -1,3 +1,10 @@
+---
+title: "`enu.fs` (api.md §5)"
+type: "sesion"
+id: "S14"
+phase: 3
+status: "cerrada"
+---
 # S14 — `enu.fs` (api.md §5)
 
 S14 es 🔒. La superficie de §5 se implementó **sin tocar `api.md`** (no hubo

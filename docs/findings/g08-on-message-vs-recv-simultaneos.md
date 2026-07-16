@@ -1,3 +1,12 @@
+---
+title: "`on_message` vs `recv` simultáneos"
+type: "hallazgo"
+id: "G8"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "on_message y recv son mutuamente excluyentes: registrar uno con el otro pendiente lanza EINVAL de inmediato."
+affected: ["api.md §13"]
+---
 # G8 · `on_message` vs `recv` simultáneos — `api.md` §13 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §13): mutuamente excluyentes,

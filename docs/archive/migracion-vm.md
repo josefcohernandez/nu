@@ -1,3 +1,9 @@
+---
+title: "Plan de migración de la VM: de gopher-lua a PUC-Lua sobre wazero"
+type: "archivo"
+status: "ejecutado"
+adr: "ADR-019"
+---
 # Plan de migración de la VM: de gopher-lua a PUC-Lua sobre wazero
 
 Ejecuta [ADR-019](../adr.md#adr-019--la-vm-objetivo-del-kernel-es-puc-lua-sobre-wazero-gopher-lua-queda-en-mantenimiento).

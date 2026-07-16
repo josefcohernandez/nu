@@ -1,3 +1,10 @@
+---
+title: "Los permisos de `bash` se emparejan por subcomando con un tokenizador cerrado y fallan hacia `ask`"
+type: "adr"
+id: "ADR-023"
+status: "aceptada"
+date: "2026-07-16"
+---
 # ADR-023 · Los permisos de `bash` se emparejan por subcomando con un tokenizador cerrado y fallan hacia `ask`
 
 **Estado:** Aceptada · 2026-07-16 (resuelve

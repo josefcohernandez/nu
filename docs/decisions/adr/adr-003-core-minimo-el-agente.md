@@ -1,3 +1,10 @@
+---
+title: "Core mínimo: el agente y MCP son extensiones oficiales"
+type: "adr"
+id: "ADR-003"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-003 · Core mínimo: el agente y MCP son extensiones oficiales
 
 **Estado:** Aceptada · 2026-06

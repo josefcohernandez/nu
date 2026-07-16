@@ -1,3 +1,12 @@
+---
+title: "Providers por suscripción (OAuth)"
+type: "hallazgo"
+id: "G13"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "El device flow OAuth es el camino v1 sin listener, con tokens guardados en 0600 bajo data_dir()/plugins/<nombre>/."
+affected: ["providers.md", "api.md"]
+---
 # G13 · Providers por suscripción (OAuth) — `providers.md` / `api.md` — **RESUELTO**
 
 **Resolución** (aplicada en [providers.md](providers.md) §4 y guía §7):

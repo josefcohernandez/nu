@@ -1,3 +1,10 @@
+---
+title: "`enu.re` (RE2: compile/match/find_all/replace)"
+type: "sesion"
+id: "S26"
+phase: 5
+status: "cerrada"
+---
 # S26 — `enu.re` (RE2: compile/match/find_all/replace)
 
 `enu.re` implementa la fila de §10 (`enu.re.compile(pattern) -> Re` + el handle

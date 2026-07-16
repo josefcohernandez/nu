@@ -1,3 +1,10 @@
+---
+title: "`enu.proc` (api.md §6)"
+type: "sesion"
+id: "S16"
+phase: 3
+status: "cerrada"
+---
 # S16 — `enu.proc` (api.md §6)
 
 ## La causa del cuelgue del intento previo, y su arreglo (lo central de esta sesión)

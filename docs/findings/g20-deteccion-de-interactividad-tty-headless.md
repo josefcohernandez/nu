@@ -1,3 +1,12 @@
+---
+title: "Detección de interactividad (TTY/headless)"
+type: "hallazgo"
+id: "G20"
+status: "resuelto"
+origin: "revisión de coherencia de la documentación completa"
+resolution: "En headless el módulo enu.ui directamente no existe; el test de interactividad pasa a ser enu.has(\"ui\")."
+affected: ["api.md", "agente.md §5", "chat.md §8"]
+---
 # G20 · Detección de interactividad (TTY/headless) — `api.md` / `agente.md` §5 / `chat.md` §8 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §2/§9, [agente.md](agente.md)

@@ -1,3 +1,12 @@
+---
+title: "Ronda 7: control de razonamiento (`thinking`) por-modelo"
+type: "ronda"
+id: "ronda-7"
+zone: "control de razonamiento (`thinking`) por-modelo"
+status: "cerrada"
+scenarios: [32]
+findings: ["G34"]
+---
 # Ronda 7: control de razonamiento (`thinking`) por-modelo
 
 Una zona que las rondas previas no torturaron: **pedir** razonamiento

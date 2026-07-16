@@ -1,3 +1,9 @@
+---
+title: "Auditoría de diseño de la web — 15 de julio de 2026"
+type: "auditoria"
+date: "2026-07-15"
+status: "cerrada"
+---
 # Auditoría de diseño de la web — 15 de julio de 2026
 
 Auditoría del rediseño completo de `web/` (commit `af10897`, "la web ES un

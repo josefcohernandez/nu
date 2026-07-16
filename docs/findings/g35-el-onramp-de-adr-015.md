@@ -1,3 +1,14 @@
+---
+title: "El onramp de ADR-015 activa los plugins pero no deja config de agente: el primer `enu` muere sin modelo y deja la UI atrapada"
+type: "hallazgo"
+id: "G35"
+status: "resuelto"
+date: "2026-06-27"
+origin: "uso del binario terminado (onramp de ADR-015)"
+resolution: "El onramp escribe plantillas activas de agent.toml/providers.toml y el chat degrada con gracia a una UI salible sin config."
+affected: ["ADR-015", "chat.md §8", "agente.md §10"]
+adr: "ADR-017"
+---
 # G35 · El onramp de ADR-015 activa los plugins pero no deja config de agente: el primer `enu` muere sin modelo y deja la UI atrapada — ADR-015 / `chat.md` §8 / `agente.md` §10 — **RESUELTO**
 
 **Resolución** (registrada en [ADR-017](adr.md#adr-017--el-onramp-deja-config-de-agente-usable-y-el-chat-degrada-con-gracia), que **refina** ADR-015; aplicada en [chat.md](chat.md) §8, [agente.md](agente.md) §10, [providers.md](providers.md) y el binario): dos piezas, ninguna en la API sagrada (es superficie CLI, loader y Lua de extensión; `enu.version.api` no cambia).

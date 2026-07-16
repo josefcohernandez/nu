@@ -1,3 +1,11 @@
+---
+title: "La extensión oficial de chat: contrato"
+description: "Contrato de la extensión oficial chat: la UI del harness."
+type: "contrato"
+layer: "contracts"
+web: "wiki"
+status: "vigente"
+---
 # La extensión oficial de chat: contrato
 
 Estado: **borrador para discusión**. Contrato de la extensión oficial

@@ -1,3 +1,12 @@
+---
+title: "El lockfile de sesiones no es implementable con la API actual"
+type: "hallazgo"
+id: "G17"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "Tres primitivas mínimas -fs.write{exclusive}, proc.alive(pid) y sys.hostname()- permiten implementar el lockfile de sesiones en Lua."
+affected: ["api.md §5-§7", "sesiones.md §6"]
+---
 # G17 · El lockfile de sesiones no es implementable con la API actual — `api.md` §5-§7 / `sesiones.md` §6 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §1.4/§5/§6/§7 y

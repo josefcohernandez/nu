@@ -1,3 +1,10 @@
+---
+title: "`enu.text.diff` (hunks estructurados + render a Block) (api.md §10, 🔒)"
+type: "sesion"
+id: "S25"
+phase: 5
+status: "cerrada"
+---
 # S25 — `enu.text.diff` (hunks estructurados + render a Block) (api.md §10, 🔒)
 
 `enu.text.diff(a, b, opts?) -> {hunks, block?}` compara `a` (viejo) y `b`

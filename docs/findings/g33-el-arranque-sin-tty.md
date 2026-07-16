@@ -1,3 +1,14 @@
+---
+title: "El arranque sin TTY no tiene onramp y \"el conjunto oficial\" está sin definir"
+type: "hallazgo"
+id: "G33"
+status: "resuelto"
+date: "2026-06-23"
+origin: "uso del binario terminado (primer arranque sin TTY)"
+resolution: "El flag enu --default-config activa sin TTY el conjunto oficial de producto (siete plugins, sin example)."
+affected: ["api.md §14", "ADR-010", "G21"]
+adr: "ADR-015"
+---
 # G33 · El arranque sin TTY no tiene onramp y "el conjunto oficial" está sin definir — `api.md` §14 / ADR-010 / G21 — **RESUELTO**
 
 **Resolución** (registrada en [ADR-015](adr.md#adr-015--conjunto-oficial-de-producto-y-onramp-no-interactivo), que **refina** ADR-010; aplicada en [api.md](api.md) §14, [arquitectura.md](arquitectura.md) §5, [filosofia.md](filosofia.md) §5 y el sitio de docs): dos piezas, ninguna en la API sagrada.

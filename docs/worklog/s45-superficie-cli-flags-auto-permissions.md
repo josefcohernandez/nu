@@ -1,3 +1,10 @@
+---
+title: "Superficie CLI (flags, --auto-permissions, --continue/G18, códigos de salida); cierra la Fase 8 y el plan (arquitectura nº5)"
+type: "sesion"
+id: "S45"
+phase: 8
+status: "cerrada"
+---
 # S45 — Superficie CLI (flags, --auto-permissions, --continue/G18, códigos de salida); cierra la Fase 8 y el plan (arquitectura nº5)
 
 **Qué es.** El ÚLTIMO eslabón del plan: la superficie de línea de comandos del binario `enu`.

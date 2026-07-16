@@ -1,3 +1,12 @@
+---
+title: "Subagentes paralelos escribiendo los mismos ficheros"
+type: "hallazgo"
+id: "G16"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "Se documenta como limitación conocida con remedio de repartir territorio por prompt entre subagentes; sin lock en el core."
+affected: ["agente.md §9"]
+---
 # G16 · Subagentes paralelos escribiendo los mismos ficheros — `agente.md` §9 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §9): limitación conocida

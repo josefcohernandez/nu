@@ -1,3 +1,13 @@
+---
+title: "`Session:fork` no re-aloja: sin `opts` (cwd/permisos/modelo) y con `at` sin unidad definida"
+type: "hallazgo"
+id: "G39"
+status: "resuelto"
+date: "2026-07-02"
+origin: "ronda 8 de pseudocódigo (malla distribuida de agentes sobre git)"
+resolution: "Session:fork gana opts (cwd/permisos/modelo) con herencia efímera y solo-recorte, más Session:close() en la firma del contrato."
+affected: ["agente.md §2", "sesiones.md §5"]
+---
 # G39 · `Session:fork` no re-aloja: sin `opts` (cwd/permisos/modelo) y con `at` sin unidad definida — `agente.md` §2 / `sesiones.md` §5 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §2 —firma, párrafo "Fork y cierre" y nota de estado— y [sesiones.md](sesiones.md) §5): la opción (c) con las tres sub-decisiones. Crecimiento por adición: `fork(at?)` sigue válido.

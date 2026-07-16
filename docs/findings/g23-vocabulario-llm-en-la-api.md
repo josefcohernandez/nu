@@ -1,3 +1,12 @@
+---
+title: "Vocabulario LLM en la API sagrada (`enu.text.approx_tokens`)"
+type: "hallazgo"
+id: "G23"
+status: "resuelto"
+origin: "revisión filosófico-técnica del proyecto"
+resolution: "enu.text.approx_tokens sale del core y pasa a providers.approx_tokens(s) en Lua, por ser vocabulario de producto sin coste que lo sostenga."
+affected: ["api.md §10", "providers.md §5"]
+---
 # G23 · Vocabulario LLM en la API sagrada (`enu.text.approx_tokens`) — `api.md` §10 / `providers.md` §5 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §10, [providers.md](providers.md)

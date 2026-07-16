@@ -1,3 +1,13 @@
+---
+title: "El replay de `resume` ignora las entradas `event`: los cambios en caliente persistidos se pierden al reanudar"
+type: "hallazgo"
+id: "G46"
+status: "resuelto"
+date: "2026-07-13"
+origin: "auditoría integral 2026-07-12"
+resolution: "El resume aplica la precedencia opts > event del transcript > agent.toml, reaplicando set_model/set_thinking y allow/deny en orden."
+affected: ["sesiones.md §3", "agente.md §2 (tensión G18", "G19)"]
+---
 # G46 · El replay de `resume` ignora las entradas `event`: los cambios en caliente persistidos se pierden al reanudar — `sesiones.md` §3 / `agente.md` §2 (tensión G18/G19) — **RESUELTO**
 
 **Resolución** (2026-07-13; opción (a) **más la (c)** — la recomendación

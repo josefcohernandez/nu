@@ -1,3 +1,12 @@
+---
+title: "Datos no-UTF-8 en las fronteras JSON"
+type: "hallazgo"
+id: "G11"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "enu.json.encode lanza EINVAL ante UTF-8 inválido y las tools oficiales sanean el output binario de forma visible."
+affected: ["api.md §12 / transversal"]
+---
 # G11 · Datos no-UTF-8 en las fronteras JSON — `api.md` §12 / transversal — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §12 y guía §5): el codec es

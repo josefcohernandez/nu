@@ -1,3 +1,10 @@
+---
+title: "Convenciones de la API: namespace global, async por corrutinas, errores estructurados"
+type: "adr"
+id: "ADR-009"
+status: "propuesta"
+date: "2026-06"
+---
 # ADR-009 · Convenciones de la API: namespace global, async por corrutinas, errores estructurados
 
 **Estado:** Propuesta · 2026-06 (se acepta al congelar [api.md](api.md)) ·

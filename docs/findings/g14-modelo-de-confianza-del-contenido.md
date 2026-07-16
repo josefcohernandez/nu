@@ -1,3 +1,12 @@
+---
+title: "Modelo de confianza del contenido del repo"
+type: "hallazgo"
+id: "G14"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "La config del repo solo puede recortar permisos, nunca ampliarlos, y requiere TOFU de una tecla para inyectar skills/enu.md."
+affected: ["agente.md §6-§7 / transversal"]
+---
 # G14 · Modelo de confianza del contenido del repo — `agente.md` §6-§7 / transversal — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §11): el repo no es el

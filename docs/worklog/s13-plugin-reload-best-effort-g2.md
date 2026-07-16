@@ -1,3 +1,10 @@
+---
+title: "`enu.plugin.reload` (best-effort, G2) (api.md §14)"
+type: "sesion"
+id: "S13"
+phase: 2
+status: "cerrada"
+---
 # S13 — `enu.plugin.reload` (best-effort, G2) (api.md §14)
 
 ## Registro de handles por dueño: general, no parche events+timers (decisión clave)

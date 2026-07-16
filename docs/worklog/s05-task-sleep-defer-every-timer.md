@@ -1,3 +1,10 @@
+---
+title: "`enu.task.sleep`/`defer`/`every` + `Timer:stop` (api.md §3)"
+type: "sesion"
+id: "S05"
+phase: 1
+status: "cerrada"
+---
 # S05 — `enu.task.sleep`/`defer`/`every` + `Timer:stop` (api.md §3)
 
 ## Semántica de quiescencia con timers activos (decisión clave)

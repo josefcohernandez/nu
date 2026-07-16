@@ -1,3 +1,10 @@
+---
+title: "`enu.worker.spawn` + caps (G6) + send/recv con colas acotadas (api.md §13, 🔒; abre Fase 7)"
+type: "sesion"
+id: "S34"
+phase: 7
+status: "cerrada"
+---
 # S34 — `enu.worker.spawn` + caps (G6) + send/recv con colas acotadas (api.md §13, 🔒; abre Fase 7)
 
 Primera sesión de la Fase 7 (Workers). Implementa el **paralelismo opt-in** (ADR-008):

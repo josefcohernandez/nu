@@ -1,3 +1,10 @@
+---
+title: "Providers de LLM: registro en TOML + adaptadores en Lua"
+type: "adr"
+id: "ADR-005"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-005 · Providers de LLM: registro en TOML + adaptadores en Lua
 
 **Estado:** Aceptada · 2026-06

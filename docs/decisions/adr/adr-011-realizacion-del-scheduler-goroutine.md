@@ -1,3 +1,11 @@
+---
+title: "Realización del scheduler: goroutine-por-task + token de ejecución Lua"
+type: "adr"
+id: "ADR-011"
+status: "reemplazada"
+date: "2026-06"
+superseded_by: ["ADR-020"]
+---
 # ADR-011 · Realización del scheduler: goroutine-por-task + token de ejecución Lua
 
 **Estado:** **Reemplazada por [ADR-020](#adr-020--el-puente--definitivo-tasks-como-corrutinas-lua-nativas-reemplaza-adr-011-en-la-conmutación)** · la conmutación **M16** hizo de wasm el backend por defecto y la retirada **M17** ([migracion-vm.md](archive/migracion-vm.md)) eliminó gopher-lua del `go.mod` y del binario, borrando el scheduler goroutine-por-task que este ADR realizaba; el puente ⏸ definitivo (tasks como corrutinas Lua nativas) lo describe ahora ADR-020. Como manda el flujo del proyecto, el cuerpo no se reescribe: queda como registro histórico de *cómo* se realizó ADR-004 sobre gopher-lua. · Originalmente Aceptada · 2026-06 (refinaba *cómo* se realiza ADR-004 sobre

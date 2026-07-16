@@ -1,3 +1,10 @@
+---
+title: "bus de eventos `enu.events` (api.md §4)"
+type: "sesion"
+id: "S10"
+phase: 2
+status: "cerrada"
+---
 # S10 — bus de eventos `enu.events` (api.md §4)
 
 ## La cola de emits: drenado plano (decisión clave de G10)

@@ -1,3 +1,10 @@
+---
+title: "`enu.fs.watch` (api.md §5, §16)"
+type: "sesion"
+id: "S15"
+phase: 3
+status: "cerrada"
+---
 # S15 — `enu.fs.watch` (api.md §5, §16)
 
 ## `watch` NO es ⏸ y es solo estado principal (§16)

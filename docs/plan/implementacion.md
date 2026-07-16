@@ -1,3 +1,9 @@
+---
+title: "Plan de implementación incremental"
+description: "Plan de construcción incremental: una feature por sesión (S##), ordenado por dependencias del kernel."
+type: "plan"
+status: "vigente"
+---
 # Plan de implementación incremental
 
 Estado: borrador. Este documento ordena la construcción de `enu` en una

@@ -1,3 +1,10 @@
+---
+title: "activación de extensiones embebidas gobernada por `enu.toml` (api.md §14, ADR-010)"
+type: "sesion"
+id: "S12"
+phase: 2
+status: "cerrada"
+---
 # S12 — activación de extensiones embebidas gobernada por `enu.toml` (api.md §14, ADR-010)
 
 S12 monta lo que ADR-010 exige: las extensiones oficiales se distribuyen DENTRO

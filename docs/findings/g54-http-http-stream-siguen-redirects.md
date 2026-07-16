@@ -1,3 +1,13 @@
+---
+title: "`enu.http`/`enu.http.stream` siguen redirects sin control: no es expresable no-seguirlos ni observar la cadena"
+type: "hallazgo"
+id: "G54"
+status: "resuelto"
+date: "2026-07-16"
+origin: "auditoría de seguridad 2026-07-16 (SEC-03)"
+resolution: "request/stream ganan opts.max_redirects (default 10) y recortan cabeceras en cada salto cross-host, cerrando la amplificación de SSRF."
+affected: ["api.md §8"]
+---
 # G54 · `enu.http`/`enu.http.stream` siguen redirects sin control: no es expresable no-seguirlos ni observar la cadena — `api.md` §8 — **RESUELTO**
 
 **Resolución** (2026-07-16; adición a [api.md](api.md) §8, nivel de API 3→4).

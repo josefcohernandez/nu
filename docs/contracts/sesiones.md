@@ -1,3 +1,11 @@
+---
+title: "Persistencia de sesiones"
+description: "Contrato de persistencia: JSONL append-only."
+type: "contrato"
+layer: "contracts"
+web: "wiki"
+status: "vigente"
+---
 # Persistencia de sesiones
 
 Estado: **borrador para discusión**. Contrato de almacenamiento de la

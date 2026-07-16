@@ -1,3 +1,10 @@
+---
+title: "Modelo de concurrencia híbrido (\"modelo del navegador\")"
+type: "adr"
+id: "ADR-004"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-004 · Modelo de concurrencia híbrido ("modelo del navegador")
 
 **Estado:** Aceptada · 2026-06

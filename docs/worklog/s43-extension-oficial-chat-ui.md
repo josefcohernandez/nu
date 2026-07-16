@@ -1,3 +1,10 @@
+---
+title: "Extensión oficial `chat` (UI del harness sobre toolkit + agente; streaming markdown); CP-11 (chat.md)"
+type: "sesion"
+id: "S43"
+phase: 8
+status: "cerrada"
+---
 # S43 — Extensión oficial `chat` (UI del harness sobre toolkit + agente; streaming markdown); CP-11 (chat.md)
 
 Octava extensión de la Fase 8 y la cara visible de enu. **Lua puro sobre la API congelada**

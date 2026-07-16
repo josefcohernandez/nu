@@ -1,3 +1,11 @@
+---
+title: "Arquitectura de enu"
+description: "Vista estática: las capas y el inventario de primitivas del kernel."
+type: "contrato"
+layer: "core"
+web: "wiki"
+status: "vigente"
+---
 # Arquitectura de enu
 
 Estado: borrador fundacional. Esto describe la forma del sistema, no una

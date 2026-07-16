@@ -1,3 +1,10 @@
+---
+title: "Toolkit de widgets (árbol+dirty, slots, focus, themes G22) (arquitectura.md §kernel/nota ui)"
+type: "sesion"
+id: "S42"
+phase: 8
+status: "cerrada"
+---
 # S42 — Toolkit de widgets (árbol+dirty, slots, focus, themes G22) (arquitectura.md §kernel/nota ui)
 
 Séptima extensión de la Fase 8. **Lua puro sobre la API congelada** (ADR-003 / ADR-012):

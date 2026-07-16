@@ -1,3 +1,12 @@
+---
+title: "Reentrada de `Session:send`"
+type: "hallazgo"
+id: "G4"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "send con turno en vuelo encola el mensaje, que el loop inyecta al ensamblar el siguiente request, nunca a mitad de stream."
+affected: ["agente.md §2"]
+---
 # G4 · Reentrada de `Session:send` — `agente.md` §2 — **RESUELTO**
 
 **Resolución** (aplicada en [agente.md](agente.md) §2): `send` con turno en

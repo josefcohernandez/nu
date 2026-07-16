@@ -1,3 +1,10 @@
+---
+title: "`enu.search` (files/grep/fuzzy) (api.md §11, 🔒; cierra Fase 5 — CP-6)"
+type: "sesion"
+id: "S27"
+phase: 5
+status: "cerrada"
+---
 # S27 — `enu.search` (files/grep/fuzzy) (api.md §11, 🔒; cierra Fase 5 — CP-6)
 
 Búsqueda a escala de repo: las tres primitivas de §11 en `search.go`. **[W]**

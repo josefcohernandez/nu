@@ -1,3 +1,10 @@
+---
+title: "`enu.text.highlight` (syntax highlighting, degrada a texto plano) (api.md §10)"
+type: "sesion"
+id: "S24"
+phase: 5
+status: "cerrada"
+---
 # S24 — `enu.text.highlight` (syntax highlighting, degrada a texto plano) (api.md §10)
 
 `enu.text.highlight(code, lang, opts?) -> Block` resalta un snippet a un `Block`

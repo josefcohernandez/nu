@@ -1,3 +1,9 @@
+---
+title: "Auditoría del renombrado `nu` → `enu` — 16 de julio de 2026"
+type: "auditoria"
+date: "2026-07-16"
+status: "cerrada"
+---
 # Auditoría del renombrado `nu` → `enu` — 16 de julio de 2026
 
 Ejecución del renombrado decidido en

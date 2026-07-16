@@ -1,3 +1,12 @@
+---
+title: "`Region:blit` con coordenadas locales negativas (viewport/scrollback)"
+type: "hallazgo"
+id: "G28"
+status: "resuelto"
+origin: "ronda 6 de pseudocódigo (harness de coding sobre enu.ui)"
+resolution: "Region:blit acepta x/y negativos y recorta también el borde inicial del Block, dando un viewport sin coste en Lua."
+affected: ["api.md §9.1"]
+---
 # G28 · `Region:blit` con coordenadas locales negativas (viewport/scrollback) — `api.md` §9.1 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §9.1 y

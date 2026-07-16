@@ -1,3 +1,10 @@
+---
+title: "Las extensiones oficiales son un PRODUCTO: el toolkit decora y la UI del harness se ve acabada"
+type: "adr"
+id: "ADR-018"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-018 · Las extensiones oficiales son un PRODUCTO: el toolkit decora y la UI del harness se ve acabada
 
 **Estado:** Aceptada · 2026-06 (**refina** [ADR-015](#adr-015--conjunto-oficial-de-producto-y-onramp-no-interactivo) —qué significa "el conjunto oficial de producto" cuando hay TTY— y consume [ADR-012](#adr-012--el-toolkit-de-widgets-vive-en-lua-spike-de-s28); resuelve [G36](problemas.md#g36) y [G37](problemas.md#g37))

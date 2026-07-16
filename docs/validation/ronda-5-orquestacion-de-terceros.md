@@ -1,3 +1,12 @@
+---
+title: "Ronda 5: un tercero monta orquestación de agentes"
+type: "ronda"
+id: "ronda-5"
+zone: "un tercero monta orquestación de agentes"
+status: "cerrada"
+scenarios: [24, 25, 26, 27]
+findings: ["G27"]
+---
 # Ronda 5: un tercero monta orquestación de agentes
 
 Pregunta del stress test: si la extensión oficial `agent` existe, ¿puede

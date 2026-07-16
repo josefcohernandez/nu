@@ -1,3 +1,12 @@
+---
+title: "Reentrada del bus de eventos"
+type: "hallazgo"
+id: "G10"
+status: "resuelto"
+origin: "ronda 3-4 de pseudocódigo (zonas sin torturar)"
+resolution: "El bus despacha sobre una foto de suscriptores, con cancelación inmediata y emits anidados encolados en anchura, no en profundidad."
+affected: ["api.md §4"]
+---
 # G10 · Reentrada del bus de eventos — `api.md` §4 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §4): despacho sobre snapshot

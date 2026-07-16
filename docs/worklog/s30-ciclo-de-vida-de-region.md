@@ -1,3 +1,10 @@
+---
+title: "ciclo de vida de `Region` (move/resize/raise/lower/show/hide/destroy/cursor) (api.md §9.1)"
+type: "sesion"
+id: "S30"
+phase: 6
+status: "cerrada"
+---
 # S30 — ciclo de vida de `Region` (move/resize/raise/lower/show/hide/destroy/cursor) (api.md §9.1)
 
 Sesión sin desviaciones de la espec: §9.1 bastó para las ocho firmas, que se

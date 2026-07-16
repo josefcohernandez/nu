@@ -1,3 +1,10 @@
+---
+title: "`enu.ws.connect` (api.md §8; cierra Fase 4 — Red, CP-5)"
+type: "sesion"
+id: "S21"
+phase: 4
+status: "cerrada"
+---
 # S21 — `enu.ws.connect` (api.md §8; cierra Fase 4 — Red, CP-5)
 
 Websockets: `enu.ws.connect(url, opts?) -> Ws` ⏸, `Ws:send(data)` ⏸,

@@ -1,3 +1,10 @@
+---
+title: "`enu.http.stream` + parser SSE (api.md §8, 🔒)"
+type: "sesion"
+id: "S20"
+phase: 4
+status: "cerrada"
+---
 # S20 — `enu.http.stream` + parser SSE (api.md §8, 🔒)
 
 `enu.http.stream` es la respuesta HTTP en **streaming**, la otra cara de

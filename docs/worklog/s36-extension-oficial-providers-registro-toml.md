@@ -1,3 +1,10 @@
+---
+title: "extensión oficial `providers` (registro TOML + contrato del adaptador + `approx_tokens`) (providers.md)"
+type: "sesion"
+id: "S36"
+phase: 8
+status: "cerrada"
+---
 # S36 — extensión oficial `providers` (registro TOML + contrato del adaptador + `approx_tokens`) (providers.md)
 
 Primera extensión de la **Fase 8**: ya no se toca el kernel, se escribe **Lua sobre la

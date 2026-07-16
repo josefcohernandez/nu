@@ -1,3 +1,8 @@
+---
+title: "Cierre de coherencia post-plan — P21 (thinking adaptativo, pospuesto) + fix del log espurio de `EvalTaskString`"
+type: "sesion"
+status: "cerrada"
+---
 # Cierre de coherencia post-plan — P21 (thinking adaptativo, pospuesto) + fix del log espurio de `EvalTaskString`
 
 Esto **no es una sesión del plan** (el plan está cerrado, 45/45; no se mueve el puntero ni se

@@ -1,3 +1,10 @@
+---
+title: "Integración continua y publicación de releases"
+type: "adr"
+id: "ADR-013"
+status: "aceptada"
+date: "2026-06"
+---
 # ADR-013 · Integración continua y publicación de releases
 
 **Estado:** Aceptada · 2026-06 · **Refinada por [ADR-021](#adr-021--baseline-completo-y-reproducible-de-lint-antes-de-congelar-v1)** (el modo transitorio `only-new-issues` se retira al quedar la deuda en cero; el resto de la decisión permanece vigente)

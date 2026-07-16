@@ -1,3 +1,13 @@
+---
+title: "`blitBlock` invierte el signo del offset X respecto a Y y al contrato de `Region:blit`"
+type: "hallazgo"
+id: "G37"
+status: "resuelto"
+date: "2026-06-28"
+origin: "pulido de UI/UX de las extensiones oficiales de producto"
+resolution: "Se corrige blitBlock para que el eje X recorte por el borde inicial igual que el eje Y, cumpliendo el contrato ya escrito."
+affected: ["api.md §9.1 / compositor.go"]
+---
 # G37 · `blitBlock` invierte el signo del offset X respecto a Y y al contrato de `Region:blit` — `api.md` §9.1 / `compositor.go` — **RESUELTO**
 
 **Resolución** (aplicada en `compositor.go`; sin cambio en api.md —corrige la *implementación* para que cumpla el contrato ya documentado): `blitBlock` estampa el origen del Block en `(ox, oy)` con el **mismo** signo en ambos ejes. El eje X pasa de `lx = col - ox` a `lx = col + ox`, igual que el eje Y ya hacía con `by = ly - oy` (un `oy` negativo recorta el borde inicial). El test horizontal de viewport (G28) se corrige a la semántica coherente: `blit(-2,0)` recorta el inicio ("CDEF…"), `blit(+2,0)` desplaza a la derecha ("  AB").

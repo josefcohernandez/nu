@@ -1,3 +1,12 @@
+---
+title: "Pegar una imagen: el evento `paste` solo trae texto"
+type: "hallazgo"
+id: "G30"
+status: "resuelto"
+origin: "ronda 6 de pseudocódigo (harness de coding sobre enu.ui)"
+resolution: "Pegar contenido no-texto del portapapeles entrega un evento paste con path a un fichero temporal, nunca los bytes."
+affected: ["api.md §9.3"]
+---
 # G30 · Pegar una imagen: el evento `paste` solo trae texto — `api.md` §9.3 — **RESUELTO**
 
 **Resolución** (aplicada en [api.md](api.md) §9.3): pegar contenido

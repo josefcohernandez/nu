@@ -1,3 +1,14 @@
+---
+title: "El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner"
+type: "hallazgo"
+id: "G56"
+status: "resuelto"
+date: "2026-07-16"
+origin: "auditoría de seguridad 2026-07-16 (SEC-07)"
+resolution: "Un worker porta como identidad la foto del plugin dueño capturada en el spawn, inmutable, cerrando también el data race de SEC-05."
+affected: ["api.md §13/§16", "agente.md"]
+adr: "ADR-024"
+---
 # G56 · El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner — `api.md` §13/§16 / `agente.md` — **RESUELTO**
 
 **Resolución** (2026-07-16; ADR-024; aclaración semántica en

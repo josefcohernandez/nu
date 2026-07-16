@@ -1,3 +1,10 @@
+---
+title: "pantalla de runtime desnudo (api.md §14, G21; cierra Fase 6, CP-7 manual)"
+type: "sesion"
+id: "S33"
+phase: 6
+status: "cerrada"
+---
 # S33 — pantalla de runtime desnudo (api.md §14, G21; cierra Fase 6, CP-7 manual)
 
 Cuando enu arranca con un TTY interactivo y NINGÚN plugin activo, el kernel pinta —ANTES
