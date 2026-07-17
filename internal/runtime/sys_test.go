@@ -316,8 +316,9 @@ func TestSysPidDeniedByCaps(t *testing.T) {
 // TestVersionApiMatchesAPILevel blinda que `enu.version.api` refleja el `APILevel`
 // del kernel. El contador sube con cada adición a la superficie sagrada (api.md
 // §17): 2 con `enu.sys.pid` (G32), 3 con los frames binarios de `enu.ws` (G52/A-38),
-// 5 con `opts.mode` de `enu.fs.write` (G57; el 4 de G54 se integra por otra rama).
-// Se afirma contra la constante para no reescribir el test en cada adición.
+// 4 con el control de redirects de `enu.http` (G54), 5 con `opts.mode` de
+// `enu.fs.write` (G57). Se afirma contra la constante para no reescribir el test en
+// cada adición.
 func TestVersionApiMatchesAPILevel(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`return tostring(enu.version.api)`, strconv.Itoa(APILevel))

@@ -79,6 +79,22 @@ func (p *Pool) SetUIBackend(b UIBackend) {
 // HasUI indica si el Pool tiene UI (para el preludio: `enu.has("ui")`, headless G20).
 func (p *Pool) HasUI() bool { return p.ui != nil }
 
+// SetOwnerSnapshot instala el resolvedor del dueño vigente del estado principal
+// (G56, ADR-024). Lo llama el Runtime con su currentOwner. enu.worker._spawn lo
+// invoca en la goroutine de la VM —donde la pila de dueños es coherente— para
+// tomar la FOTO del dueño con que arranca cada worker. Sólo tiene sentido en el
+// Pool principal.
+func (p *Pool) SetOwnerSnapshot(fn func() string) { p.ownerSnapshot = fn }
+
+// WorkerOwner devuelve la foto del plugin dueño de esta Instance si es un worker
+// (G56, ADR-024): `owner` es la identidad capturada en el spawn y `fromWorker`
+// indica que la Instance corre en un Pool de worker. En el estado principal
+// devuelve ("", false), señal de que el llamador debe resolver el dueño vigente
+// (currentOwner). Lectura pura de campos inmutables tras el spawn: sin carrera.
+func (inst *Instance) WorkerOwner() (owner string, fromWorker bool) {
+	return inst.workerOwner, inst.pool.isWorker
+}
+
 // registerUIPrimitives registra el catálogo enu.ui.* como host functions y los
 // métodos de Region como métodos de handle (M10). Se llama desde SetUIBackend.
 func (p *Pool) registerUIPrimitives() {

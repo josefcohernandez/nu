@@ -32,9 +32,12 @@ robo directo de credencial vía redirect se refutó (quien inyecta el `302` ya
 recibió la clave en la petición inicial). Recomendación de uso
 (`max_redirects = 0` ante URLs de terceros) añadida a
 [guia-plugins.md](../contracts/guia-plugins.md) §5 y [providers.md](../contracts/providers.md) §3.
-**Implementación pendiente** (sesión de construcción, no este commit, por el
-protocolo "el contrato lidera, el código sigue": el kernel aún sigue la
-política implícita de Go y `APILevel` sigue en 3 hasta que se construya).
+**Implementación** (kernel): `opts.max_redirects` con su presupuesto (default 10,
+`0` = no seguir; agotado, la última `3xx` se entrega como dato) y el recorte de
+las cabeceras del llamante en cada salto cross-host viven en el cliente HTTP del
+core (`internal/runtime/http.go` —`withRedirectPolicy`/`isCrossHost`—, aplicado
+por `request` en `http.go` y por `stream` en `stream.go`; parseo en
+`vmwasm_http.go`). `APILevel` subió a 4. Tests: `internal/runtime/http_g54_test.go`.
 (Origen: SEC-03.)
 
 **Problema.** El cliente HTTP sigue las redirecciones automáticamente y la API v1

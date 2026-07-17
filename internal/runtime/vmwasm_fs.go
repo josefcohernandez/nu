@@ -347,13 +347,20 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 			}
 		}
 
+		// Dueño de supervisión del watcher: se resuelve con el canónico `ownerForInst`
+		// (G56, ADR-024). Hoy enu.fs.watch NO es worker-safe (su entrega depende de
+		// enu.events, ausente en un worker), así que `inst` es siempre el principal y
+		// esto equivale a `rt.currentOwner()`; usar el resolvedor común garantiza que, si
+		// mañana cruzara al worker, tome la foto del spawn y no lea el ownerStack del
+		// padre (la regla de superficie futura de ADR-024).
+		fsOwner, _ := rt.ownerForInst(inst)
 		w := &wasmWatcher{
 			fsw:       fsw,
 			recursive: recursive,
 			debounce:  time.Duration(debounceMs) * time.Millisecond,
 			gi:        gi,
 			stopCh:    make(chan struct{}),
-			ownerName: rt.currentOwner(),
+			ownerName: fsOwner,
 			sched:     rt.sched,
 		}
 		if err := w.addTree(root, info.IsDir()); err != nil {

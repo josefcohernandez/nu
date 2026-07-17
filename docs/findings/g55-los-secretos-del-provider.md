@@ -39,6 +39,30 @@ invocación (quien propone los args es el modelo: papel mojado ante prompt
 injection). Distinto de [P7](../postponed/pospuesto.md) —transcripts—, que sigue
 pospuesto con nota cruzada. (Origen: SEC-04.)
 
+**Implementación** (extensiones, el core queda intacto). `providers.secret_env_vars()`
+vive en `internal/runtime/embedded/providers/lua/providers/init.lua`: dedup +
+orden alfabético de las `api_key_env` del registro, calculado en `build_index`
+junto al resto del TOML decodificado. El recorte en sí vive en `agent`
+(`internal/runtime/embedded/agent/lua/agent/init.lua`, función privada
+`bash_env_prefix` expuesta como `M._bash_subprocess_argv`): antepone
+`"env", "-u", VAR, ..., "--"` al argv real usando el idiom `env -u` del SO (no
+`opts.env` de `enu.proc`, que reemplaza el entorno entero, S16), leyendo
+`[tools.bash] inherit_secrets` de `load_config()` —el `agent.toml` de
+`config.dir()`, el ÚNICO que la extensión lee hoy; el del repo aún no se lee en
+absoluto (§11), así que la excepción de precedencia se cumple por construcción—.
+La tool `bash` en sí **no existía** en el código antes de esta resolución (solo
+existía la maquinaria de emparejamiento por subcomando de G53, que anticipaba su
+nombre); se creó como parte de este cierre —
+`internal/runtime/embedded/agent/lua/agent/tools_bash.lua`, registrada como
+cualquier tool de terceros (`agent.tool`, dogfooding agente.md §3), envolviendo
+`enu.proc.run` con el prefijo de recorte—. El mismo recorte para servidores MCP
+que agente.md §3 describe **queda pendiente**: `mcp.connect` vive en la extensión
+`mcp` (`internal/runtime/embedded/mcp/`), fuera del alcance de este cierre
+concreto (providers/agent); su `opts.env` hoy se pasa sin recortar cuando el
+usuario no da uno explícito. Tests (`internal/runtime/providers_test.go`:
+`TestProvidersSecretEnvVars`; `internal/runtime/agent_g55_test.go`, seis casos
+incluyendo un subproceso REAL lanzado por la tool `bash`).
+
 **Problema.** Las variables de entorno que portan las API keys de los providers
 (`api_key_env` y conocidas equivalentes) se propagan sin filtrar al entorno de
 los subprocesos que arranca la tool `bash` (y `enu.proc` en general). Un comando

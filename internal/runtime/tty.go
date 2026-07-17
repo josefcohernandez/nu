@@ -58,6 +58,17 @@ func decodeInput(buf []byte, flush bool) (evs []inputEvent, consumed int) {
 			i += n
 
 		case b == 0x0d || b == 0x0a: // CR / LF → enter
+			// Un CR al FINAL del buffer es ambiguo: enter suelto o primera mitad de un
+			// CRLF partido entre reads. Sin `flush` se deja pendiente —la misma
+			// disciplina que el ESC solitario y el UTF-8 incompleto, y la que
+			// `scanSSELines` aplica al CR a final de trozo—; si el siguiente read trae
+			// el LF, el CRLF completo se traga aquí como UN enter. Con `flush` (los
+			// 30 ms del driver, o EOF) se resuelve como enter: el coste para un Enter
+			// interactivo (CR solo) es imperceptible. Sin esto, un CRLF partido emitía
+			// DOS enter (lo cazó FuzzDecodeInputChunkSplit, pasada de salud 2026-07-17).
+			if b == 0x0d && i+1 == len(buf) && !flush {
+				return evs, i
+			}
 			evs = append(evs, keyEvent("enter", modSet{}))
 			i++
 			// Un CRLF (\r\n) es UN solo enter: traga el LF que sigue a un CR.

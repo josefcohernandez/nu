@@ -363,3 +363,91 @@ func TestProvidersRegisterAdapterValida(t *testing.T) {
 		})
 		return "ok"`, "ok")
 }
+
+// TestProvidersSecretEnvVars blinda `secret_env_vars()` (providers.md §4, G55):
+// los NOMBRES —nunca los valores— de las `api_key_env` del registro,
+// deduplicados y en orden alfabético. Es la pieza de la que depende TODO el
+// recorte de secretos de agente.md §3: si esto lista mal (falta un nombre, o
+// devuelve un valor en vez de un nombre), el recorte de la tool `bash` no
+// protege nada.
+func TestProvidersSecretEnvVars(t *testing.T) {
+	// sampleProvidersToml declara `api_key_env = "TESTCO_API_KEY"` para
+	// `testco` y ningún `api_key_env` para `local` (Ollama-style): la lista
+	// debe traer solo el primero, una vez.
+	h := bootProviders(t, sampleProvidersToml)
+	h.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h.expectEval(`return tostring(err_code)`, "nil")
+	h.expectEval(`return tostring(out)`, "TESTCO_API_KEY")
+
+	// Nunca el VALOR, solo el nombre: aunque la variable esté exportada en el
+	// entorno del proceso `enu`, secret_env_vars() no la lee ni la expone.
+	t.Setenv("TESTCO_API_KEY", "secreto-no-debe-aparecer")
+	h.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h.expectEval(`return tostring(out)`, "TESTCO_API_KEY")
+
+	// providers.toml ausente -> lista vacía (no error): un enu recién arrancado
+	// sin providers configurados no tiene nada que recortar.
+	h2 := bootProviders(t, "")
+	h2.eval(inTask(`out = tostring(#require("providers").secret_env_vars())`))
+	h2.expectEval(`return tostring(out)`, "0")
+
+	// Deduplicación: dos providers que comparten el MISMO api_key_env (caso
+	// real: dos endpoints del mismo proveedor, p. ej. staging/prod) aparecen
+	// una sola vez.
+	tomlDup := `
+[providers.a]
+adapter     = "stub"
+base_url    = "https://a.example"
+api_key_env = "SHARED_KEY"
+[[providers.a.models]]
+id = "m1"
+
+[providers.b]
+adapter     = "stub"
+base_url    = "https://b.example"
+api_key_env = "SHARED_KEY"
+[[providers.b.models]]
+id = "m1"
+`
+	h3 := bootProviders(t, tomlDup)
+	h3.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h3.expectEval(`return tostring(out)`, "SHARED_KEY")
+
+	// Orden alfabético DETERMINISTA con DOS claves distintas: el registro se lee
+	// con `pairs` (sin orden estable), así que `secret_env_vars()` ordena con
+	// `table.sort` (providers/init.lua). Se declaran en orden NO alfabético
+	// (`ZKEY` antes que `AKEY`) para que solo el `table.sort` pueda producir la
+	// salida esperada: sin él, el orden dependería del hash de `pairs` y este
+	// aserto caería (o sería flaky). Blinda el sort, no solo la deduplicación.
+	tomlOrden := `
+[providers.z]
+adapter     = "stub"
+base_url    = "https://z.example"
+api_key_env = "ZKEY"
+[[providers.z.models]]
+id = "m1"
+
+[providers.a]
+adapter     = "stub"
+base_url    = "https://a.example"
+api_key_env = "AKEY"
+[[providers.a.models]]
+id = "m1"
+`
+	h4 := bootProviders(t, tomlOrden)
+	h4.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h4.expectEval(`return tostring(err_code)`, "nil")
+	h4.expectEval(`return tostring(out)`, "AKEY,ZKEY")
+}

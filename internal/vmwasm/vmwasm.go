@@ -50,10 +50,19 @@ type Pool struct {
 	reg      *hostRegistry
 	ui       UIBackend // backend de compositor (M11); nil = headless (G20)
 
-	isWorker      bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
-	modules       map[string]string // fuentes de módulo por nombre para require (M13, DM5)
-	apiVersion    int               // nivel de enu.version.api que inyecta el preludio (M13, lo fija el Runtime)
-	verMajor      int               // enu.version.major/minor/patch (api.md §1); los fija el Runtime
+	isWorker bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
+	modules  map[string]string // fuentes de módulo por nombre para require (M13, DM5)
+
+	// ownerSnapshot es el resolvedor del dueño VIGENTE del estado principal (G56,
+	// ADR-024): lo fija el Runtime con SetOwnerSnapshot (típicamente rt.currentOwner).
+	// enu.worker._spawn —HostFn SÍNCRONA, en la goroutine que conduce la VM, donde la
+	// pila de dueños es coherente por construcción (ADR-004)— lo llama para tomar la
+	// FOTO del dueño del worker en el momento del spawn. Sólo lo tiene el Pool
+	// principal (un worker no anida workers, P11); nil en Pools sin Runtime (tests de
+	// bajo nivel). No se lee jamás desde la goroutine de un worker.
+	ownerSnapshot func() string
+	apiVersion    int // nivel de enu.version.api que inyecta el preludio (M13, lo fija el Runtime)
+	verMajor      int // enu.version.major/minor/patch (api.md §1); los fija el Runtime
 	verMinor      int
 	verPatch      int
 	extraPreludio []preludioSnippet // snippets Lua que aporta el catálogo (M13b: wrappers finos)
@@ -342,6 +351,16 @@ type Instance struct {
 	dispatchHandle Handle           // handle en despacho síncrono (M11: self-free)
 	pendingInput   []map[string]any // cola de eventos de input crudos (M11, FeedInput)
 	workerChans    *workerChannels  // canales con el padre, si esta Instance es un worker (M12)
+
+	// workerOwner es la FOTO del plugin dueño tomada en el spawn (G56, ADR-024):
+	// la identidad con que las primitivas [W] atribuidas por dueño (enu.log, enu.proc)
+	// corren DENTRO de este worker, inmutable durante toda su vida. Vacío en el estado
+	// principal (no es un worker). La captura enu.worker._spawn en el estado principal
+	// —donde el ownerStack es coherente— y viaja COPIADA aquí, como los mensajes: nunca
+	// se lee el ownerStack del padre desde la goroutine del worker (elimina el data
+	// race de SEC-05 por diseño). Sólo lo toca NewInstance→spawnWorker (fijación) y el
+	// accesor WorkerOwner (lectura): inmutable tras el spawn, sin carrera.
+	workerOwner string
 
 	// pendingGName/pendingGVal es la ranura de un solo hueco por la que SetGlobalString
 	// (M13d) pasa un global Lua desde Go SIN interpolar código: se fija bajo mu y una

@@ -81,7 +81,12 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		if err != nil {
 			return nil, err
 		}
-		pr, serr := rt.spawnProc(argv, opts)
+		// Dueño de supervisión del proceso (G56, ADR-024): el vigente desde el estado
+		// principal, o la FOTO CRUDA del spawn si el proc nace dentro de un worker (así
+		// `plugin.reload` del plugin dueño lo alcanza). Se descarta `fromWorker`: el
+		// proceso se registra bajo el plugin, sin el sufijo `(worker)` de los logs.
+		owner, _ := rt.ownerForInst(inst)
+		pr, serr := rt.spawnProc(argv, opts, owner)
 		if serr != nil {
 			return nil, mapProcStartErrorWasm(serr)
 		}

@@ -78,7 +78,7 @@ func evalTaskOne(t *testing.T, rt *Runtime, code string) string {
 // M13d.1: enu.version.api por el Runtime → el `APILevel` que buildWasmState inyecta
 // con SetAPIVersion. Es el smoke test que el binario `enu -e` reproduce. Se afirma
 // contra la constante (no un literal) para no tener que tocar este test en cada
-// adición a la superficie sagrada (G57 lo subió a 5).
+// adición a la superficie sagrada (G54 lo subió a 4, G57 a 5).
 func TestRuntimeWasmVersionAPI(t *testing.T) {
 	rt := newWasmRuntime(t)
 	want := strconv.Itoa(APILevel)

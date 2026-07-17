@@ -408,7 +408,7 @@ func TestWorkerRecvTrasTerminate(t *testing.T) {
 // en el Pool (fija id/parent) y arranca su goroutine. Devuelve el worker y su id.
 func spawnRun(t *testing.T, inst *Instance, src string) (*worker, int64) {
 	t.Helper()
-	w, err := inst.spawnWorker(src, nil, false)
+	w, err := inst.spawnWorker(src, nil, false, "")
 	if err != nil {
 		t.Fatalf("spawnWorker: %v", err)
 	}

@@ -58,6 +58,13 @@ import (
 // explícito lo tratamos como inválido, ver parseo).
 const httpDefaultTimeout = 30 * time.Second
 
+// httpDefaultMaxRedirects es el presupuesto de redirects que el cliente sigue
+// cuando `opts.max_redirects` no se especifica (G54, §8). Es exactamente la
+// política que Go aplicaba de forma implícita (su `defaultCheckRedirect` corta a
+// los 10 saltos), ahora elevada a contrato: `request`/`stream` la exponen como
+// dato configurable. `0` = no seguir ninguno.
+const httpDefaultMaxRedirects = 10
+
 // httpState es el estado de sesión de `enu.http` (§8). Guarda los defaults de red
 // de `[net]` de `enu.toml` (G12) y el cliente **reutilizable** del caso común,
 // construido perezosamente la primera vez que una petición no necesita un cliente
@@ -102,6 +109,13 @@ type reqOpts struct {
 	// no-especificado para no sorprender).
 	proxy    string
 	proxySet bool
+
+	// Presupuesto de redirects (G54, §8). El número de redirecciones que el cliente
+	// sigue automáticamente; agotado, la última respuesta `3xx` se entrega **como
+	// dato** (no se lanza error). `0` = no seguir ninguno. El parseo lo fija en
+	// `httpDefaultMaxRedirects` (10) cuando `opts.max_redirects` está ausente, así
+	// que aquí siempre llega un valor válido (≥ 0).
+	maxRedirects int
 }
 
 // needsCustomClient informa de si esta petición necesita un cliente a medida (un
@@ -152,11 +166,16 @@ func (e *httpError) Error() string { return e.msg }
 // error (el status se devuelve como dato). Los errores ya vienen envueltos con su
 // código del core (`httpError`) para que la `deliverFn` los lance sin reinspección.
 func (st *httpState) do(o reqOpts) (int, map[string]string, string, error) {
-	client, err := st.clientFor(o)
+	base, err := st.clientFor(o)
 	if err != nil {
 		// Fallo al preparar el cliente (p. ej. la CA no se pudo leer): uso inválido.
 		return 0, nil, "", &httpError{code: CodeEINVAL, msg: err.Error()}
 	}
+	// Política de redirects por petición (G54): copia del cliente base con su propio
+	// `CheckRedirect` (presupuesto + recorte cross-host). No se muta el cliente
+	// compartido —lo reusan peticiones concurrentes—; la copia comparte el
+	// `Transport` (pool keep-alive) y solo cambia la política.
+	client := withRedirectPolicy(base, o)
 
 	// Contexto con el plazo de la petición: `ETIMEOUT` cuando expira. Se usa
 	// `context.WithTimeout` en vez de `client.Timeout` para distinguir limpiamente
@@ -242,6 +261,135 @@ func (st *httpState) clientFor(o reqOpts) (*http.Client, error) {
 		return st.reusableClient(), nil
 	}
 	return st.customClient(o)
+}
+
+// withRedirectPolicy devuelve una **copia** del cliente base con el `CheckRedirect`
+// que impone la política de redirects de G54 (§8). La copia es por petición: el
+// cliente base puede ser el reutilizable compartido entre peticiones concurrentes, y
+// `CheckRedirect` depende de `opts` (presupuesto, cabeceras del llamante), así que no
+// puede vivir en el cliente compartido —lo mutaría bajo otras peticiones—. Copiar el
+// struct `http.Client` comparte el `Transport` (y con él el pool keep-alive), solo
+// cambia el campo de política; es barato y sin carrera (cada `do`/`openStream` tiene
+// su copia).
+//
+// El `CheckRedirect` de Go se llama ANTES de seguir cada redirect, con `via` = las
+// peticiones ya hechas (la inicial es `via[0]`) y `req` = la petición de destino que
+// Go ya armó (URL resuelta, método/cuerpo ajustados según el status). Dos reglas:
+//
+//   - **Presupuesto (G54).** Antes de seguir el k-ésimo redirect, `len(via) == k`
+//     (la inicial más los k-1 ya seguidos). Se sigue mientras `k <= max_redirects`;
+//     agotado, se devuelve `http.ErrUseLastResponse`, que hace que `client.Do`
+//     retorne la última respuesta `3xx` **con nil de error** —justo la semántica
+//     "el status es dato" que pide §8: quien puso `0` observa el `302` a mano—. Con
+//     `max_redirects = 0` el primer redirect ya tiene `len(via) == 1 > 0`: no se
+//     sigue ninguno.
+//
+//   - **Recorte cross-host (G54).** En cada salto cross-host se borran de la petición
+//     de destino TODAS las cabeceras que el llamante puso en `opts.headers` (sin
+//     lista blanca): un host distinto es un interlocutor distinto que no hereda la
+//     credencial custom (`x-api-key`…) que el llamante dio al primero. El recorte no
+//     se restaura aunque un salto posterior regrese al host inicial —la cadena ya
+//     pasó por un tercero—: por eso se mira TODA la cadena (`crossHostChain`), no solo
+//     el salto actual, y una vez cruzada la frontera se recorta en todos los saltos
+//     que queden.
+func withRedirectPolicy(base *http.Client, o reqOpts) *http.Client {
+	// Claves del llamante, canonicalizadas (Go guarda las cabeceras con la clave
+	// canónica; `opts.headers` puede traerlas en cualquier caja).
+	var callerKeys map[string]struct{}
+	if len(o.headers) > 0 {
+		callerKeys = make(map[string]struct{}, len(o.headers))
+		for k := range o.headers {
+			callerKeys[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+	}
+
+	c := *base
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) > o.maxRedirects {
+			// Presupuesto agotado: entrega la última 3xx como dato (no error). Incluye
+			// el caso `max_redirects == 0` (el primer redirect ya excede).
+			return http.ErrUseLastResponse
+		}
+		if callerKeys != nil && crossHostChain(via[0].URL, req, via) {
+			for k := range callerKeys {
+				req.Header.Del(k)
+			}
+		}
+		return nil
+	}
+	return &c
+}
+
+// crossHostChain informa de si la cadena de redirects ha cruzado —en el salto que se
+// va a seguir (`req`) o en cualquier salto ya seguido (`via[1:]`)— la frontera del
+// host inicial (`initial` == `via[0].URL`). Mirar toda la cadena, y no solo el salto
+// actual, implementa la regla de G54 de que el recorte de cabeceras **no se restaura**
+// aunque un salto posterior regrese al host inicial: basta un tercero en el camino
+// para envenenar la confianza del resto de la cadena.
+func crossHostChain(initial *url.URL, req *http.Request, via []*http.Request) bool {
+	if isCrossHost(initial, req.URL) {
+		return true
+	}
+	for _, v := range via[1:] { // via[0] es la URL inicial: same-host por definición
+		if isCrossHost(initial, v.URL) {
+			return true
+		}
+	}
+	return false
+}
+
+// isCrossHost decide si `next` es cross-host respecto de la URL inicial según la regla
+// exacta de G54 (§8), en dos cláusulas independientes:
+//
+//   - el host —nombre **y** puerto— difiere, **o**
+//   - el esquema degrada de `https` a `http` **aunque el host se conserve** (la
+//     cabecera viajaría en claro por un canal interceptable).
+//
+// La segunda cláusula solo tiene sentido si la identidad de host de la primera IGNORA
+// el esquema: por eso `sameHostPort` normaliza el puerto default (`http`/`ws`→80,
+// `https`/`wss`→443) a "" antes de comparar. Así `http://a` y `http://a:80` son el
+// mismo host (no hay recorte espurio), y —clave— `http://a` y `https://a` también lo
+// son: un **upgrade** `http`→`https` al mismo host es un redirect benigno y frecuente
+// (un sitio que fuerza TLS) que NO debe perder las cabeceras del llamante; solo la
+// **degradación** explícita `https`→`http` (cláusula 2) las recorta.
+func isCrossHost(initial, next *url.URL) bool {
+	if !sameHostPort(initial, next) {
+		return true
+	}
+	if initial.Scheme == "https" && next.Scheme == "http" {
+		return true
+	}
+	return false
+}
+
+// sameHostPort compara dos URLs por nombre de host y puerto, con el puerto default del
+// esquema normalizado a "" (ver `normalizedPort`). Es la identidad de host, sin
+// esquema, sobre la que se apoya la regla cross-host de G54.
+func sameHostPort(a, b *url.URL) bool {
+	return a.Hostname() == b.Hostname() && normalizedPort(a) == normalizedPort(b)
+}
+
+// normalizedPort devuelve el puerto de una URL con el default del esquema plegado a ""
+// (un puerto ausente, o el `80` de `http`/`ws`, o el `443` de `https`/`wss`). De ese
+// modo un puerto explícito que coincide con el default no cuenta como "puerto distinto"
+// y el plegado a "" hace que `http` (80) y `https` (443) por defecto compartan
+// identidad de host —dejando la distinción de esquema a la cláusula de degradación—.
+func normalizedPort(u *url.URL) string {
+	p := u.Port()
+	if p == "" {
+		return ""
+	}
+	switch u.Scheme {
+	case "http", "ws":
+		if p == "80" {
+			return ""
+		}
+	case "https", "wss":
+		if p == "443" {
+			return ""
+		}
+	}
+	return p
 }
 
 // reusableClient devuelve el cliente del caso común, creándolo perezosamente la

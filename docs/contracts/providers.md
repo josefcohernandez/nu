@@ -243,8 +243,8 @@ de [guia-plugins.md](guia-plugins.md) §5 tiene el porqué.)*
   ([agente.md](agente.md) §3, origen SEC-04). Es una foto del registro
   vigente, no una promesa de secreto absoluto: una credencial que el usuario
   exporte al margen del TOML no se conoce aquí — el contrato es honesto sobre
-  su alcance. *(⏳ Pendiente de construcción: la extensión `0.1.0` aún no la
-  expone; se implementará junto al recorte de [agente.md](agente.md) §3.)*
+  su alcance. *(✅ Implementado, junto al recorte de [agente.md](agente.md) §3:
+  `providers/lua/providers/init.lua`.)*
 
 **Suscripciones / OAuth (G13).** El camino v1 es el que no necesita
 servidor local: **device flow o pegado manual de código** (`enu.http.request`

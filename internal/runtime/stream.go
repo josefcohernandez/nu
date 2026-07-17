@@ -314,10 +314,15 @@ func (st *httpStream) close() {
 // cierra `Stream:close`), así que el `cancel` se entrega al `httpStream`, no se
 // difiere aquí.
 func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration) (*httpStream, error) {
-	client, err := st.clientFor(o)
+	base, err := st.clientFor(o)
 	if err != nil {
 		return nil, &httpError{code: CodeEINVAL, msg: err.Error()}
 	}
+	// Política de redirects por petición (G54): misma copia con `CheckRedirect` que
+	// `request`. Agotado el presupuesto, `client.Do` devuelve la última respuesta
+	// `3xx` como dato y `openStream` entrega un `Stream` con ese status (con su
+	// `location` en `headers`) —igual que un 200—, coherente con "el status es dato".
+	client := withRedirectPolicy(base, o)
 
 	// El `timeout_ms` cubre HASTA las cabeceras (§8); pasadas éstas, el plazo del
 	// body es el idle-timeout. Por eso NO se usa `context.WithTimeout` para toda la

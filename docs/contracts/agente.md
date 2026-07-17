@@ -207,11 +207,12 @@ opt-in es su propia entrada de configuración —escrita por el usuario, acto
 consciente como instalar un plugin (§11)—: un `env` explícito para ese
 servidor.
 
-> ⏳ **Pendiente de construcción** (G55): la extensión `0.1.0`, construida
-> antes de esta resolución, todavía hereda el entorno completo en sus
-> subprocesos. El recorte por defecto e `inherit_secrets` se implementarán
-> citando este contrato y `providers.secret_env_vars()`
-> ([providers.md](providers.md) §4).
+> ✅ **Implementado** (G55): la tool `bash` (`tools_bash.lua`) y el recorte por
+> defecto e `inherit_secrets` (`init.lua`, `M._bash_subprocess_argv`) están
+> construidos, citando este contrato y `providers.secret_env_vars()`
+> ([providers.md](providers.md) §4). El mismo recorte para servidores MCP
+> lanzados por `enu.proc` **sigue pendiente**: `mcp.connect` vive en la
+> extensión `mcp`, fuera de este cierre.
 
 ## 4. Hooks
 
@@ -352,10 +353,9 @@ extensión `agent` — la dueña del tokenizador — y viaja en el campo
 denegación de G40, abajo), como **lista** con un patrón por subcomando: la
 UI la muestra y la edita, nunca re-tokeniza por su cuenta.
 
-> ⏳ **Pendiente de construcción.** El matcher de la extensión `agent` `0.1.0`
-> es anterior a G53 y aún empareja por glob crudo sobre el string completo.
-> Esta semántica es el contrato que la sesión de construcción correspondiente
-> debe seguir — «el contrato lidera, el código sigue».
+> ✅ **Construido.** El matcher de la extensión `agent` implementa esta
+> semántica: `bash` se descompone por subcomando con el tokenizador cerrado y
+> cae `fail-closed` a `ask` ante lo no modelable (G53, [ADR-023](../decisions/adr/README.md)).
 
 **La denegación viaja como dato (G40).** La prosa accionable es
 *presentación*, no el portador (coherente con los errores estructurados de

@@ -123,7 +123,18 @@ func (p *Pool) registerWorkerHost() {
 		if err != nil {
 			return nil, err
 		}
-		w, err := inst.spawnWorker(source, caps, capsGiven)
+		// FOTO del dueño en el spawn (G56, ADR-024): este HostFn es SÍNCRONO y corre en
+		// la goroutine que conduce la VM del estado principal, donde la pila de dueños es
+		// coherente por construcción (ADR-004). Se captura aquí el dueño vigente y viaja
+		// COPIADO al worker, que lo porta inmutable; así las primitivas [W] atribuidas por
+		// dueño (enu.log, enu.proc) no leen jamás el ownerStack del padre desde la
+		// goroutine del worker —desaparece el data race de SEC-05 y la atribución es
+		// determinista—. Sin resolvedor (tests de bajo nivel sin Runtime) la foto es "".
+		owner := ""
+		if inst.pool.ownerSnapshot != nil {
+			owner = inst.pool.ownerSnapshot()
+		}
+		w, err := inst.spawnWorker(source, caps, capsGiven, owner)
 		if err != nil {
 			return nil, err
 		}
@@ -182,8 +193,11 @@ func (p *Pool) registerWorkerHost() {
 }
 
 // spawnWorker construye la Instance aislada de un worker, con su registro de
-// primitivas filtrado por caps, y la arranca en su goroutine.
-func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven bool) (*worker, error) {
+// primitivas filtrado por caps, y la arranca en su goroutine. `owner` es la foto
+// del plugin dueño tomada en el estado principal (G56, ADR-024): la Instance del
+// worker la porta inmutable como su identidad para las primitivas [W] atribuidas
+// por dueño.
+func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven bool, owner string) (*worker, error) {
 	wp, err := newBarePool()
 	if err != nil {
 		return nil, err
@@ -257,6 +271,7 @@ func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven
 		return nil, &StructuredError{Code: "EIO", Message: "no se pudo crear el worker: " + err.Error()}
 	}
 	winst.workerChans = chans
+	winst.workerOwner = owner // foto del dueño del spawn (G56, ADR-024): inmutable
 
 	// La goroutine NO se arranca aquí: el llamador (worker._spawn) registra primero
 	// el worker en el Pool (fija id/parent) y sólo después hace `go w.run(source)`,

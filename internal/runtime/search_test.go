@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -472,8 +473,10 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 	h.expectEval(`return type(FIRST)`, "string")
 
 	// El cleanup corre al terminar la task y desregistra el iterador de forma
-	// síncrona. Esta aserción detecta el cableado ausente incluso en runners con
-	// pocos núcleos, donde el margen del conteo de goroutines podía ocultar la fuga.
+	// síncrona (no bloqueante). Esta aserción es SÍNCRONA y siempre válida: al
+	// volver del `break`, el `close` del cleanup ya ejecutó su `untrackGrep`, así
+	// que el iterador no puede seguir rastreado. Es lo que este test de nivel Lua
+	// blinda de forma determinista.
 	h.rt.sched.mu.Lock()
 	tracked := len(h.rt.sched.greps)
 	h.rt.sched.mu.Unlock()
@@ -481,11 +484,129 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 		t.Fatalf("greps vivos tras early-stop: %d", tracked)
 	}
 
-	// Las goroutines atienden a la cancelación de contexto de forma asíncrona.
-	// Damos un margen para que salgan y comparamos con la base con holgura frente a
-	// las demás goroutines del runtime.
-	if !eventuallyLeqGoroutines(base+5, 2_000) {
-		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
+	// El drenado real del pool (sin fugas de goroutine) ya NO se asegura contando
+	// goroutines bajo un deadline: ese conteo era la fuente de la flake (2026-07-11)
+	// —en runners estrangulados las goroutines canceladas tardan en morir— y hacer
+	// `close` síncrono para forzarlo bloqueaba el hilo de la VM (panel clean-room
+	// NO CONFORME). La no-fuga la blinda ahora, de forma determinista y sin tocar el
+	// hilo de la VM, el test blanco TestGrepCloseDrainaElPool: construye el iterador
+	// con el pool bloqueado, llama a `close` y espera `<-it.done` DESDE la goroutine
+	// del test. Aquí sólo comprobamos que el conteo no se ha disparado sin acotar,
+	// con holgura amplia y sin que un fallo dependa del planificador de un runner
+	// lento (best-effort, no criterio de fuga).
+	if !eventuallyLeqGoroutines(base+8, 2_000) {
+		t.Logf("aviso: goroutines aún altas tras early-stop (best-effort): base=%d, ahora=%d", base, runtime.NumGoroutine())
+	}
+}
+
+// grepFilesConMatches escribe `nFiles` ficheros en un directorio temporal, cada
+// uno con `perFile` líneas que casan `NEEDLE`, y devuelve sus rutas. Es la
+// materia prima de los tests blancos del pool: bastantes matches como para que
+// los workers estén enviando a `results` cuando llega la cancelación.
+func grepFilesConMatches(t *testing.T, nFiles, perFile int) []string {
+	t.Helper()
+	root := t.TempDir()
+	files := make([]string, 0, nFiles)
+	var content strings.Builder
+	for j := 0; j < perFile; j++ {
+		content.WriteString("NEEDLE en linea\n")
+	}
+	blob := []byte(content.String())
+	for i := 0; i < nFiles; i++ {
+		p := filepath.Join(root, "g"+itoa(i)+".txt")
+		if err := os.WriteFile(p, blob, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, p)
+	}
+	return files
+}
+
+// TestGrepCloseDrainaElPool es el test BLANCO que blinda "sin fugas de goroutine"
+// SIN bloquear el hilo de la VM. Construye el iterador directamente con
+// `newGrepIter` y NO consume `results`: como el canal es sin buffer, los workers
+// que encuentran match quedan bloqueados enviando (`it.results <- res`). Entonces
+// llama a `close` (que ahora es NO bloqueante: sólo cancela) y espera `<-it.done`
+// DESDE LA GOROUTINE DEL TEST —que puede bloquear libremente, no es la VM—,
+// verificando que el pool drenó (todos los workers salieron, `results` cerrado).
+//
+// Este test MATA la reversión del fix de forma determinista: si alguien borra la
+// señal de drenado (`close(it.done)` en la cerradora), `<-it.done` no se sella
+// nunca y el test falla por timeout, sin depender del planificador de CI. Es la
+// garantía que antes se intentaba (mal) forzando `close` a ser síncrono, lo que
+// congelaba el event loop (panel clean-room NO CONFORME).
+func TestGrepCloseDrainaElPool(t *testing.T) {
+	files := grepFilesConMatches(t, 40, 100)
+	re := regexp.MustCompile("NEEDLE")
+
+	// Sin scheduler: el iterador se admite aislado y este test sólo mira el pool.
+	it := newGrepIter(nil, re, files, 0)
+
+	// Deja que los workers arranquen y se aparquen enviando al canal sin consumidor:
+	// no es requisito de correctitud (la garantía de drenado vale igual), sólo hace
+	// que el test ejercite el estado que nos importa (workers bloqueados en el send).
+	time.Sleep(50 * time.Millisecond)
+
+	it.close() // no bloqueante: cancela el contexto y vuelve
+
+	// El drenado ocurre en las goroutines de fondo; lo esperamos AQUÍ, no en la VM.
+	select {
+	case <-it.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("close() no drenó el pool: la señal `done` no se selló en 2s (¿se borró close(it.done)?)")
+	}
+
+	// `done` se sella DESPUÉS de cerrar `results`: al llegar aquí el canal está
+	// cerrado y ya no queda ningún worker enviando. Un receive devuelve ok=false.
+	if _, ok := <-it.results; ok {
+		t.Fatal("results entregó un valor tras done: el pool no había drenado")
+	}
+}
+
+// TestGrepStopAllGrepsTerminaConGrepVivo cubre el camino de la red de seguridad
+// `Runtime.Close` → `stopAllGreps` → `close()` con un grep VIVO y un CONSUMIDOR
+// activo, verificando que ambos terminan. Es el hueco de test T2 del panel
+// clean-room: antes no había cobertura de este camino, y con el `close` síncrono
+// un worker atascado colgaba el shutdown entero. Con `close` no bloqueante,
+// `stopAllGreps` vuelve enseguida y el pool drena por su cuenta.
+func TestGrepStopAllGrepsTerminaConGrepVivo(t *testing.T) {
+	h := newHarness(t)
+	files := grepFilesConMatches(t, 40, 100)
+	re := regexp.MustCompile("NEEDLE")
+
+	it := newGrepIter(h.rt.sched, re, files, 0)
+	h.rt.sched.trackGrep(it)
+
+	// Consumidor: drena `results` en una goroutine, como haría el `next` de una task.
+	consumed := make(chan struct{})
+	go func() {
+		defer close(consumed)
+		for range it.results {
+		}
+	}()
+
+	// La red de seguridad. `close` es no bloqueante, así que esto no puede colgarse
+	// aunque un worker estuviera atascado en una lectura no cancelable.
+	h.rt.sched.stopAllGreps()
+
+	// El consumidor termina: `results` se cierra cuando el pool drena.
+	select {
+	case <-consumed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el consumidor no terminó: `results` no se cerró tras stopAllGreps")
+	}
+	// El pool drenó del todo (la cerradora selló `done`).
+	select {
+	case <-it.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el pool no drenó tras stopAllGreps")
+	}
+	// Y el grep quedó desregistrado del scheduler.
+	h.rt.sched.mu.Lock()
+	tracked := len(h.rt.sched.greps)
+	h.rt.sched.mu.Unlock()
+	if tracked != 0 {
+		t.Fatalf("grep aún rastreado tras stopAllGreps: %d", tracked)
 	}
 }
 

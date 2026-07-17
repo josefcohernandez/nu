@@ -30,6 +30,7 @@ package runtime
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -223,7 +224,7 @@ func streamErrWasm(err error) error {
 // Mismo contrato que parseReqOpts (§8): url obligatoria, method/body/headers/
 // timeout_ms/tls/proxy opcionales; un valor inválido → EINVAL.
 func parseReqOptsWasm(v any) (reqOpts, error) {
-	o := reqOpts{method: http.MethodGet, timeout: httpDefaultTimeout}
+	o := reqOpts{method: http.MethodGet, timeout: httpDefaultTimeout, maxRedirects: httpDefaultMaxRedirects}
 	m, ok := v.(map[string]any)
 	if !ok {
 		return o, einvalHTTP("opts debe ser una tabla")
@@ -282,6 +283,19 @@ func parseReqOptsWasm(v any) (reqOpts, error) {
 	if px, ok := m["proxy"].(string); ok {
 		o.proxy = px
 		o.proxySet = true
+	}
+	// max_redirects (G54): entero no negativo. Ausente → default 10 (ya fijado en el
+	// inicializador); `0` = no seguir ninguno. Un fraccionario o un negativo es un uso
+	// inválido —el presupuesto es un número de saltos, no cabe media redirección—.
+	if rv, present := m["max_redirects"]; present && rv != nil {
+		n, ok := httpNum(rv)
+		if !ok {
+			return o, einvalHTTP("opts.max_redirects debe ser un número")
+		}
+		if n < 0 || n != math.Trunc(n) {
+			return o, einvalHTTP("opts.max_redirects debe ser un entero no negativo")
+		}
+		o.maxRedirects = int(n)
 	}
 	return o, nil
 }

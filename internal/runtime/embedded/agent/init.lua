@@ -28,3 +28,7 @@ local agent = require("agent")
 -- permiso ni en headless. Las que mutan el disco quedan en el default "ask"
 -- (deny en headless sin respuesta), así el permiso denegado muerde solo a ellas.
 require("agent.tools_fs")
+
+-- Tool `bash`: ejecuta comandos de shell. Recorta por defecto los secretos del
+-- provider del entorno del hijo (G55, agente.md §3, SEC-04).
+require("agent.tools_bash")

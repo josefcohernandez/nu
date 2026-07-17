@@ -106,8 +106,9 @@ func TestBareScreenContent(t *testing.T) {
 	joined := strings.Join(lines, "\n")
 
 	// Versión + nivel de API (§2). El nivel sube con cada adición a la superficie
-	// sagrada (G32 enu.sys.pid → 2, G52 frames binarios de enu.ws → 3, G57 opts.mode
-	// de enu.fs.write → 5); se compone desde las constantes para no reescribirlo.
+	// sagrada (G32 enu.sys.pid → 2, G52 frames binarios de enu.ws → 3, G54 control de
+	// redirects de enu.http → 4, G57 opts.mode de enu.fs.write → 5); se compone desde
+	// las constantes para no reescribirlo.
 	wantVer := fmt.Sprintf("enu %d.%d.%d · API %d", VersionMajor, VersionMinor, VersionPatch, APILevel)
 	if !strings.Contains(joined, wantVer) {
 		t.Errorf("falta la versión/API %q en la pantalla:\n%s", wantVer, joined)

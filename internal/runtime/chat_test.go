@@ -40,6 +40,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // bootChat arranca un Runtime con toolkit+providers+sessions+agent+chat activadas
@@ -58,7 +59,19 @@ func bootChat(t *testing.T, providersToml string, w, h int) (*harness, string) {
 			t.Fatalf("write providers.toml: %v", err)
 		}
 	}
-	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(true), WithUISize(w, h))
+	// Presupuesto de slice GENEROSO para el watchdog (S09), no el de producción
+	// (100 ms). `chat.start` construye TODA la UI en un único slice síncrono largo
+	// pero acotado (registries + agent.session + _build_ui + subs + keymaps +
+	// refresh + repaint): no quema CPU, sólo encadena muchas operaciones pequeñas.
+	// En producción termina muy por debajo de 100 ms, pero bajo `-race` (que ralentiza
+	// Lua ~10×) más contención de CPU en CI ese slice legítimo puede rebasar los 100 ms
+	// y el watchdog lo abortaría con EBUDGET no capturable, dejando el Chat a medias
+	// (`C` global = nil) — un falso positivo del watchdog EXCLUSIVO del entorno de test
+	// (los usuarios reales no corren bajo `-race`). Un margen amplio (10 s) evita ese
+	// aborto espurio sin desactivar el watchdog: un bucle infinito real en código de
+	// chat seguiría cortándose muy antes del timeout de `go test`.
+	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(true), WithUISize(w, h),
+		WithSliceBudget(10*time.Second))
 	t.Cleanup(rt.Close)
 	if err := rt.Boot(); err != nil {
 		t.Fatalf("Boot falló: %v", err)

@@ -393,6 +393,11 @@ func (rt *Runtime) buildWasmState() {
 // desde dentro). `registerUIWasm` instala el compositor SÓLO si hay UI concedida
 // (`rt.ui != nil`, gating headless G20); en headless no registra nada.
 func (rt *Runtime) registerWasmCatalog(p *vmwasm.Pool) {
+	// Resolvedor del dueño vigente para la FOTO del spawn de un worker (G56, ADR-024):
+	// enu.worker._spawn lo llama —en la goroutine de la VM, donde el ownerStack es
+	// coherente— para capturar la identidad con que arranca cada worker. Sin esto un
+	// worker leería el ownerStack del padre desde su propia goroutine (SEC-05/SEC-07).
+	p.SetOwnerSnapshot(rt.currentOwner)
 	registerCodecsWasm(p)     // enu.json/toml/yaml (§12)
 	registerReWasm(p)         // enu.re (§10)
 	registerFsWasm(p, rt)     // enu.fs (§5)
@@ -418,6 +423,25 @@ func (rt *Runtime) currentOwner() string {
 		return rt.ownerStack[n-1].Name
 	}
 	return ownerUser
+}
+
+// ownerForInst resuelve el dueño con que corre una primitiva [W] atribuida por dueño
+// (enu.log, enu.proc), dado el `inst` que la ejecuta (G56, ADR-024). Desde el estado
+// principal es el dueño VIGENTE (currentOwner, tope del ownerStack), leído
+// single-thread bajo el token. Desde un WORKER es la FOTO capturada en el spawn
+// —inmutable durante toda la vida del worker—: JAMÁS se lee rt.ownerStack del padre
+// desde la goroutine del worker. Eso hace la atribución DETERMINISTA (no depende de
+// lo que el principal esté haciendo en ese instante) y elimina por diseño el data
+// race de SEC-05 (dos hilos tocando la pila del padre). `fromWorker` deja que el
+// llamador distinga el artefacto de atribución: enu.log anota `<plugin> (worker)`
+// (quién y desde dónde), mientras enu.proc registra el proceso bajo el plugin dueño
+// —el nombre CRUDO— para que `plugin.reload` lo alcance igual que a los del estado
+// principal (árbol de supervisión sin fugas por la frontera del worker).
+func (rt *Runtime) ownerForInst(inst *vmwasm.Instance) (owner string, fromWorker bool) {
+	if photo, isWorker := inst.WorkerOwner(); isWorker {
+		return photo, true
+	}
+	return rt.currentOwner(), false
 }
 
 // Boot ejecuta el **arranque canónico** del runtime (api.md §14, S11): descubre y

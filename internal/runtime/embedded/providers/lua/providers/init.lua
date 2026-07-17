@@ -153,6 +153,8 @@ local function build_index(decoded)
   local index = {}            -- "proveedor/clave" -> { provider_name, provider, model }
   local models = {}           -- lista de ModelInfo enriquecidos (para list())
   local provs = (decoded and decoded.providers) or {}
+  local secret_set = {}       -- dedup de `api_key_env` (G55, §4): nombre -> true
+  local secrets = {}          -- misma info, en orden, para secret_env_vars()
 
   for pname, prov in pairs(provs) do
     if type(prov) ~= "table" then
@@ -163,6 +165,13 @@ local function build_index(decoded)
     end
     if type(prov.base_url) ~= "string" or prov.base_url == "" then
       eprovider(string.format("el provider %q en providers.toml no declara `base_url` (providers.md §1)", pname))
+    end
+    -- G55 (§4): `api_key_env` es el NOMBRE de la variable que porta la credencial
+    -- de este provider. Se recoge aquí, DEDUPLICADO, para secret_env_vars(): el
+    -- pairs() de Lua no da un orden estable, así que ordenamos al final (M.secret_env_vars).
+    if type(prov.api_key_env) == "string" and prov.api_key_env ~= "" and not secret_set[prov.api_key_env] then
+      secret_set[prov.api_key_env] = true
+      secrets[#secrets + 1] = prov.api_key_env
     end
     local mlist = prov.models or {}
     for _, model in ipairs(mlist) do
@@ -195,7 +204,11 @@ local function build_index(decoded)
     end
   end
 
-  return { index = index, models = models }
+  -- Orden determinista (G55): el registro se lee con `pairs`, sin orden estable
+  -- entre providers; `secret_env_vars()` no debe variar de una carga a otra.
+  table.sort(secrets)
+
+  return { index = index, models = models, secrets = secrets }
 end
 
 -- load_registry carga y cachea el registro. Perezoso (no toca el disco hasta la
@@ -304,6 +317,27 @@ function M.list()
   local out = {}
   for i, info in ipairs(reg.models) do
     out[i] = info
+  end
+  return out
+end
+
+-- secret_env_vars() -> string[] (providers.md §4, G55/SEC-04). Los NOMBRES
+-- —nunca los valores— de las variables de entorno que portan credenciales según
+-- el registro vigente: las `api_key_env` de TODOS los providers declarados en
+-- `providers.toml`, deduplicadas y en orden alfabético (determinista: `pairs`
+-- no promete orden). Solo esta extensión sabe qué variables son secretos de LLM
+-- ("provider"/"api key" son vocabulario de producto, ADR-003); otras
+-- extensiones —la tool `bash` de `agent` y el lanzamiento de servidores MCP,
+-- ambos por `enu.proc`— la consumen para NO regalarlas por defecto en el
+-- entorno de sus subprocesos (agente.md §3). Es una foto del registro, no una
+-- promesa de secreto absoluto: una credencial exportada al margen del TOML no
+-- se conoce aquí.
+function M.secret_env_vars()
+  local reg = load_registry()
+  -- Copia defensiva, igual que list().
+  local out = {}
+  for i, v in ipairs(reg.secrets) do
+    out[i] = v
   end
   return out
 end
