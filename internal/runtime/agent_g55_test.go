@@ -150,6 +150,109 @@ id = "m1"
 	h.expectEval(`return tostring(out)`, "env|-u|SECRET_A|--|/bin/sh|-c|echo hi")
 }
 
+// TestG55InheritSecretsTipoMalFormadoFailClosed: si `[tools.bash]
+// inherit_secrets` del agent.toml del USUARIO viene con un tipo MAL FORMADO
+// —no una tabla-array— el guard fail-closed de init.lua (`if type(inherit) ~=
+// "table" then inherit = {}`) lo trata como lista vacía: NO concede nada y el
+// secreto SIGUE recortado, sin reventar el constructor.
+//
+// Se ejercitan DOS formas mal formadas, y la distinción importa para que el
+// test tenga dientes contra la mutación (borrar/invertir el guard):
+//
+//   - un STRING (`"TESTCO_API_KEY"`) es el error de config REALISTA —escribir
+//     `inherit_secrets = "X"` en vez de `["X"]`—. En este Lua, `ipairs` sobre
+//     un string es un no-op (itera vacío), así que documenta el comportamiento
+//     observable pero, por casualidad, seguiría siendo fail-closed aun sin el
+//     guard.
+//   - un NÚMERO (`42`) es donde el guard es DE VERDAD portante: sin él,
+//     `ipairs(42)` lanza ("attempt to index a number value") y el constructor
+//     revienta. Con el guard, se recorta limpio y sin error. Es el vector que
+//     mata la mutación: si se borra o invierte el guard, este sub-caso pasa de
+//     "recorta, err nil" a "err no-nil" y el test cae.
+func TestG55InheritSecretsTipoMalFormadoFailClosed(t *testing.T) {
+	cases := []struct {
+		name      string
+		tomlValue string
+	}{
+		{"string", `"TESTCO_API_KEY"`}, // error realista del usuario
+		{"numero", `42`},               // hace al guard portante (ipairs(42) lanzaría)
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := t.TempDir()
+			dataDir := t.TempDir()
+			writeNuToml(t, cfg, "[plugins]\nenabled = [\"providers\", \"sessions\", \"agent\"]\n")
+			if err := os.WriteFile(filepath.Join(cfg, "providers.toml"), []byte(providersTomlToolStubSecret), 0o644); err != nil {
+				t.Fatalf("write providers.toml: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(cfg, "agent.toml"),
+				[]byte("[tools.bash]\ninherit_secrets = "+c.tomlValue+"\n"), 0o644); err != nil {
+				t.Fatalf("write agent.toml: %v", err)
+			}
+			rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(false))
+			t.Cleanup(rt.Close)
+			if err := rt.Boot(); err != nil {
+				t.Fatalf("Boot: %v", err)
+			}
+			h := &harness{t: t, rt: rt}
+			h.eval(inTask(`
+				local agent = require("agent")
+				local argv = agent._bash_subprocess_argv({ "/bin/sh", "-c", "echo hi" })
+				out = table.concat(argv, "|")
+			`))
+			// Sin error: el guard absorbe la config mal formada (no revienta).
+			h.expectEval(`return tostring(err_code)`, "nil")
+			// Fail-closed: config mal formada = lista vacía → el secreto SIGUE recortado.
+			h.expectEval(`return tostring(out)`, "env|-u|TESTCO_API_KEY|--|/bin/sh|-c|echo hi")
+		})
+	}
+}
+
+// TestG55BashToolPresentaFalloConStderrYExitCode blinda la PRESENTACIÓN de la
+// tool `bash` real (tools_bash.lua) cuando el comando FALLA: un comando que
+// escribe en stderr y sale con código != 0 compone las tres ramas del formato
+// —stdout (aquí vacío), `[stderr]\n...` y `[exit code N]`—. Los tests previos de
+// G55 solo ejercen el camino feliz (printf, exit 0, sin stderr), así que las
+// ramas de stderr y exit code quedaban sin cubrir: borrar cualquiera de las dos
+// sobreviviría. Aquí no.
+func TestG55BashToolPresentaFalloConStderrYExitCode(t *testing.T) {
+	h, _ := bootAgent(t, providersTomlToolStubSecret, false) // headless (sin UI, G20)
+
+	h.eval(`
+		out, errc = nil, nil
+		enu.task.spawn(function()
+			local ok, e = pcall(function()
+				local agent = require("agent")
+				` + registerToolStub + `
+				TOOLNAME = "bash"
+				-- Escribe en stderr y sale con código 3 (fallo del COMANDO, no de
+				-- la tool): las tres ramas del formato deben componer la salida.
+				TOOLARGS = { command = "echo err >&2; exit 3" }
+				local s = agent.session{
+					model = "test/m", no_store = true,
+					permissions = { allow = { "bash" } },
+				}
+				s:send("corre el comando")
+				TOOL_OUT = s.history[3].content[1].content[1].text
+				s:close()
+			end)
+			if not ok then errc = (type(e) == "table" and e.code) or tostring(e) end
+			out = "done"
+		end)`)
+	h.expectEval(`return tostring(out)`, "done")
+	h.expectEval(`return tostring(errc)`, "nil")
+
+	toolOut := h.eval(`return tostring(TOOL_OUT)`)[0]
+	// Rama stderr: el `[stderr]` precede a la salida de error del comando.
+	if !strings.Contains(toolOut, "[stderr]\nerr") {
+		t.Fatalf("se esperaba la rama [stderr] con la salida de error; got %q", toolOut)
+	}
+	// Rama exit code: el código != 0 se reporta como texto (no como is_error).
+	if !strings.Contains(toolOut, "[exit code 3]") {
+		t.Fatalf("se esperaba la rama [exit code 3]; got %q", toolOut)
+	}
+}
+
 // TestG55BashSubprocesoRealNoVeElSecretoDelProvider es la prueba que de verdad
 // importa: un turno normal pide la tool `bash` REAL (registrada por la propia
 // extensión en tools_bash.lua, no un doble de test) con un comando que vuelca

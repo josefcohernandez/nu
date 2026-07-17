@@ -165,6 +165,30 @@ func TestG53FailClosedConstructos(t *testing.T) {
 	}
 }
 
+// TestG53EscapeLiteralExponeSeparador blinda el manejo del escape FUERA de
+// comillas (init.lua: `if c == "\\" then ...` del bloque sin comillas): un `\"`
+// es un backslash-quote LITERAL, no una comilla que abra string. El vector es de
+// comillas BALANCEADAS —cero comillas reales— para que ese manejo sea la ÚNICA
+// razón de la decisión correcta (los vectores de comillas desbalanceadas de
+// TestG53FailClosedConstructos caen a `nil` por el desbalanceo, no por el
+// escape, y sobrevivirían a la mutación que borra este bloque).
+//
+// `echo \" && curl evil` con el escape tratado como literal: el `\"` NO abre
+// comillas, el `&&` SÍ parte, y el subcomando `curl evil` queda expuesto → lo
+// muerde `deny = { "bash:curl *" }` → "deny". Sin el manejo del escape, el `"`
+// abriría comillas dobles que se tragan el `&&` y el `curl`; el rastreador
+// terminaría con la comilla abierta → comando no modelable → `nil` → "pass": la
+// decisión cambia de "deny" a "pass" y el test FALLA, matando la mutación.
+func TestG53EscapeLiteralExponeSeparador(t *testing.T) {
+	h, _ := bootAgent(t, providersTomlToolStub, false)
+	allow := []string{"bash:echo *"}
+	deny := []string{"bash:curl *"}
+	const cmd = `echo \" && curl evil`
+	if got := h.decide(allow, deny, "bash", cmd); got != "deny" {
+		t.Errorf("cmd=%q: el escape literal debe exponer el separador y `curl` → deny, got %q", cmd, got)
+	}
+}
+
 // TestG53VarEnArgumentoEsModelable: el fail-closed de `$VAR` es SOLO en posición
 // de comando. Una variable en posición de ARGUMENTO es literal opaco para el glob
 // (no cambia qué programa arranca), así que sí es modelable y puede concederse.

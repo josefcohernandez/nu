@@ -421,4 +421,33 @@ id = "m1"
 		out = table.concat(vars, ",")
 	`))
 	h3.expectEval(`return tostring(out)`, "SHARED_KEY")
+
+	// Orden alfabético DETERMINISTA con DOS claves distintas: el registro se lee
+	// con `pairs` (sin orden estable), así que `secret_env_vars()` ordena con
+	// `table.sort` (providers/init.lua). Se declaran en orden NO alfabético
+	// (`ZKEY` antes que `AKEY`) para que solo el `table.sort` pueda producir la
+	// salida esperada: sin él, el orden dependería del hash de `pairs` y este
+	// aserto caería (o sería flaky). Blinda el sort, no solo la deduplicación.
+	tomlOrden := `
+[providers.z]
+adapter     = "stub"
+base_url    = "https://z.example"
+api_key_env = "ZKEY"
+[[providers.z.models]]
+id = "m1"
+
+[providers.a]
+adapter     = "stub"
+base_url    = "https://a.example"
+api_key_env = "AKEY"
+[[providers.a.models]]
+id = "m1"
+`
+	h4 := bootProviders(t, tomlOrden)
+	h4.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h4.expectEval(`return tostring(err_code)`, "nil")
+	h4.expectEval(`return tostring(out)`, "AKEY,ZKEY")
 }
