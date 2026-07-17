@@ -46,6 +46,14 @@ type PTY struct {
 // limpieza (mata el proceso y cierra el maestro al terminar el test).
 func (w *Workspace) Start(t *testing.T, opts RunOpts) *PTY {
 	t.Helper()
+	// Escotilla para entornos sin PTY: si un runner de CI no pudiera asignar un
+	// pseudo-terminal (o quisiéramos aislar los tests interactivos), `E2E_NO_PTY=1`
+	// los SALTA en bloque en vez de que fallen por no poder arrancar la UI. Por
+	// defecto (variable ausente) corren: los runners GitHub Linux/macOS sí soportan
+	// /dev/ptmx, así que la suite interactiva se ejerce normalmente.
+	if os.Getenv("E2E_NO_PTY") != "" {
+		t.Skip("E2E_NO_PTY: suite interactiva (PTY) deshabilitada en este entorno")
+	}
 	master, slave, err := openPTY()
 	if err != nil {
 		t.Fatalf("openPTY: %v", err)
@@ -190,6 +198,37 @@ func (p *PTY) Wait(t *testing.T, timeout time.Duration) int {
 	}
 	t.Fatalf("PTY.Wait: error inesperado: %v", p.waitErr)
 	return -1
+}
+
+// WaitExit es la variante NO fatal de Wait: espera hasta `timeout` (0 = 5 s) a que el
+// proceso termine y devuelve `(exitCode, true)` si lo hizo, o `(-1, false)` si venció el
+// plazo (el proceso sigue vivo; lo matará el Close del Cleanup). Úsala cuando la propia
+// terminación —o su ausencia— es el dato a afirmar sin abortar el test de inmediato
+// (p. ej. caracterizar un bug de salida conocido: ver los tests TestReplE2E*).
+func (p *PTY) WaitExit(timeout time.Duration) (int, bool) {
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+	done := make(chan struct{})
+	go func() {
+		p.waitOnce.Do(func() { p.waitErr = p.cmd.Wait() })
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		// El proceso sigue vivo; la goroutine queda bloqueada en cmd.Wait hasta que el
+		// Close del Cleanup mate el proceso (comparte el waitOnce, sin fugas más allá
+		// del test).
+		return -1, false
+	}
+	if p.waitErr == nil {
+		return 0, true
+	}
+	if exitErr, ok := p.waitErr.(*exec.ExitError); ok {
+		return exitErr.ExitCode(), true
+	}
+	return -1, true
 }
 
 // Close mata el proceso (si sigue vivo) y cierra el maestro. Idempotente; lo llama el

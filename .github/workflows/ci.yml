@@ -132,6 +132,17 @@ jobs:
   # cancelación S08) que solo destapan data races bajo -race; correr sin él dejaría
   # ciega justo la parte del runtime que más lo necesita (el puente goroutine↔task,
   # ADR-011). Coste medido: ~30 s. En ambos OS objetivo, por la misma razón que build.
+  #
+  # El barrido `go list ./...` YA incluye el paquete `./e2e/` —la suite END-TO-END
+  # que lanza el BINARIO real (chat/repl bajo PTY, agente/mcp/mesh/providers/sessions
+  # contra un provider fake por httptest)—, así que NO necesita un job propio: corre
+  # aquí, con el mismo -race y -shuffle=on, en Linux y macOS (ambos runners soportan
+  # /dev/ptmx, luego los tests interactivos se ejercen de verdad). Su `TestMain`
+  # compila `enu` una vez (CGO_ENABLED=0) y lo reusa; ese binario hijo NO va
+  # instrumentado con -race (se prueba el artefacto de release, no el de test) y el
+  # coste del build se amortiza entre todos los tests del paquete. Si algún runner
+  # futuro no pudiera asignar un PTY, `E2E_NO_PTY=1` salta solo la parte interactiva
+  # (ver e2e/pty_test.go) sin tumbar el resto de la suite e2e.
   test:
     name: Tests (-race)
     strategy:
