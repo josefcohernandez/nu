@@ -50,8 +50,8 @@ type Pool struct {
 	reg      *hostRegistry
 	ui       UIBackend // backend de compositor (M11); nil = headless (G20)
 
-	isWorker      bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
-	modules       map[string]string // fuentes de módulo por nombre para require (M13, DM5)
+	isWorker bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
+	modules  map[string]string // fuentes de módulo por nombre para require (M13, DM5)
 
 	// ownerSnapshot es el resolvedor del dueño VIGENTE del estado principal (G56,
 	// ADR-024): lo fija el Runtime con SetOwnerSnapshot (típicamente rt.currentOwner).
@@ -61,8 +61,8 @@ type Pool struct {
 	// principal (un worker no anida workers, P11); nil en Pools sin Runtime (tests de
 	// bajo nivel). No se lee jamás desde la goroutine de un worker.
 	ownerSnapshot func() string
-	apiVersion    int               // nivel de enu.version.api que inyecta el preludio (M13, lo fija el Runtime)
-	verMajor      int               // enu.version.major/minor/patch (api.md §1); los fija el Runtime
+	apiVersion    int // nivel de enu.version.api que inyecta el preludio (M13, lo fija el Runtime)
+	verMajor      int // enu.version.major/minor/patch (api.md §1); los fija el Runtime
 	verMinor      int
 	verPatch      int
 	extraPreludio []preludioSnippet // snippets Lua que aporta el catálogo (M13b: wrappers finos)
