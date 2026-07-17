@@ -674,6 +674,73 @@ function M.reload_config()
   config_cache = nil
 end
 
+-- ---------------------------------------------------------------------------
+-- Higiene del entorno de subprocesos (G55, agente.md §3, SEC-04).
+-- ---------------------------------------------------------------------------
+
+-- bash_env_prefix() -> string[]. Los tokens `"-u", "VAR", ...` que, antepuestos
+-- a `env --` delante del comando REAL, hacen que el hijo NO herede las variables
+-- de `providers.secret_env_vars()` (providers.md §4) salvo que el usuario haya
+-- hecho opt-in nominal con `[tools.bash] inherit_secrets = ["VAR", ...]` en SU
+-- `agent.toml` (`config.dir()/agent.toml`, la única config que `load_config`
+-- lee — el `agent.toml` del repo aún no se lee en absoluto, §11; los `opts` de
+-- sesión no tienen forma de tocar esto, ni la tendrán, agente.md §3).
+--
+-- El mecanismo es el idioma `env -u` del SO, tal y como agente.md §3 lo fija:
+-- NO se toca `opts.env` de `enu.proc` (que REEMPLAZA el entorno entero por
+-- llamada, S16) porque la API no ofrece enumerar el entorno heredado para
+-- reconstruirlo menos las secretas — `env -u VAR -- cmd` expresa exactamente
+-- "todo lo heredado, salvo esto" sin necesitar esa enumeración.
+local function bash_env_prefix()
+  local secrets = providers.secret_env_vars()
+  if #secrets == 0 then
+    return {}
+  end
+  local cfg = load_config()
+  local inherit = (cfg.tools and cfg.tools.bash and cfg.tools.bash.inherit_secrets) or {}
+  if type(inherit) ~= "table" then
+    inherit = {} -- config mal formada: no concede nada (fail-closed, no EAGENT aquí)
+  end
+  local allowed = {}
+  for _, v in ipairs(inherit) do
+    allowed[v] = true
+  end
+  local prefix = {}
+  for _, var in ipairs(secrets) do
+    if not allowed[var] then
+      prefix[#prefix + 1] = "-u"
+      prefix[#prefix + 1] = var
+    end
+  end
+  return prefix
+end
+
+-- M._bash_subprocess_argv(argv) -> string[]. Envuelve `argv` (el comando REAL,
+-- ya como array — sin shell implícita, api.md §6) con el prefijo `env -u ...`
+-- de higiene de G55, para que CUALQUIER subproceso lanzado por la extensión
+-- (la tool `bash` de `tools_bash.lua`, hoy; otro lanzador futuro que quiera la
+-- MISMA higiene) recorte los secretos del provider por defecto. Expuesto en `M`
+-- (convención `M._foo` de ganchos internos, cf. `M._decompose_bash`) porque
+-- `tools_bash.lua` es un fichero distinto que solo ve la superficie pública.
+function M._bash_subprocess_argv(argv)
+  if type(argv) ~= "table" then
+    einval("_bash_subprocess_argv espera un array de argumentos")
+  end
+  local prefix = bash_env_prefix()
+  if #prefix == 0 then
+    return argv -- nada que recortar (sin providers con api_key_env declarada)
+  end
+  local out = { "env" }
+  for _, tok in ipairs(prefix) do
+    out[#out + 1] = tok
+  end
+  out[#out + 1] = "--"
+  for _, tok in ipairs(argv) do
+    out[#out + 1] = tok
+  end
+  return out
+end
+
 -- normalize_permissions(opts_perms, cfg) -> Permissions. Combina los permisos de
 -- la sesión (`opts.permissions`) con los globales de `agent.toml` (agente.md §10:
 -- defaults < global < sesión). El repo solo recorta (agente.md §11) — fuera del

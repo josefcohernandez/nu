@@ -207,11 +207,12 @@ opt-in es su propia entrada de configuración —escrita por el usuario, acto
 consciente como instalar un plugin (§11)—: un `env` explícito para ese
 servidor.
 
-> ⏳ **Pendiente de construcción** (G55): la extensión `0.1.0`, construida
-> antes de esta resolución, todavía hereda el entorno completo en sus
-> subprocesos. El recorte por defecto e `inherit_secrets` se implementarán
-> citando este contrato y `providers.secret_env_vars()`
-> ([providers.md](providers.md) §4).
+> ✅ **Implementado** (G55): la tool `bash` (`tools_bash.lua`) y el recorte por
+> defecto e `inherit_secrets` (`init.lua`, `M._bash_subprocess_argv`) están
+> construidos, citando este contrato y `providers.secret_env_vars()`
+> ([providers.md](providers.md) §4). El mismo recorte para servidores MCP
+> lanzados por `enu.proc` **sigue pendiente**: `mcp.connect` vive en la
+> extensión `mcp`, fuera de este cierre.
 
 ## 4. Hooks
 
