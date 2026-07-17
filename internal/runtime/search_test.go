@@ -481,10 +481,13 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 		t.Fatalf("greps vivos tras early-stop: %d", tracked)
 	}
 
-	// Las goroutines atienden a la cancelación de contexto de forma asíncrona.
-	// Damos un margen para que salgan y comparamos con la base con holgura frente a
-	// las demás goroutines del runtime.
-	if !eventuallyLeqGoroutines(base+5, 2_000) {
+	// El cleanup llama a `close`, que desde el arreglo de la flake de la bitácora
+	// de salud 2026-07-11 ESPERA a que el pool drene (`<-it.done`): al llegar aquí
+	// los workers y la cerradora ya han salido. El margen pequeño y el deadline
+	// cubren solo a los rezagados que `close` no espera por diseño (el repartidor,
+	// que sale por `ctx.Done` fuera del WaitGroup) — ya no compensan una
+	// cancelación asíncrona, que era la fuente de la flake en runners lentos.
+	if !eventuallyLeqGoroutines(base+2, 2_000) {
 		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
 	}
 }

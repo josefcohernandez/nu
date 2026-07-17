@@ -50,8 +50,9 @@ import (
 // `max` corta: alcanzado el límite, el iterador deja de entregar y las goroutines
 // se cancelan (`context`). Al crear el handle, el wrapper wasm registra su cierre
 // en `enu.task.cleanup`, así ninguna goroutine queda colgada aunque el consumidor
-// haga `break`. Como red de seguridad, `Runtime.Close` cancela todos los greps
-// vivos (`stopAllGreps`).
+// haga `break` — y el cierre es **síncrono**: `close` espera (`done`) a que el
+// pool haya drenado, para que el desmontaje no dependa del planificador. Como red
+// de seguridad, `Runtime.Close` cancela todos los greps vivos (`stopAllGreps`).
 
 // --- enu.search.files ----------------------------------------------------------
 
@@ -322,6 +323,7 @@ type grepIter struct {
 	results chan grepResult
 	ctx     context.Context
 	cancel  context.CancelFunc
+	done    chan struct{} // la cerradora lo sella cuando el pool ha drenado del todo
 
 	max       int
 	emitted   int
@@ -349,6 +351,7 @@ func newGrepIter(s *scheduler, re *regexp.Regexp, files []string, max int) *grep
 		results: make(chan grepResult), // sin buffer: backpressure natural (cada next saca uno)
 		ctx:     ctx,
 		cancel:  cancel,
+		done:    make(chan struct{}),
 		max:     max,
 	}
 
@@ -380,10 +383,14 @@ func newGrepIter(s *scheduler, re *regexp.Regexp, files []string, max int) *grep
 		}
 	}()
 	// Cerradora: cuando todas las goroutines terminan, cierra `results` —es la
-	// señal de EOF para el consumidor (`<-results` devuelve `ok=false`).
+	// señal de EOF para el consumidor (`<-results` devuelve `ok=false`)— y sella
+	// `done` —la señal de "pool drenado" que `close` espera para ser síncrono—.
+	// El orden importa: un `next` bloqueado en `<-results` se desbloquea por el
+	// cierre de `results` ANTES de que `close` deje de esperar.
 	go func() {
 		wg.Wait()
 		close(it.results)
+		close(it.done)
 	}()
 	return it
 }
@@ -496,11 +503,19 @@ func readGrepLine(r *bufio.Reader, max int) (string, bool, error) {
 	}
 }
 
-// close cancela el pool de goroutines de fondo y deja de rastrear el iterador.
-// **Idempotente** (`closeOnce`): lo llaman el `next` (al alcanzar `max` o EOF),
-// el `cleanup` de la task (al cancelarse/terminar) y `Runtime.Close` (red de
-// seguridad). Cancelar el contexto desbloquea el repartidor y las goroutines, que
-// terminan; la cerradora cierra `results`.
+// close cancela el pool de goroutines de fondo, deja de rastrear el iterador y
+// **espera a que el pool haya drenado** antes de volver. **Idempotente**
+// (`closeOnce`): lo llaman el `next` (al alcanzar `max` o EOF), el `cleanup` de
+// la task (al cancelarse/terminar) y `Runtime.Close` (red de seguridad).
+// Cancelar el contexto desbloquea el repartidor y los workers (todos tienen una
+// salida por `ctx.Done` y ninguno toca Lua); cuando el último worker sale, la
+// cerradora cierra `results` y sella `done`. La espera hace el desmontaje
+// **determinista**: al retornar `close`, los workers han salido — sin ella, en
+// runners con pocos núcleos efectivos (cgroups de CI) las goroutines canceladas
+// podían tardar segundos en ser planificadas para morir, y el conteo del DoD
+// "sin fugas" las veía como fuga (flake registrada en la bitácora de salud
+// 2026-07-11). La espera es corta por construcción: como mucho, lo que tarde un
+// worker en terminar la línea que tiene entre manos.
 //
 // El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: algunos tests
 // aislados del núcleo vmwasm crean el iterador sin un Runtime completo. Cancelar
@@ -511,5 +526,6 @@ func (it *grepIter) close() {
 		if it.s != nil {
 			it.s.untrackGrep(it)
 		}
+		<-it.done
 	})
 }
