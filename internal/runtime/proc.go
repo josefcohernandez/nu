@@ -359,8 +359,20 @@ func runBuffered(argv []string, opts procOpts) (int, string, string, error) {
 // igual que a los del estado principal (árbol de supervisión sin fugas, P11).
 func (rt *Runtime) spawnProc(argv []string, opts procOpts, owner string) (*luaProc, error) {
 	// Foto del overlay de `enu.sys.setenv` (S17): el subproceso ve los `setenv`
-	// previos a este `spawn` (§7). Corre en el estado principal, así que esta lectura
-	// no compite con un `setenv` concurrente.
+	// previos a este `spawn` (§7). Tras G56 (ADR-024) esta lectura NO corre siempre en
+	// el estado principal: si el `spawn` nace DENTRO de un worker, `spawnProc` —y con
+	// ella este `envOverlay`— corren en la goroutine del worker (el HostFn de
+	// `proc._spawn` es síncrono en el hilo que lo invoca). Lo que la hace segura frente
+	// a un `enu.sys.setenv` concurrente del estado principal NO es "correr en el hilo
+	// principal" —ya no es cierto—, sino el candado `sysState.mu` que serializa
+	// `envOverlay` (lectura) y `setenv` (escritura) del mismo mapa aunque vivan en
+	// goroutinas distintas (diseño de S17: el candado, no el token, cubre las lecturas
+	// de fondo de `enu.proc`). Por eso NO se aplica aquí la foto-en-el-spawn-del-worker
+	// del owner (ADR-024): la identidad del worker es inmutable, pero el overlay debe
+	// leerse en el instante de ESTE `spawn` para honrar §7 (el hijo ve los `setenv`
+	// previos a él, no los previos a la creación del worker) —tomarlo antes cambiaría
+	// la semántica observable—. El candado ya basta; blindado en
+	// TestSpawnDesdeWorkerConcurrenteConSetenv (verde bajo `-race`).
 	if rt.sys != nil {
 		opts.envOver = rt.sys.envOverlay()
 	}

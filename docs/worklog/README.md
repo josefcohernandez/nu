@@ -58,3 +58,4 @@ debe poder reconstruir.
 | S45 | Superficie CLI (flags, --auto-permissions, --continue/G18, códigos de salida); cierra la Fase 8 y el plan (arquitectura nº5) | [s45-superficie-cli-flags-auto-permissions.md](s45-superficie-cli-flags-auto-permissions.md) |
 | Cierre | coherencia post-plan — P21 (thinking adaptativo, pospuesto) + fix del log espurio de `EvalTaskString` | [cierre-post-plan.md](cierre-post-plan.md) |
 | G42+G43 | Retry con backoff en el motor + `agent:error` estructurado con reintento manual (agente.md §2/§4/§10, chat.md §2/§4) | [g42-g43-retry-backoff.md](g42-g43-retry-backoff.md) |
+| G53–G56 | Construcción del lote de seguridad G53+G54+G55+G56 (auditoría 2026-07-16) | [g53-g56-seguridad.md](g53-g56-seguridad.md) |
