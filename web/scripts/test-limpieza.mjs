@@ -18,6 +18,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { toString as mdastToString } from 'mdast-util-to-string';
 import { remarkLimpiezaInterno } from '../src/lib/markdown/remark-limpieza-interno.mjs';
+import { remarkEnlacesWiki } from '../src/lib/markdown/remark-enlaces-wiki.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ = resolve(AQUI, '..', '..');
@@ -213,6 +214,48 @@ const contiene = (s, sub) => s.includes(sub);
   comprueba('gate/sin marcadores parentéticos',
     !/\((?:G|P|S)\d/.test(t) && !/\(ADR-\d/.test(t) && !t.includes('✅') && !t.includes('enu:interno') && !t.includes('oculto'),
     `→ "${t}"`);
+}
+
+// --- remark-enlaces-wiki: resolución de rutas y caso api.md -------------------
+
+{
+  const procesaEnlaces = (md, path) => {
+    const tree = unified().use(remarkParse).parse(md);
+    remarkEnlacesWiki()(tree, { path });
+    const urls = [];
+    (function anda(n) {
+      if (n.type === 'link') urls.push(n.url);
+      (n.children || []).forEach(anda);
+    })(tree);
+    return urls;
+  };
+
+  const desdeContracts = procesaEnlaces(
+    '[a](api.md#8) [b](desconocido.md) [c](../findings/g42-x.md) [d](agente.md#2) [e](../audits/informe.md)',
+    join(RAIZ, 'docs', 'contracts', 'agente.md'),
+  );
+  comprueba('enlaces/api.md → página /api', desdeContracts[0] === '/enu/api', `→ ${desdeContracts[0]}`);
+  comprueba('enlaces/mismo-dir desconocido → blob con subcarpeta',
+    desdeContracts[1] === 'https://github.com/dbareagimeno/enu/blob/main/docs/contracts/desconocido.md',
+    `→ ${desdeContracts[1]}`);
+  comprueba('enlaces/../findings → blob findings/',
+    desdeContracts[2] === 'https://github.com/dbareagimeno/enu/blob/main/docs/findings/g42-x.md',
+    `→ ${desdeContracts[2]}`);
+  comprueba('enlaces/contrato publicado → página wiki con ancla',
+    desdeContracts[3] === '/enu/docs/agente#2', `→ ${desdeContracts[3]}`);
+  comprueba('enlaces/audits → blob resuelto',
+    desdeContracts[4] === 'https://github.com/dbareagimeno/enu/blob/main/docs/audits/informe.md',
+    `→ ${desdeContracts[4]}`);
+
+  const desdeEn = procesaEnlaces(
+    '[a](api.md) [b](../findings/g42-x.md) [c](chat.md)',
+    join(RAIZ, 'web', 'src', 'content', 'en', 'wiki', 'agente.md'),
+  );
+  comprueba('enlaces/EN api.md → /en/api', desdeEn[0] === '/enu/en/api', `→ ${desdeEn[0]}`);
+  comprueba('enlaces/EN findings → blob (fuente ES)',
+    desdeEn[1] === 'https://github.com/dbareagimeno/enu/blob/main/docs/findings/g42-x.md',
+    `→ ${desdeEn[1]}`);
+  comprueba('enlaces/EN wiki → /en/docs', desdeEn[2] === '/enu/en/docs/chat', `→ ${desdeEn[2]}`);
 }
 
 // --- (opcional, tras --slugs) consistencia WIKI_SLUGS ↔ docmap ----------------

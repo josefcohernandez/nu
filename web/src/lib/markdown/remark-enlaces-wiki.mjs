@@ -31,16 +31,28 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Quita prefijos relativos (./  ../) repetidos y un `docs/` inicial.
-function limpiaRuta(r) {
-  return r.replace(/^(\.\.?\/)+/, '').replace(/^docs\//, '');
+// Resuelve una ruta relativa contra el directorio del fichero fuente DENTRO
+// de docs/ (`dirRepo`: '', 'core' o 'contracts'), devolviendo la ruta
+// docs-relativa real. Un `..` que se sale de docs/ se recorta (mismo clamp
+// que hacía el viejo limpiaRuta); un prefijo `docs/` explícito se pela.
+// Sin esto, un enlace del mismo directorio ([x.md](x.md) en contracts/)
+// perdería su subcarpeta camino del blob de GitHub.
+function resuelveRuta(dirRepo, r) {
+  const partes = [];
+  for (const seg of `${dirRepo ? dirRepo + '/' : ''}${r}`.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') partes.pop();
+    else partes.push(seg);
+  }
+  if (partes[0] === 'docs') partes.shift();
+  return partes.join('/');
 }
 
 // `prefLang` es '' (ES) o 'en/' (EN): las páginas EN publican sus enlaces de
 // wiki bajo /enu/en/docs/<slug>, no /enu/docs/<slug> (W-04). Los enlaces a GitHub
 // (audits/archive/.md despublicado) son idénticos en ambos idiomas: apuntan a
 // la fuente ES, que es la de verdad.
-function reescribeUrl(url, prefLang) {
+function reescribeUrl(url, prefLang, dirRepo) {
   if (!url) return url;
   // Absolutos, anclas puras, mailto, protocolos: intactos.
   if (/^(https?:|mailto:|tel:|#|\/)/i.test(url)) return url;
@@ -52,26 +64,30 @@ function reescribeUrl(url, prefLang) {
 
   // audits/ y archive/ viven fuera de la wiki: al blob de GitHub.
   if (/(^|\/)(audits|archive)\//.test(ruta)) {
-    return GH_BLOB + limpiaRuta(ruta) + hash;
+    return GH_BLOB + resuelveRuta(dirRepo, ruta) + hash;
   }
 
   if (/\.md$/i.test(ruta)) {
-    const limpio = limpiaRuta(ruta);
-    const slug = limpio.replace(/\.md$/i, '').split('/').pop();
+    const resuelto = resuelveRuta(dirRepo, ruta);
+    const slug = resuelto.replace(/\.md$/i, '').split('/').pop();
+    // api.md no es página de la wiki: su presentación web es la referencia
+    // /api. Mandar al visitante ahí es mejor UX que el markdown crudo (y el
+    // ancla §N del fuente no existe en /api, así que se descarta).
+    if (slug === 'api') return `${BASE}/${prefLang}api`;
     if (WIKI_SLUGS.has(slug)) return `${BASE}/${prefLang}docs/${slug}${hash}`;
-    // .md que no es página de la wiki (README.md, ficheros sueltos): a GitHub.
-    return GH_BLOB + limpio + hash;
+    // .md que no es página de la wiki (README.md, registros de capa 2): a GitHub.
+    return GH_BLOB + resuelto + hash;
   }
 
   return url;
 }
 
 // Recorre el árbol una sola vez aplicando ambas transformaciones.
-function recorre(node, prefLang) {
+function recorre(node, prefLang, dirRepo) {
   if (!node || typeof node !== 'object') return;
 
   if (node.type === 'link' && typeof node.url === 'string') {
-    node.url = reescribeUrl(node.url, prefLang);
+    node.url = reescribeUrl(node.url, prefLang, dirRepo);
   } else if (node.type === 'code' && node.lang === 'mermaid') {
     // Convierte el bloque en HTML crudo; Shiki ya no lo procesará.
     node.type = 'html';
@@ -82,7 +98,7 @@ function recorre(node, prefLang) {
   }
 
   if (Array.isArray(node.children)) {
-    for (const hijo of node.children) recorre(hijo, prefLang);
+    for (const hijo of node.children) recorre(hijo, prefLang, dirRepo);
   }
 }
 
@@ -105,6 +121,11 @@ export function remarkEnlacesWiki() {
     const esWikiEn = ruta.includes('/content/en/wiki/');
     if (!esEmpezar && !esExtensiones && !esWikiRepo && !esWikiEn) return; // fuera de jurisdicción
 
-    recorre(tree, esEn ? 'en/' : '');
+    // Directorio del fichero dentro de docs/ (para resolver enlaces relativos
+    // del mismo directorio). El contenido local y la instantánea EN escriben
+    // sus enlaces docs-relativos, así que su base es la raíz de docs/.
+    const dirRepo = esWikiRepo ? (ruta.match(/\/docs\/(core|contracts)\/[^/]+\.md$/)?.[1] ?? '') : '';
+
+    recorre(tree, esEn ? 'en/' : '', dirRepo);
   };
 }
