@@ -422,7 +422,11 @@ func residualTmp(t *testing.T, root string) string {
 // aplicara); componible con `exclusive`; (2) un `opts.mode` inválido (no entero,
 // negativo o fuera de 0..0o777) lanza `EINVAL` en el acto. El modo se afirma con
 // `stat().mode`, que no depende del umask del ejecutor (la independencia del umask
-// la blindan los tests Go directos de arriba). 0o600 = 384, 0o755 = 493.
+// la blindan los tests Go directos de arriba). 0o600 = 384, 0o755 = 493. Además de
+// los valores "cómodos" de en medio, se prueban los EXTREMOS del rango válido —
+// 0 (sin permisos) y 0o777 (todos)— como aceptados, y 0o1000 = 512 (el primer
+// entero inválido por exceso, justo en el límite) como rechazado: sin estos casos,
+// una mutación off-by-one en `n > 0o777`/`n < 0` (p. ej. `>=`/`<=`) sobreviviría.
 func TestFsWriteModeAppliesAndValidates(t *testing.T) {
 	h := newHarness(t)
 	_ = withFsDir(h)
@@ -447,6 +451,22 @@ func TestFsWriteModeAppliesAndValidates(t *testing.T) {
 			enu.fs.write(p2, "#!/bin/sh", { mode = tonumber("755", 8) })
 			assert(enu.fs.stat(p2).mode == tonumber("755", 8), "write{mode=0755} fija 0755")
 
+			-- Límites válidos: 0 (sin permisos) y 0o777 (todos) también deben
+			-- aceptarse y fijarse tal cual, no solo los valores "cómodos" de
+			-- en medio (0600/0755) — una mutación de n > 0o777 a n >= 0o777 solo
+			-- la pillaría un caso que toque el propio 0o777.
+			local p3 = base .. "/full.txt"
+			enu.fs.write(p3, "x", { mode = tonumber("777", 8) })
+			assert(enu.fs.stat(p3).mode == tonumber("777", 8), "write{mode=0o777} fija 0777 (límite superior válido)")
+
+			-- mode = 0: sin permisos para nadie, ni siquiera el dueño. No podemos
+			-- leer el contenido después (el propio proceso, dueño, no tiene bit de
+			-- lectura), así que solo comprobamos vía os.Stat/enu.fs.stat (metadatos,
+			-- no requieren permiso de lectura del fichero).
+			local p4 = base .. "/none.txt"
+			enu.fs.write(p4, "x", { mode = 0 })
+			assert(enu.fs.stat(p4).mode == 0, "write{mode=0} fija 0 (límite inferior válido)")
+
 			-- opts.mode inválido → EINVAL en el acto.
 			local function code_of(m)
 				local _, e = pcall(function() enu.fs.write(base .. "/bad", "x", { mode = m }) end)
@@ -454,14 +474,15 @@ func TestFsWriteModeAppliesAndValidates(t *testing.T) {
 			end
 			badcodes.frac = code_of(0.5)     -- no entero
 			badcodes.neg  = code_of(-1)      -- negativo
-			badcodes.big  = code_of(4096)    -- > 0o777
+			badcodes.big  = code_of(4096)    -- muy por encima de 0o777
+			badcodes.edge = code_of(512)     -- 0o1000: primer entero inválido por exceso (0o777 + 1)
 			badcodes.str  = code_of("600")   -- no numérico
 
 			ok = true
 		end)
 	`)
 	h.expectEval(`return tostring(ok)`, "true")
-	for _, k := range []string{"frac", "neg", "big", "str"} {
+	for _, k := range []string{"frac", "neg", "big", "edge", "str"} {
 		h.expectEval(`return badcodes.`+k, "EINVAL")
 	}
 }

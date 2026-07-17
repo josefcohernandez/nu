@@ -179,6 +179,14 @@ func TestSessionsLockHuerfano(t *testing.T) {
 // hostname (`enu.sys.hostname()`). Se lee el lock DESDE LA MISMA task, antes del
 // `close` —el lock se suelta al terminar la task vía `enu.task.cleanup` (§6), así
 // que inspeccionarlo después desde Go sería tarde—.
+//
+// También blinda de extremo a extremo (G57) que el `.jsonl.lock` sale en 0600:
+// `write_lock` (init.lua) pasa `mode = SESSION_MODE` a `enu.fs.write`, así que
+// `enu.fs.stat` sobre el lock —tomado mientras el lock sigue vivo, antes del
+// `close`— debe devolver 384 (0o600), no el default recortado por el umask. Sin
+// esta aserción, quitar `mode = SESSION_MODE` de `write_lock` no lo detectaría
+// ningún test: el transcript sí se comprueba en el e2e (e2e/sessions_test.go),
+// pero el lock no lo comprobaba nadie.
 func TestSessionsLockGrababPidPropio(t *testing.T) {
 	h, _ := bootSessions(t)
 
@@ -193,6 +201,7 @@ func TestSessionsLockGrababPidPropio(t *testing.T) {
 		LOCK_HAS_STARTED = (meta.started ~= nil)
 		MY_PID = enu.sys.pid()
 		MY_HOST = enu.sys.hostname()
+		LOCK_MODE = enu.fs.stat(s.path .. ".lock").mode
 		s:close()
 		out = "ok"`))
 	h.expectEval(`return tostring(out)`, "ok")
@@ -203,6 +212,9 @@ func TestSessionsLockGrababPidPropio(t *testing.T) {
 	if got := h.eval(`return tostring(LOCK_PID)`)[0]; got != strconv.Itoa(os.Getpid()) {
 		t.Fatalf("el lock no graba el pid propio: got %q, want %d", got, os.Getpid())
 	}
+	// El modo del lock es 0600 (384 decimal), independiente del umask del ejecutor
+	// (stat().mode refleja el chmod explícito, no lo que recortaría el umask).
+	h.expectEval(`return tostring(LOCK_MODE == tonumber("600", 8))`, "true")
 }
 
 // TestSessionsList (§7): listar las sesiones de un proyecto enumera los `.jsonl`
