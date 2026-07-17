@@ -14,7 +14,19 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 55 registradas, 55 resueltas, 0 abiertas** (G57 añadida
+**Estado: 57 registradas, 55 resueltas, 2 abiertas** (G58 y G59 añadidas
+2026-07-18 desde la misma suite e2e de los plugins oficiales, esta vez
+caracterizando dos bugs de producto PREEXISTENTES en vez de un hueco de API —
+**quedan ABIERTAS**, el arreglo se pospone: G58, el bucle del driver del chat
+(`select` sin timeout sobre `<-chunks`) no observa el `core:shutdown` que
+`/quit` emite desde una task hasta que llega otra pulsación de teclado, pese a
+que `chat.md` §8 promete que salir del chat apaga el runtime; G59, el
+auto-connect de servidores de `mcp.toml` es una task efímera cuyo `cleanup`
+desconecta las tools ANTES de que corra el turno de `enu -p` (contradice el
+propio módulo, que documenta `connect_configured` para una task de larga
+vida), y además `env` como array de `mcp.toml` no llega al subproceso porque
+`enu.proc.spawn` solo interpreta `env` como tabla `{K=V}`. Ambas caracterizadas
+sin trampa por `e2e/chat_test.go` y `e2e/mcp_test.go`. G57 añadida
 2026-07-18 desde la suite e2e de los plugins oficiales: la aserción de permisos
 del transcript destapó que `sessions` no alcanza el `0600` que `sesiones.md`
 §2/§8 prometen —crea el fichero con `fsFilePerm` (0644) recortado por el umask,
@@ -109,7 +121,7 @@ añaden aquí con el mismo método.
 ## Índice
 
 > Los números G24–G25 no existen como fichero: son un hueco histórico que
-> nunca se asignó. La numeración es append-only: el próximo hallazgo es G58,
+> nunca se asignó. La numeración es append-only: el próximo hallazgo es G60,
 > los huecos no se reutilizan.
 
 | # | Título | Docs afectados | Estado | Fichero |
@@ -169,3 +181,5 @@ añaden aquí con el mismo método.
 | G55 | Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` | extensión `agent` / `enu.proc` §6 | RESUELTO | [g55-los-secretos-del-provider.md](g55-los-secretos-del-provider.md) |
 | G56 | El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner | `api.md` §13/§16 / `agente.md` | RESUELTO | [g56-el-contrato-w-no-define.md](g56-el-contrato-w-no-define.md) |
 | G57 | El transcript y el lock de sesiones no alcanzan el `0600` prometido: la API no dejaba fijar el modo de creación | `api.md` §5/§17 / `sesiones.md` §2/§6/§8 / `guia-plugins.md` §7 | RESUELTO | [g57-transcript-y-lock-de-sesiones-no-alcanzan-0600.md](g57-transcript-y-lock-de-sesiones-no-alcanzan-0600.md) |
+| G58 | El chat no se cierra hasta la siguiente tecla: `/quit` despacha `core:shutdown` desde una task, pero el driver solo lo sondea al llegar más input | `chat.md` §8 / driver | ABIERTO | [g58-el-chat-no-se-cierra-hasta.md](g58-el-chat-no-se-cierra-hasta.md) |
+| G59 | El auto-connect de `mcp.toml` es inservible en headless `-p`: la task efímera desconecta las tools antes del turno, y `env` (array) no llega al subproceso | extensión `mcp` / `enu.proc` | ABIERTO | [g59-el-auto-connect-de-mcp-toml.md](g59-el-auto-connect-de-mcp-toml.md) |
