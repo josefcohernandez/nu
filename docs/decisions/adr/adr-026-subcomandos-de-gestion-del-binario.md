@@ -39,7 +39,11 @@ superficie CLI vive en `main.go`, orquesta extensiones por la API pública y
    no interactivo/scriptable y CI/Docker depende de él.
 
 2. **`enu init` — el flujo de configuración guiado** (ejecuta el disparador de
-   ADR-017). Con TTY interactivo: asistente breve — provider
+   ADR-017). *Estrechado en v1 por [G61](../../findings/g61-el-wizard-de-init-ofrece-providers-sin-plantilla.md):
+   el asistente ofrece **solo `anthropic`** (el único provider con plantilla,
+   ADR-017); `openai-compat`/`gemini`/`ollama` se difieren como P44 hasta que se
+   especifiquen sus plantillas. El resto del flujo es idéntico.* Con TTY
+   interactivo: asistente breve — provider
    (`anthropic` | `openai-compat` | `gemini` | `ollama`) → clave (siempre por
    variable de entorno: detecta si la convencional está exportada y la
    referencia como `api_key_env`; **jamás escribe la clave en un fichero**,

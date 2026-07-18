@@ -59,6 +59,7 @@ debe poder reconstruir.
 | S46 | README raíz en inglés y filosofía a la tesis de motor de harnesses (Fase 9, ADR-025 Fase 1) | [s46-readme-raiz-en-ingles.md](s46-readme-raiz-en-ingles.md) |
 | S47 | Copy de la web a la tesis de motor de harnesses + legibilidad de doc larga (Fase 9, ADR-025 Fase 1) | [s47-copy-web-a-la-tesis-y-legibilidad.md](s47-copy-web-a-la-tesis-y-legibilidad.md) |
 | S48 | Matriz de smoke tests de instalación en sistemas limpios (Fase 9, ADR-025 Fase 1; refina ADR-013) | [s48-matriz-smoke-instalacion-sistemas-limpios.md](s48-matriz-smoke-instalacion-sistemas-limpios.md) |
+| S49 | `enu init`: el primer subcomando del binario y el dispatch de gestión (Fase 9, ADR-026; G61) | [s49-enu-init-primer-subcomando.md](s49-enu-init-primer-subcomando.md) |
 | Cierre | coherencia post-plan — P21 (thinking adaptativo, pospuesto) + fix del log espurio de `EvalTaskString` | [cierre-post-plan.md](cierre-post-plan.md) |
 | G42+G43 | Retry con backoff en el motor + `agent:error` estructurado con reintento manual (agente.md §2/§4/§10, chat.md §2/§4) | [g42-g43-retry-backoff.md](g42-g43-retry-backoff.md) |
 | G53–G56 | Construcción del lote de seguridad G53+G54+G55+G56 (auditoría 2026-07-16) | [g53-g56-seguridad.md](g53-g56-seguridad.md) |
