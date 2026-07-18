@@ -90,6 +90,9 @@ editarse salvo para anotar ese cierre. Aquí aterrizan las auditorías futuras.
   auditoría del camino no recorrido.
 - [auditoria-seguridad-2026-07-16.md](audits/auditoria-seguridad-2026-07-16.md) —
   auditoría de seguridad (SEC-01…SEC-08); enrutada a G53–G56.
+- [auditoria-externa-concepto-2026-07-18.md](audits/auditoria-externa-concepto-2026-07-18.md) —
+  primera auditoría externa de concepto, producto y comunicación; enrutada a
+  ADR-025 (reposicionamiento), P4→ADR-025 y P40–P42.
 
 ## Capa 4 — [archive/](archive/) (ejecutado, no vigente)
 
@@ -154,5 +157,9 @@ la wiki, la skill [/alta-wiki](../.claude/skills/alta-wiki/SKILL.md).
 
 Desde la reestructuración de 2026-07-17, **todas las carpetas** de `docs/`
 usan nombres en inglés y los ficheros conservan sus nombres en español, igual
-que la prosa. La documentación multi-idioma (inglés/español) queda para la
-futura migración a inglés del repo, en una sola pasada.
+que la prosa. El reparto de idiomas quedó decidido en
+[ADR-025](decisions/adr/adr-025-reposicionamiento-motor-de-harnesses.md)
+(pieza 5): el **frente público** (README raíz, web de docs, quickstart) se
+redacta en inglés primero; la **fuente documental interna** — este `docs/`,
+los commits y el flujo de trabajo — sigue en español. No habrá migración del
+repo al inglés (alternativa descartada en ese ADR).

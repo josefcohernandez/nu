@@ -9,8 +9,12 @@ status: "vigente"
 # API del core de enu — especificación v1 (borrador)
 
 Estado: **borrador para discusión**. Cuando se congele, esta superficie es la
-"API sagrada" (ADR-003): solo crece por adición. Todo lo que no está aquí
-(toolkit de widgets, agente, MCP, providers) es extensión y se versiona aparte.
+"API sagrada" (ADR-003): solo crece por adición. Mientras el proyecto sea
+pre-1.0, se admiten roturas de firma justificadas por un ADR y la API se
+declara públicamente experimental (ADR-025, pieza 4; el corte de la 1.0 es un
+criterio externo: tres autores ajenos con extensiones no anticipadas). Todo lo
+que no está aquí (toolkit de widgets, agente, MCP, providers) es extensión y
+se versiona aparte.
 
 Convenciones de esta especificación:
 

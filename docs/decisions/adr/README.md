@@ -42,3 +42,5 @@ Estados: **Aceptada** · **Propuesta** · **Abierta** (aún sin decisión) ·
 | ADR-022 | Renombrado total del proyecto y de la API: `nu` → `enu` | Aceptada | [adr-022-renombrado-total-del-proyecto.md](adr-022-renombrado-total-del-proyecto.md) |
 | ADR-023 | Los permisos de `bash` se emparejan por subcomando con un tokenizador cerrado y fallan hacia `ask` | Aceptada | [adr-023-los-permisos-de-bash.md](adr-023-los-permisos-de-bash.md) |
 | ADR-024 | Identidad de un worker: foto del plugin dueño en el spawn, inmutable | Aceptada | [adr-024-identidad-de-un-worker-foto.md](adr-024-identidad-de-un-worker-foto.md) |
+| ADR-025 | Reposicionamiento: motor para construir coding harnesses; Pi como referencia; pre-1.0 con roturas por ADR; frente público en inglés | Aceptada | [adr-025-reposicionamiento-motor-de-harnesses.md](adr-025-reposicionamiento-motor-de-harnesses.md) |
+| ADR-026 | El binario estrena subcomandos de gestión: `init`, `doctor`, `update`, `uninstall` (refina ADR-015/017) | Aceptada | [adr-026-subcomandos-de-gestion-del-binario.md](adr-026-subcomandos-de-gestion-del-binario.md) |

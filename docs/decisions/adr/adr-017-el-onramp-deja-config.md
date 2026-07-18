@@ -7,7 +7,7 @@ date: "2026-06"
 ---
 # ADR-017 · El onramp deja config de agente usable y el chat degrada con gracia
 
-**Estado:** Aceptada · 2026-06 (**refina** [ADR-015](adr-015-conjunto-oficial-de-producto.md); resuelve [G35](../../findings/g35-el-onramp-de-adr-015.md))
+**Estado:** Aceptada · 2026-06 (**refina** [ADR-015](adr-015-conjunto-oficial-de-producto.md); resuelve [G35](../../findings/g35-el-onramp-de-adr-015.md)) · **Refinada por [ADR-026](adr-026-subcomandos-de-gestion-del-binario.md)** (ejecuta su disparador «flujo de configuración guiado»: `enu init` reutiliza estas plantillas y primitivas; plantillas y degradación del chat siguen siendo de este ADR)
 
 **Contexto.** ADR-015 dio el onramp no interactivo (`nu --default-config`) que
 activa el **conjunto oficial de producto** en `nu.toml`. Pero "activar los

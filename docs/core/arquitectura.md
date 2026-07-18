@@ -113,8 +113,9 @@ compongan, como en Neovim — y la robustez se obtiene con dos guardas del core:
 
 - **Capa 1 — Lua embebido.** El mecanismo universal: hooks del ciclo de vida,
   comandos, UI, keybindings, y también el propio agente y los adaptadores de
-  protocolo de los LLMs. Distribución v1: `~/.config/enu/plugins/` + git clone;
-  sin package manager propio de momento.
+  protocolo de los LLMs. Distribución v1: `~/.config/enu/plugins/` + git clone
+  (P4→ADR-025: el gestor `enu plugin add/remove/update/lock` sobre git está
+  decidido, pendiente de construcción en la Fase 2 del reposicionamiento).
 - **Capa 2 — Procesos externos.** Herramientas pesadas o en otros lenguajes
   vía subproceso (JSON-RPC/stdio). MCP vive aquí, **implementado como
   extensión oficial Lua** sobre las primitivas `io.spawn` + codecs: el core no

@@ -123,6 +123,35 @@ GitHub: sería `main → develop` (al revés) y arrastraría solo esos merge com
 - **Instalador**: `install.sh` resuelve la última estable dinámicamente y baja
   `enu-vX.Y.Z-<os>-<arch>.tar.gz` — mismo nombre que produce `release.yml`.
 
+## Instalador (espec operativa — ADR-026, pieza 5)
+
+Contrato de `install.sh` (y de `enu update`, que comparte disciplina). Es la
+espec que la sesión S51 implementa; los *steps* del YAML siguen sin ser API
+(ADR-013), pero estas decisiones sí se mantienen estables:
+
+- **Checksum obligatorio.** Todo artefacto descargado se verifica contra el
+  `checksums.txt` de su release **antes** de instalarse; si no cuadra o falta,
+  el instalador aborta con error claro. No existe modo sin verificación.
+- **Versión pineable.** `ENU_VERSION=vX.Y.Z install.sh` instala esa versión
+  exacta (por defecto, la última estable). Precondición: las releases son
+  **inmutables** — un tag publicado no se reescribe jamás (si algo sale mal,
+  se corta una versión nueva; coherente con este runbook).
+- **Destino controlable y sin sudo.** `ENU_INSTALL_DIR` (default
+  `~/.local/bin`); el instalador nunca eleva privilegios ni escribe fuera del
+  destino. Si el destino no está en `PATH`, lo dice y muestra la línea a
+  añadir — no lo añade él.
+- **Idempotente y atómico.** Reinstalar la misma versión es un no-op honesto;
+  el reemplazo del binario es escribir-al-lado + `rename`.
+- **`enu update` hereda todo lo anterior** y añade: si el binario en uso vive
+  en un destino no escribible sin privilegios (gestor de paquetes ajeno,
+  `/usr/local/bin` con sudo previo), **aborta con remedio** («tu enu lo
+  gestiona X; actualiza por ahí») — nunca eleva privilegios.
+- **Desinstalación simétrica.** `enu uninstall` elimina el binario e informa
+  de qué no borra; `--purge` borra además **exclusivamente `config.dir()`**
+  (`~/.config/enu`) con confirmación explícita. `data_dir()`
+  (`~/.local/share/enu`: sesiones/transcripts, plugins instalados, log) no se
+  toca nunca, ni con `--purge`.
+
 ## Reposo
 
 Checkout principal en `develop` actualizado; worktrees de tareas eliminados

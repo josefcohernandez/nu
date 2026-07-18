@@ -7,7 +7,7 @@ date: "2026-06"
 ---
 # ADR-015 · Conjunto oficial de producto y onramp no interactivo
 
-**Estado:** Aceptada · 2026-06 (**refina** [ADR-010](adr-010-extensiones-oficiales-distribuidas-con-nu.md); resuelve [G33](../../findings/g33-el-arranque-sin-tty.md)) · **Refinada por [ADR-017](adr-017-el-onramp-deja-config.md)** (el onramp deja también config de agente usable) y por **ADR-018** (qué significa "el conjunto oficial" con TTY: el repl cede la pantalla al chat, G36); ninguna la reemplaza: el "conjunto oficial" y los dos modos siguen siendo de este ADR
+**Estado:** Aceptada · 2026-06 (**refina** [ADR-010](adr-010-extensiones-oficiales-distribuidas-con-nu.md); resuelve [G33](../../findings/g33-el-arranque-sin-tty.md)) · **Refinada por [ADR-017](adr-017-el-onramp-deja-config.md)** (el onramp deja también config de agente usable) y por **ADR-018** (qué significa "el conjunto oficial" con TTY: el repl cede la pantalla al chat, G36); ninguna la reemplaza: el "conjunto oficial" y los dos modos siguen siendo de este ADR · **Refinada por [ADR-026](adr-026-subcomandos-de-gestion-del-binario.md)** (ejecuta el disparador de reapertura «tercera o cuarta acción de configuración»: el binario estrena subcomandos de gestión; `--default-config` se conserva tal cual)
 
 **Contexto.** ADR-010 dejó las extensiones oficiales **inactivas por defecto** y
 [G21](../../findings/g21-el-primer-arranque-de-adr.md)
