@@ -14,7 +14,12 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 58 registradas, 56 resueltas, 2 abiertas** (G60 añadida 2026-07-18
+**Estado: 59 registradas, 57 resueltas, 2 abiertas** (G61 añadida y **resuelta**
+2026-07-18 desde el escenarista BDD de S49: el wizard de `enu init` (ADR-026
+pieza 2) ofrece cuatro providers pero solo `anthropic` tiene plantilla —la
+espec presupone plantillas que no existen para openai-compat/gemini/ollama, y
+ollama ni usa API key—; resuelta el mismo día estrechando el wizard v1 a
+`anthropic` (los otros tres diferidos como P44). G60 añadida 2026-07-18
 desde la investigación de la opción (c) de G58: el `.jsonl.lock` **nace
 huérfano en el arranque** del chat — la task efímera que abre la sesión
 dispara un `enu.task.cleanup` que no puede ⏸ (`EINVAL`) y que además deja
@@ -133,7 +138,7 @@ añaden aquí con el mismo método.
 ## Índice
 
 > Los números G24–G25 no existen como fichero: son un hueco histórico que
-> nunca se asignó. La numeración es append-only: el próximo hallazgo es G61,
+> nunca se asignó. La numeración es append-only: el próximo hallazgo es G62,
 > los huecos no se reutilizan.
 
 | # | Título | Docs afectados | Estado | Fichero |
@@ -196,3 +201,4 @@ añaden aquí con el mismo método.
 | G58 | El chat no se cierra hasta la siguiente tecla: `/quit` despacha `core:shutdown` desde una task, pero el driver solo lo sondea al llegar más input | `chat.md` §8 / driver | RESUELTO | [g58-el-chat-no-se-cierra-hasta.md](g58-el-chat-no-se-cierra-hasta.md) |
 | G59 | El auto-connect de `mcp.toml` es inservible en headless `-p`: la task efímera desconecta las tools antes del turno, y `env` (array) no llega al subproceso | extensión `mcp` / `enu.proc` | ABIERTO | [g59-el-auto-connect-de-mcp-toml.md](g59-el-auto-connect-de-mcp-toml.md) |
 | G60 | El `.jsonl.lock` nace huérfano en el arranque del chat: `enu.task.cleanup` no puede ⏸ y la promesa de liberación de `sesiones.md` §6 es inimplementable tal como está | `api.md` §3 / `sesiones.md` §6 / `guia-plugins.md` / sessions / chat | ABIERTO | [g60-el-lock-de-sesion-nace-huerfano.md](g60-el-lock-de-sesion-nace-huerfano.md) |
+| G61 | El wizard de `enu init` ofrece 4 providers pero solo `anthropic` tiene plantilla (espec presupone plantillas inexistentes) | ADR-026 pieza 2 / providers.md / S49 | RESUELTO | [g61-el-wizard-de-init-ofrece-providers-sin-plantilla.md](g61-el-wizard-de-init-ofrece-providers-sin-plantilla.md) |
