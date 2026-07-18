@@ -40,11 +40,14 @@ BDD→TDD→juicio, que presupone lógica Go.
    dominio canónico `enu.sh` y el instalador endurecido son **S51** (ADR-026
    pieza 5); publicar un `curl` roto contradiría la honestidad que el propio
    README predica. Se migra a `enu.sh` al cerrar S51.
-2. **Sin `README.es.md`.** El inglés queda como fuente pública canónica; no se
-   crea versión española por ahora (ADR-025 pieza 5: «versión española enlazada
-   **donde exista**»). El README viejo era español pero con el posicionamiento
-   antiguo; conservarlo habría propagado una tesis ya superada. Si aparece
-   demanda, la traducción del contenido nuevo es trivial de añadir.
+2. **`README.es.md` traducido y enlazado.** A petición del operador se creó la
+   versión española del contenido **nuevo** (no del README viejo, que llevaba
+   el posicionamiento antiguo), con conmutador de idioma en ambos ficheros
+   (`English · Español`). El inglés sigue siendo la fuente pública canónica y
+   la que se edita primero (ADR-025 pieza 5); el español es su traducción
+   enlazada — «donde exista», y ahora existe. Los bloques de código se
+   mantienen idénticos salvo los comentarios/strings de cara al lector,
+   traducidos.
 3. **La demo visual del hero es S47.** Se deja un `TODO(S47)` donde irá el
    GIF/asciinema; la portada visual y la legibilidad de la web son la sesión
    siguiente, no ésta.
