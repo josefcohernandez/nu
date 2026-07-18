@@ -157,5 +157,9 @@ la wiki, la skill [/alta-wiki](../.claude/skills/alta-wiki/SKILL.md).
 
 Desde la reestructuración de 2026-07-17, **todas las carpetas** de `docs/`
 usan nombres en inglés y los ficheros conservan sus nombres en español, igual
-que la prosa. La documentación multi-idioma (inglés/español) queda para la
-futura migración a inglés del repo, en una sola pasada.
+que la prosa. El reparto de idiomas quedó decidido en
+[ADR-025](decisions/adr/adr-025-reposicionamiento-motor-de-harnesses.md)
+(pieza 5): el **frente público** (README raíz, web de docs, quickstart) se
+redacta en inglés primero; la **fuente documental interna** — este `docs/`,
+los commits y el flujo de trabajo — sigue en español. No habrá migración del
+repo al inglés (alternativa descartada en ese ADR).

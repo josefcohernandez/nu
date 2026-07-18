@@ -100,7 +100,10 @@ y `docs/decisions/adr/README.md`):
    un worker.
 4. **La API del core es sagrada** (`docs/contracts/api.md`): pequeña, aburrida, **crece
    solo por adición**; `enu.version.api` se incrementa con cada adición. Romper
-   una firma rompe el mundo.
+   una firma rompe el mundo. *Matiz pre-1.0 (ADR-025, pieza 4):* mientras el
+   proyecto sea pre-1.0 se admiten roturas de firma **justificadas por un
+   ADR** — nunca por la vía de hecho —; la API se declara públicamente
+   experimental hasta el criterio externo de corte de la 1.0.
 5. **Modelo de concurrencia "del navegador"** (ADR-004): estado Lua principal
    single-threaded con event loop (async por corrutinas, await implícito) +
    workers explícitos opt-in (sin memoria compartida, sin `ui`, paso de

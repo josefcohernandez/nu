@@ -48,16 +48,16 @@ de agentes, DevOps/CI agentic (`enu -p`), entornos locales/air-gapped.
 
 | Recomendación | Triaje | Destino |
 |---|---|---|
-| Posicionar como «self-extensible coding harness with no host runtime»; comparar de frente con Pi | Aceptada | ADR-025 §1-2 |
-| Parar la infraestructura nueva; tres demos visibles antes que más core | Aceptada con matiz (ver T3) | ADR-025 §3 (fases) |
-| Sistema de distribución de plugins (`enu plugin add/…`, git + lockfile + checksums, manifiesto de capacidades, sin registry) | Aceptada | ADR-025 §3 Fase 2; reabre P4; registry → P40 |
-| `enu init` + `enu doctor` + matriz de smoke tests en sistemas limpios | Aceptada | ADR-025 §3 Fase 1 → `/planificar-sesion` |
-| Protocolo JSONL/RPC estable (`--json -p`, `serve --stdio`, eventos versionados) | Aceptada | ADR-025 §3 Fase 3; ronda de pseudocódigo previa |
-| Plugin `forge` (enu se construye plugins a sí mismo, con staging/diff/aprobación, sin secretos ni red) como demo insignia | Aceptada | ADR-025 §3 Fase 2; ronda previa |
-| Plugin `worktree` (subagentes paralelos aislados) | Aceptada — ya diseñado: es la parte visible de `mesh` (malla.md, G16) | ADR-025 §3 Fase 3 |
-| Plugin `trace` (observabilidad del bus del agente) | Aceptada — consume eventos existentes (G40/G43) | ADR-025 §3 Fase 3 |
-| «No congelar la API todavía» | **Matizada** (T1): disciplina aditiva se mantiene; pre-1.0 admite roturas por ADR; corte de 1.0 = 3 autores externos con extensiones no anticipadas | ADR-025 §4 |
-| Frente público en inglés | **Matizada** (T2): público inglés, fuente interna en español | ADR-025 §5; CLAUDE.md |
+| Posicionar como «self-extensible coding harness with no host runtime»; comparar de frente con Pi | Aceptada | ADR-025, piezas 1-2 |
+| Parar la infraestructura nueva; tres demos visibles antes que más core | Aceptada con matiz (ver T3) | ADR-025, pieza 3 (fases) |
+| Sistema de distribución de plugins (`enu plugin add/…`, git + lockfile + checksums, manifiesto de capacidades, sin registry) | Aceptada | ADR-025, pieza 3 (Fase 2); reabre P4; registry → P40 |
+| `enu init` + `enu doctor` + matriz de smoke tests en sistemas limpios | Aceptada | ADR-025, pieza 3 (Fase 1) → `/planificar-sesion` |
+| Protocolo JSONL/RPC estable (`--json -p`, `serve --stdio`, eventos versionados) | Aceptada | ADR-025, pieza 3 (Fase 3); ronda de pseudocódigo previa |
+| Plugin `forge` (enu se construye plugins a sí mismo, con staging/diff/aprobación, sin secretos ni red) como demo insignia | Aceptada | ADR-025, pieza 3 (Fase 2); ronda previa |
+| Plugin `worktree` (subagentes paralelos aislados) | Aceptada — ya diseñado: es la parte visible de `mesh` (malla.md, G16) | ADR-025, pieza 3 (Fase 3) |
+| Plugin `trace` (observabilidad del bus del agente) | Aceptada — consume eventos existentes (G40/G43) | ADR-025, pieza 3 (Fase 3) |
+| «No congelar la API todavía» | **Matizada** (T1): disciplina aditiva se mantiene; pre-1.0 admite roturas por ADR; corte de 1.0 = 3 autores externos con extensiones no anticipadas | ADR-025, pieza 4 |
+| Frente público en inglés | **Matizada** (T2): público inglés, fuente interna en español | ADR-025, pieza 5; CLAUDE.md |
 | README: hero directo, demo, quickstart 3 comandos; eliminar «45 sesiones», «release va por detrás», CTA a la competencia, pseudocódigo-como-validación del camino de entrada | Aceptada | Fase 1 (sesiones de trabajo) |
 | Web: legibilidad de la doc (cuerpo 15-16px, contraste, ancho 70-75 col), demo visual tras el hero, priorizar enlaces sobre teclas, congelar themes | Aceptada | Fase 1; congelación de themes en ADR-025 |
 | `enu.sh` como dominio canónico; instalador con versión pineada, checksums, `enu update/uninstall` | Aceptada | Fase 1; toca `docs/ops/release.md` |
