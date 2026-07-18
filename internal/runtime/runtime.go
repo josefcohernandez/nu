@@ -410,6 +410,7 @@ func (rt *Runtime) registerWasmCatalog(p *vmwasm.Pool) {
 	registerProcWasm(p, rt)   // enu.proc (§6)
 	registerUIWasm(p, rt)     // enu.ui (§9) — sólo si rt.ui != nil (G20)
 	registerPluginWasm(p, rt) // enu.plugin (current/list) + enu.config (§14)
+	registerDriverWasm(p)     // __driver_notify_quit: despertar del driver de TTY (G58, interno)
 }
 
 // currentOwner devuelve el nombre del plugin en cuyo contexto corre el código
