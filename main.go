@@ -93,6 +93,14 @@ func main() {
 }
 
 func run() int {
+	// Subcomandos de gestión (ADR-026, S49): `enu <verbo>` se despacha ANTES del parseo
+	// de flags (el paquete `flag` no tiene noción de subcomandos). Si el primer argumento
+	// es un subcomando, `dispatchSubcommand` lo ejecuta y devolvemos su código; si no
+	// (flags o nada), seguimos con el parseo legado sin cambios.
+	if handled, code := dispatchSubcommand(os.Args[1:]); handled {
+		return code
+	}
+
 	var opts cliOptions
 	flag.StringVar(&opts.eval, "e", "", "ejecuta el código Lua dado e imprime sus valores de retorno (headless)")
 	flag.StringVar(&opts.prompt, "p", "", "ejecuta un turno de agente headless con este prompt e imprime el texto final")

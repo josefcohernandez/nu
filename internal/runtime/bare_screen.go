@@ -120,6 +120,42 @@ func (rt *Runtime) WriteDefaultConfig() (configDir string, names []string, creat
 	return rt.ldr.configDir, names, createdTemplates, nil
 }
 
+// WriteInitConfig respalda el wizard de `enu init` (ADR-026 pieza 2, S49): escribe la
+// config de agente con el MODELO elegido y, si `activateOfficial`, activa el conjunto
+// oficial en `enu.toml`. MISMA semántica por-fichero que WriteDefaultConfig —`agent.toml`
+// y `providers.toml` solo si no existen (nunca pisan config del usuario, ADR-017);
+// `enu.toml` preserva el resto—. Devuelve qué activó, qué plantillas CREÓ y cuáles
+// RESPETÓ (ya existían), para el mensaje honesto del wizard. Sin red (ADR-010). El
+// wizard v1 solo ofrece `anthropic` (G61): `providers.toml` es la plantilla anthropic.
+func (rt *Runtime) WriteInitConfig(model string, activateOfficial bool) (configDir string, activated, created, respected []string, err error) {
+	configDir = rt.ldr.configDir
+	if activateOfficial {
+		names, oerr := officialProductSet()
+		if oerr != nil {
+			return "", nil, nil, nil, oerr
+		}
+		if werr := writeEnabledPlugins(configDir, names); werr != nil {
+			return "", nil, nil, nil, werr
+		}
+		activated = names
+	}
+	for _, tpl := range []struct{ name, content string }{
+		{agentTomlName, agentTomlFor(model)},
+		{providersTomlName, defaultProvidersToml},
+	} {
+		wasCreated, werr := writeTemplateIfAbsent(configDir, tpl.name, tpl.content)
+		if werr != nil {
+			return "", nil, nil, nil, werr
+		}
+		if wasCreated {
+			created = append(created, tpl.name)
+		} else {
+			respected = append(respected, tpl.name)
+		}
+	}
+	return configDir, activated, created, respected, nil
+}
+
 // bareScreenActive decide si toca pintar la pantalla de runtime desnudo (§14, G21):
 // hay superficie de UI (`rt.uiActive`) Y no hay plugins activos. Es el gate que
 // `Boot` consulta antes de cargar Lua de producto. Sin UI (headless) o con algún
@@ -388,15 +424,23 @@ const (
 // arranque (agente.md §10). Opinada a Anthropic (la identidad del producto y el modelo
 // por defecto del proyecto, ADR-016). El usuario la edita; el onramp no la pisa si ya
 // existe.
-const defaultAgentToml = `# agent.toml — configuración del agente (agente.md §10).
+// agentTomlFor rinde la plantilla de `agent.toml` con el MODELO dado. El onramp
+// (`--default-config`) usa el default; el wizard de `enu init` (ADR-026 pieza 2, S49)
+// la reutiliza con el modelo que el usuario acepte o teclee. `agentTomlFor("anthropic/opus")`
+// es, byte a byte, la plantilla por defecto (de ahí `defaultAgentToml`).
+func agentTomlFor(model string) string {
+	return fmt.Sprintf(`# agent.toml — configuración del agente (agente.md §10).
 # Generado por 'enu --default-config' (ADR-017). Edítalo a tu gusto.
 
 # Modelo por defecto: "proveedor/modelo", resoluble en providers.toml.
-model = "anthropic/opus"
+model = %q
 
 # Tope de turnos por sesión (protección contra loops).
 max_turns = 32
-`
+`, model)
+}
+
+var defaultAgentToml = agentTomlFor("anthropic/opus")
 
 // defaultProvidersToml es la plantilla ACTIVA de `providers.toml` (ADR-017, G35):
 // declara el provider `anthropic` y el modelo por defecto. La API key NUNCA va al
