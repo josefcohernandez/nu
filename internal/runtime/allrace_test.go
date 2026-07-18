@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.task.all` y `nu.task.race` (api.md §3, sesión S07). Ambos están en
+// Tests de `enu.task.all` y `enu.task.race` (api.md §3, sesión S07). Ambos están en
 // el inventario de lógica clave 🔒 del plan; cada caso límite lleva un test que lo
 // nombra para blindarlo de regresiones. La lógica a blindar:
 //
@@ -31,17 +31,17 @@ func TestAllRaceSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local r = nu.task.all({
+		enu.task.spawn(function()
+			local r = enu.task.all({
 				function() return "a" end,
 				function() return "b" end,
 				function() return "c" end,
 			})
 			out.all = table.concat(r, ",")
 
-			local i, v = nu.task.race({
-				function() nu.task.sleep(20); return "lento" end,
-				function() nu.task.sleep(1);  return "rapido" end,
+			local i, v = enu.task.race({
+				function() enu.task.sleep(20); return "lento" end,
+				function() enu.task.sleep(1);  return "rapido" end,
 			})
 			out.race_i = i
 			out.race_v = v
@@ -65,11 +65,11 @@ func TestAllResultsAlignedWithInputs(t *testing.T) {
 	h.eval(`
 		-- G27: out[i] alineado con fns[i], no con el orden de terminación.
 		out = {}
-		nu.task.spawn(function()
-			local r = nu.task.all({
-				function() nu.task.sleep(30); return "primera" end,  -- termina la última
-				function() nu.task.sleep(20); return "segunda" end,
-				function() nu.task.sleep(10); return "tercera" end,  -- termina la primera
+		enu.task.spawn(function()
+			local r = enu.task.all({
+				function() enu.task.sleep(30); return "primera" end,  -- termina la última
+				function() enu.task.sleep(20); return "segunda" end,
+				function() enu.task.sleep(10); return "tercera" end,  -- termina la primera
 			})
 			out.r = r
 		end)
@@ -87,10 +87,10 @@ func TestAllAcceptsExistingTaskHandles(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local t1 = nu.task.spawn(function() nu.task.sleep(20); return "uno" end)
-			local t2 = nu.task.spawn(function() nu.task.sleep(5);  return "dos" end)
-			local r = nu.task.all({ t1, t2 })   -- handles, no funciones
+		enu.task.spawn(function()
+			local t1 = enu.task.spawn(function() enu.task.sleep(20); return "uno" end)
+			local t2 = enu.task.spawn(function() enu.task.sleep(5);  return "dos" end)
+			local r = enu.task.all({ t1, t2 })   -- handles, no funciones
 			out.r = r
 		end)
 	`)
@@ -105,9 +105,9 @@ func TestAllMixedHandlesAndFunctions(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local t1 = nu.task.spawn(function() return "handle" end)
-			local r = nu.task.all({ t1, function() return "fn" end })
+		enu.task.spawn(function()
+			local t1 = enu.task.spawn(function() return "handle" end)
+			local r = enu.task.all({ t1, function() return "fn" end })
 			out.r = r
 		end)
 	`)
@@ -126,10 +126,10 @@ func TestAllReraisesStructuredError(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, err = pcall(function()
-				nu.task.all({
-					function() nu.task.sleep(20); return "ok" end,
+				enu.task.all({
+					function() enu.task.sleep(20); return "ok" end,
 					function() error({ code = "EPROVIDER", message = "explotó" }) end,
 				})
 			end)
@@ -153,12 +153,12 @@ func TestAllCancelsOthersOnError(t *testing.T) {
 
 	h.eval(`
 		out = { antes = false, despues = false }
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			pcall(function()
-				nu.task.all({
+				enu.task.all({
 					function()
 						out.antes = true
-						nu.task.sleep(50)      -- aquí la cancelan: el sleep aborta
+						enu.task.sleep(50)      -- aquí la cancelan: el sleep aborta
 						out.despues = true     -- NO debe ejecutarse
 						return "tarde"
 					end,
@@ -183,11 +183,11 @@ func TestRaceReturnsWinnerIndexOneBased(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local i, v = nu.task.race({
-				function() nu.task.sleep(40); return "A" end,
-				function() nu.task.sleep(2);  return "B" end,  -- gana esta: índice 2
-				function() nu.task.sleep(40); return "C" end,
+		enu.task.spawn(function()
+			local i, v = enu.task.race({
+				function() enu.task.sleep(40); return "A" end,
+				function() enu.task.sleep(2);  return "B" end,  -- gana esta: índice 2
+				function() enu.task.sleep(40); return "C" end,
 			})
 			out.i = i
 			out.v = v
@@ -205,11 +205,11 @@ func TestRaceCancelsLosers(t *testing.T) {
 
 	h.eval(`
 		out = { perdedora_termino = false }
-		nu.task.spawn(function()
-			local i = nu.task.race({
-				function() nu.task.sleep(1); return "gana" end,
+		enu.task.spawn(function()
+			local i = enu.task.race({
+				function() enu.task.sleep(1); return "gana" end,
 				function()
-					nu.task.sleep(60)               -- la cancelan aquí
+					enu.task.sleep(60)               -- la cancelan aquí
 					out.perdedora_termino = true    -- NO debe ejecutarse
 					return "pierde"
 				end,
@@ -229,11 +229,11 @@ func TestRaceWinnerErrorReraised(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, err = pcall(function()
-				nu.task.race({
+				enu.task.race({
 					function() error({ code = "EIO", message = "rápido y mal" }) end,
-					function() nu.task.sleep(50); return "lento" end,
+					function() enu.task.sleep(50); return "lento" end,
 				})
 			end)
 			out.ok = ok
@@ -246,20 +246,20 @@ func TestRaceWinnerErrorReraised(t *testing.T) {
 
 // --- Validaciones de forma y contexto ---
 
-// TestAllOutsideTask: `nu.task.all` es ⏸; fuera de una task lanza `EINVAL` (§1.3),
+// TestAllOutsideTask: `enu.task.all` es ⏸; fuera de una task lanza `EINVAL` (§1.3),
 // como el resto de suspendientes.
 func TestAllOutsideTask(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`return nu.task.all({ function() return 1 end })`)
+	se := h.evalErr(`return enu.task.all({ function() return 1 end })`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("all fuera de task: code got %q, want %q", se.Code, CodeEINVAL)
 	}
 }
 
-// TestRaceOutsideTask: `nu.task.race` es ⏸; fuera de una task lanza `EINVAL`.
+// TestRaceOutsideTask: `enu.task.race` es ⏸; fuera de una task lanza `EINVAL`.
 func TestRaceOutsideTask(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`return nu.task.race({ function() return 1 end })`)
+	se := h.evalErr(`return enu.task.race({ function() return 1 end })`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("race fuera de task: code got %q, want %q", se.Code, CodeEINVAL)
 	}
@@ -271,8 +271,8 @@ func TestAllEmptyList(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ok, err = pcall(function() return nu.task.all({}) end)
+		enu.task.spawn(function()
+			local ok, err = pcall(function() return enu.task.all({}) end)
 			out.ok = ok
 			out.code = err.code
 		end)
@@ -287,9 +287,9 @@ func TestAllBadElement(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, err = pcall(function()
-				return nu.task.all({ function() return 1 end, 42 })  -- 42 no es Task ni fn
+				return enu.task.all({ function() return 1 end, 42 })  -- 42 no es Task ni fn
 			end)
 			out.ok = ok
 			out.code = err.code
@@ -308,8 +308,8 @@ func TestAllNilResultPreservesPositions(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local r = nu.task.all({
+		enu.task.spawn(function()
+			local r = enu.task.all({
 				function() return "x" end,
 				function() return end,        -- sin valor de retorno -> nil
 				function() return "z" end,
@@ -326,7 +326,7 @@ func TestAllNilResultPreservesPositions(t *testing.T) {
 
 // TestAllParallelism: las tasks de `all` corren en paralelo, no en serie —el total
 // se aproxima al máximo de los sleeps, no a su suma—. Cronometrarlo con el reloj de
-// pared (`nu.sys`) sería frágil; en su lugar se comprueba el efecto observable: tres
+// pared (`enu.sys`) sería frágil; en su lugar se comprueba el efecto observable: tres
 // sleeps de 20 ms terminan todos (si fueran en serie tardaría 60 ms, pero igual
 // terminan), así que aquí basta con que el resultado llegue completo y alineado.
 // El no-bloqueo del loop ya lo blindan los tests de S05; este fija que `all` no
@@ -335,11 +335,11 @@ func TestAllParallelism(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local r = nu.task.all({
-				function() nu.task.sleep(20); return 1 end,
-				function() nu.task.sleep(20); return 2 end,
-				function() nu.task.sleep(20); return 3 end,
+		enu.task.spawn(function()
+			local r = enu.task.all({
+				function() enu.task.sleep(20); return 1 end,
+				function() enu.task.sleep(20); return 2 end,
+				function() enu.task.sleep(20); return 3 end,
 			})
 			out.sum = r[1] + r[2] + r[3]
 		end)

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 	ignore "github.com/sabhiram/go-gitignore"
 )
 
-// `nu.search` — búsqueda a escala de repo (api.md §11, sesión S27; inventario
+// `enu.search` — búsqueda a escala de repo (api.md §11, sesión S27; inventario
 // 🔒). Tres primitivas y el cierre de la Fase 5:
 //
 //   - `files(root, opts?) -> string[]` ⏸ — listado **recursivo** bajo `root`
@@ -38,7 +39,7 @@ import (
 // EL PUENTE ⏸ (S04, ADR-011). `files` y cada `next` de `grep` son ⏸: sueltan el
 // token y bloquean en goroutines de fondo que **JAMÁS tocan Lua**; los datos
 // cruzan a Lua solo en la `deliverFn`, con el token recuperado. Mismo patrón que
-// `nu.fs` (S14) y `nu.http.stream` (S20). `fuzzy` no suspende (es síncrono).
+// `enu.fs` (S14) y `enu.http.stream` (S20). `fuzzy` no suspende (es síncrono).
 //
 // EL MODELO DEL ITERADOR `grep` PARALELO (lo delicado, gemelo del `Stream` de
 // S20). Al crear el iterador se arranca un **pool de goroutines de fondo** (una
@@ -47,13 +48,16 @@ import (
 // la task. Cada `next` del iterador **suspende** hasta el siguiente match (o
 // hasta EOF, cuando el canal se cierra tras drenarse todas las goroutines). El
 // `max` corta: alcanzado el límite, el iterador deja de entregar y las goroutines
-// se cancelan (`context`). La cancelación de la task (S08) cancela el contexto vía
-// `nu.task.cleanup`, así ninguna goroutine queda colgada. Como red de seguridad,
-// `Runtime.Close` cancela todos los greps vivos (`stopAllGreps`).
+// se cancelan (`context`). Al crear el handle, el wrapper wasm registra su cierre
+// en `enu.task.cleanup`, así ninguna goroutine queda colgada aunque el consumidor
+// haga `break` — y el cierre es **no bloqueante**: `close` cancela y vuelve sin
+// esperar al drenado, porque corre en el hilo de la VM y bloquearse ahí (un worker
+// atascado en una lectura no cancelable) congelaría el event loop. Como red de
+// seguridad, `Runtime.Close` cancela todos los greps vivos (`stopAllGreps`).
 
-// --- nu.search.files ----------------------------------------------------------
+// --- enu.search.files ----------------------------------------------------------
 
-// filesOpts son las opciones ya parseadas de `nu.search.files` (§11). `glob`
+// filesOpts son las opciones ya parseadas de `enu.search.files` (§11). `glob`
 // vacío = sin filtro; `max <= 0` = sin límite.
 type filesOpts struct {
 	glob   string
@@ -162,9 +166,9 @@ func walkFiles(root string, opts filesOpts) ([]string, error) {
 // errFilesMaxReached es el centinela con que `walkFiles` corta el `WalkDir` al
 // alcanzar `max` —no es un error real, solo el modo de detener el recorrido
 // antes de tiempo (`WalkDir` no tiene otra vía de parada temprana).
-var errFilesMaxReached = errors.New("nu.search.files: max alcanzado")
+var errFilesMaxReached = errors.New("enu.search.files: max alcanzado")
 
-// --- nu.search.fuzzy ----------------------------------------------------------
+// --- enu.search.fuzzy ----------------------------------------------------------
 
 // fuzzyMatch es un candidato que casó: su índice 1-based en `candidates` y su
 // score. Se ordena por score desc, conservando el orden de entrada en los
@@ -176,7 +180,7 @@ type fuzzyMatch struct {
 
 // fuzzyScore calcula el score de `query` contra `cand` con un scorer de
 // **subsecuencia con bonus** estilo fzf simplificado (decisión propia,
-// claude_decisions.md S27): los caracteres de `query` deben aparecer en `cand`
+// docs/worklog/README.md S27): los caracteres de `query` deben aparecer en `cand`
 // en el mismo orden (no necesariamente contiguos); el score premia las
 // coincidencias **contiguas** y las que caen en un **inicio de palabra** (tras
 // un separador `/`, `_`, `-`, `.`, espacio, o un cambio de minúscula→mayúscula,
@@ -284,7 +288,7 @@ func toLowerNonASCII(r rune) rune {
 	return unicode.ToLower(r)
 }
 
-// --- nu.search.grep -----------------------------------------------------------
+// --- enu.search.grep -----------------------------------------------------------
 
 // grepMaxLine es el tope de bytes de una línea que el grep examina (§11). Una
 // línea más larga que esto (ficheros generados, JSON minificado) se trunca al
@@ -320,13 +324,14 @@ type grepIter struct {
 	results chan grepResult
 	ctx     context.Context
 	cancel  context.CancelFunc
+	done    chan struct{} // la cerradora lo sella cuando el pool ha drenado del todo (lo espera el test blanco, nunca el hilo de la VM)
 
 	max       int
 	emitted   int
 	closeOnce sync.Once
 }
 
-// grepOpts son las opciones ya parseadas de `nu.search.grep` (§11).
+// grepOpts son las opciones ya parseadas de `enu.search.grep` (§11).
 type grepOpts struct {
 	root       string
 	glob       string
@@ -347,6 +352,7 @@ func newGrepIter(s *scheduler, re *regexp.Regexp, files []string, max int) *grep
 		results: make(chan grepResult), // sin buffer: backpressure natural (cada next saca uno)
 		ctx:     ctx,
 		cancel:  cancel,
+		done:    make(chan struct{}),
 		max:     max,
 	}
 
@@ -378,10 +384,14 @@ func newGrepIter(s *scheduler, re *regexp.Regexp, files []string, max int) *grep
 		}
 	}()
 	// Cerradora: cuando todas las goroutines terminan, cierra `results` —es la
-	// señal de EOF para el consumidor (`<-results` devuelve `ok=false`).
+	// señal de EOF para el consumidor (`<-results` devuelve `ok=false`)— y sella
+	// `done` —la señal de "pool drenado" que `close` espera para ser síncrono—.
+	// El orden importa: un `next` bloqueado en `<-results` se desbloquea por el
+	// cierre de `results` ANTES de que `close` deje de esperar.
 	go func() {
 		wg.Wait()
 		close(it.results)
+		close(it.done)
 	}()
 	return it
 }
@@ -417,25 +427,33 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 	}
 	defer func() { _ = f.Close() }()
 
-	sc := bufio.NewScanner(f)
-	// Sube el tope de línea del Scanner (default 64 KiB) a un valor holgado: una
-	// línea muy larga (un JSON minificado, un fichero generado) no debe abortar el
-	// grep de ese fichero. Más allá de este tope se ignora el resto de la línea.
-	sc.Buffer(make([]byte, 0, 64*1024), grepMaxLine)
+	// Lectura por líneas con TRUNCADO real más allá de `grepMaxLine`: una línea
+	// muy larga (un JSON minificado, un fichero generado) no debe abortar el grep
+	// de ese fichero. Aquí no sirve `bufio.Scanner`: ante un token que supera su
+	// buffer devuelve false DEFINITIVO (ErrTooLong) y las líneas restantes del
+	// fichero se perderían en silencio; `readGrepLine` recorta la cola de la
+	// línea larga y sigue con la siguiente.
+	r := bufio.NewReaderSize(f, 64*1024)
 	lineNo := 0
-	for sc.Scan() {
+	for {
+		line, eof, rerr := readGrepLine(r, grepMaxLine)
+		if rerr != nil {
+			return // fallo de lectura a mitad: se salta el resto (como el open)
+		}
+		if eof && line == "" {
+			return
+		}
 		lineNo++
 		if it.ctx.Err() != nil {
 			return // cancelado entre líneas
 		}
-		line := sc.Text()
 		idxs := re.FindAllStringIndex(line, -1)
 		if idxs == nil {
 			continue
 		}
 		ranges := make([][2]int, len(idxs))
 		for i, pair := range idxs {
-			// Mismo convenio que `nu.re.find_all` (S26): byte 1-based, ambos inclusive.
+			// Mismo convenio que `enu.re.find_all` (S26): byte 1-based, ambos inclusive.
 			// `s:sub(start, end)` reconstruye el match; match vacío → end = start-1.
 			ranges[i] = [2]int{pair[0] + 1, pair[1]}
 		}
@@ -448,18 +466,67 @@ func grepFile(it *grepIter, re *regexp.Regexp, path string) {
 	}
 }
 
+// readGrepLine lee la siguiente línea de `r` (sin el salto final, y sin el `\r`
+// de un CRLF, como hacía ScanLines) truncándola a `max` bytes: la cola de una
+// línea que supere el tope se DESCARTA consumiéndola hasta el `\n`, y la lectura
+// continúa en la línea siguiente. eof=true al agotarse el fichero (la última
+// línea sin salto llega junto con eof=true; después, línea vacía + eof).
+func readGrepLine(r *bufio.Reader, max int) (string, bool, error) {
+	var buf []byte
+	truncated := false
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(chunk) > 0 && !truncated {
+			keep := chunk
+			if keep[len(keep)-1] == '\n' {
+				keep = keep[:len(keep)-1]
+			}
+			if room := max - len(buf); len(keep) > room {
+				keep = keep[:room]
+				truncated = true
+			}
+			buf = append(buf, keep...)
+		}
+		switch err {
+		case nil:
+			// Línea completa (el '\n' quedó consumido).
+			if n := len(buf); n > 0 && buf[n-1] == '\r' {
+				buf = buf[:n-1]
+			}
+			return string(buf), false, nil
+		case bufio.ErrBufferFull:
+			continue // aún sin '\n': sigue consumiendo (y descartando, si ya truncó)
+		case io.EOF:
+			return string(buf), true, nil
+		default:
+			return "", false, err
+		}
+	}
+}
+
 // close cancela el pool de goroutines de fondo y deja de rastrear el iterador.
+// **NO bloquea**: cancela el contexto, desregistra y vuelve; el drenado del pool
+// ocurre después, en las goroutines de fondo, sin que nadie lo espere aquí.
 // **Idempotente** (`closeOnce`): lo llaman el `next` (al alcanzar `max` o EOF),
-// el `cleanup` de la task (al cancelarse/terminar) y `Runtime.Close` (red de
-// seguridad). Cancelar el contexto desbloquea el repartidor y las goroutines, que
-// terminan; la cerradora cierra `results`.
+// el `cleanup` de la task (al cancelarse/terminar) y `Runtime.Close`/`stopAllGreps`
+// (red de seguridad). Cancelar el contexto desbloquea el repartidor y los workers
+// (todos tienen una salida por `ctx.Done`); cuando el último worker sale, la
+// cerradora cierra `results` y sella `done`.
 //
-// El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: el backend gopher
-// siempre lo pasa (`newGrepIter(rt.sched, ...)`), pero el backend wasm (M13b,
-// vmwasm_search.go) reusa este mismo iterador con `s == nil` cuando el Runtime de
-// pruebas es mínimo — igual que `luaWs.close` sólo desregistra si hay scheduler.
-// Cancelar el contexto (el núcleo VM-agnóstico) siempre ocurre; sólo el rastreo
-// para `Runtime.Close` es opcional. Para gopher el comportamiento es idéntico.
+// **Por qué no espera (`<-it.done`)**: `close` corre en el HILO DE LA VM —lo
+// dispara el `cleanup` de la task, y también `Runtime.Close`—, el único hilo que
+// ejecuta Lua y hace girar el event loop. Un worker puede quedar atascado dentro
+// de una lectura NO cancelable (`readGrepLine` sólo mira `ctx.Done` ENTRE líneas:
+// un FIFO en el árbol, un NFS colgado bloquean el `Read` a mitad); si `close`
+// esperara a `done`, ese bloqueo congelaría el event loop entero (viola api.md
+// §1.2, ADR-020 §2 y ADR-008 regla 3) y colgaría el shutdown, y un segundo caller
+// concurrente se atascaría en `closeOnce.Do`. La no-fuga NO se blinda bloqueando
+// el hilo de la VM: se blinda con un test blanco que espera `done` desde la
+// goroutine del test (ver TestGrepCloseDrainaElPool).
+//
+// El rastreo (`untrackGrep`) sólo se deshace si hay scheduler: algunos tests
+// aislados del núcleo vmwasm crean el iterador sin un Runtime completo. Cancelar
+// el contexto siempre ocurre; sólo el rastreo para `Runtime.Close` es opcional.
 func (it *grepIter) close() {
 	it.closeOnce.Do(func() {
 		it.cancel()

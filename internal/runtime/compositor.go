@@ -1,7 +1,7 @@
 package runtime
 
-// Compositor de `nu.ui` (api.md §9.1, sesión S29). Es la pieza Go que ADR-007
-// pone bajo `nu.ui`: las regiones (rectángulos con z-order) y el `blit` de un
+// Compositor de `enu.ui` (api.md §9.1, sesión S29). Es la pieza Go que ADR-007
+// pone bajo `enu.ui`: las regiones (rectángulos con z-order) y el `blit` de un
 // Block son superficie Lua, pero **componer + difar + codificar a ANSI** ocurre
 // aquí, en Go, y el resultado se coalesce (se pinta como mucho cada ~30 ms, sin
 // "flush" manual). Promueve a producción el MODELO VALIDADO por el spike de S28
@@ -26,7 +26,7 @@ package runtime
 //     Block a la rejilla de la región; blittear el mismo Block con otro offset es
 //     otra copia, jamás reconstruye el Block (scroll = re-blit barato).
 //
-// CONCURRENCIA (ADR-008). `nu.ui` es **solo estado principal**: todas las
+// CONCURRENCIA (ADR-008). `enu.ui` es **solo estado principal**: todas las
 // mutaciones (region/blit/fill/clear) corren bajo el token Lua. El timer de
 // coalescing (S29) también dispara el pintado en el estado principal. Por eso el
 // compositor no lleva candado propio —el token lo serializa, como el bus de
@@ -327,7 +327,7 @@ func min2(a, b int) int {
 // `untrack` para encontrar su lista en el registro de handles).
 func (r *uiRegion) owner() string { return r.ownerName }
 
-// compositor es el compositor de `nu.ui`: la rejilla de pantalla (back/front,
+// compositor es el compositor de `enu.ui`: la rejilla de pantalla (back/front,
 // para el diff), la lista de regiones, y el buffer ANSI del último frame. Vive en
 // el estado principal bajo el token (ADR-008); el timer de coalescing dispara
 // `paint` como mucho cada ~30 ms.
@@ -356,7 +356,7 @@ type compositor struct {
 }
 
 // newCompositor crea un compositor de tamaño w×h con ambas rejillas en blanco y
-// sin regiones. El tamaño sale de `nu.ui.size()` (del terminal con TTY, o un
+// sin regiones. El tamaño sale de `enu.ui.size()` (del terminal con TTY, o un
 // default headless inyectable para test).
 func newCompositor(w, h int) *compositor {
 	return &compositor{w: w, h: h, back: newGrid(w, h), front: newGrid(w, h)}

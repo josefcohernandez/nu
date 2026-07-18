@@ -19,7 +19,7 @@ func mdParse(src []byte) ast.Node {
 	return goldmark.DefaultParser().Parse(text.NewReader(src))
 }
 
-// Tests de `nu.text.markdown` (S23, inventario 🔒). El corazón es la
+// Tests de `enu.text.markdown` (S23, inventario 🔒). El corazón es la
 // STREAMING-SAFETY: (a) entrada incompleta (un fence/lista/énfasis/enlace a
 // medias) NO rompe —produce un Block válido sin panic ni error—, y (b) el Block
 // crece de forma ESTABLE al añadir texto token a token (el invariante de
@@ -134,10 +134,10 @@ func TestMarkdownIncompleteDoesNotBreak(t *testing.T) {
 // camino real (la primitiva Lua): no lanza y devuelve un Block inspeccionable.
 func TestMarkdownIncompleteViaLua(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval("local b = nu.text.markdown('```go\\nfunc f() {', {width=40}); return b.height >= 1", "true")
-	h.expectEval("local b = nu.text.markdown('texto *sin cerrar', {width=40}); return b.height >= 1", "true")
-	h.expectEval("local b = nu.text.markdown('', {width=40}); return b.height", "1")
-	h.expectEval("local b = nu.text.markdown('# Hola', {width=40}); return b.width <= 40", "true")
+	h.expectEval("local b = enu.text.markdown('```go\\nfunc f() {', {width=40}); return b.height >= 1", "true")
+	h.expectEval("local b = enu.text.markdown('texto *sin cerrar', {width=40}); return b.height >= 1", "true")
+	h.expectEval("local b = enu.text.markdown('', {width=40}); return b.height", "1")
+	h.expectEval("local b = enu.text.markdown('# Hola', {width=40}); return b.width <= 40", "true")
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -443,9 +443,9 @@ func TestMarkdownBlockWidthBound(t *testing.T) {
 func TestMarkdownTheme(t *testing.T) {
 	h := newHarness(t)
 	// Theme con color literal en h1: el render no lanza.
-	h.expectEval(`local b = nu.text.markdown("# T", {width=20, theme={h1={fg="#ff0000", bold=true}}}); return b.height`, "1")
+	h.expectEval(`local b = enu.text.markdown("# T", {width=20, theme={h1={fg="#ff0000", bold=true}}}); return b.height`, "1")
 	// Nombre semántico → EINVAL (G22).
-	se := h.evalErr(`return nu.text.markdown("# T", {width=20, theme={h1={fg="accent"}}})`)
+	se := h.evalErr(`return enu.text.markdown("# T", {width=20, theme={h1={fg="accent"}}})`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("theme con nombre semántico: code = %q, want EINVAL", se.Code)
 	}
@@ -471,13 +471,13 @@ func TestMarkdownThemeAppliedInGo(t *testing.T) {
 func TestMarkdownWidthRequired(t *testing.T) {
 	h := newHarness(t)
 	for _, code := range []string{
-		`return nu.text.markdown("hola")`,               // sin opts
-		`return nu.text.markdown("hola", {})`,           // sin width
-		`return nu.text.markdown("hola", {width=0})`,    // width 0
-		`return nu.text.markdown("hola", {width=-5})`,   // width negativo
-		`return nu.text.markdown("hola", {width=3.5})`,  // width no entero
-		`return nu.text.markdown("hola", "no tabla")`,   // opts no tabla
-		`return nu.text.markdown("hola", {width="20"})`, // width no número
+		`return enu.text.markdown("hola")`,               // sin opts
+		`return enu.text.markdown("hola", {})`,           // sin width
+		`return enu.text.markdown("hola", {width=0})`,    // width 0
+		`return enu.text.markdown("hola", {width=-5})`,   // width negativo
+		`return enu.text.markdown("hola", {width=3.5})`,  // width no entero
+		`return enu.text.markdown("hola", "no tabla")`,   // opts no tabla
+		`return enu.text.markdown("hola", {width="20"})`, // width no número
 	} {
 		se := h.evalErr(code)
 		if se.Code != CodeEINVAL {
@@ -486,19 +486,19 @@ func TestMarkdownWidthRequired(t *testing.T) {
 	}
 }
 
-// TestMarkdownNotSuspending confirma que `nu.text.markdown` NO suspende (§10: [W]
+// TestMarkdownNotSuspending confirma que `enu.text.markdown` NO suspende (§10: [W]
 // pero NINGUNA ⏸): corre fuera de una task, en el chunk principal, sin EINVAL de
 // "solo en task". Es CPU puro, como width/wrap/truncate.
 func TestMarkdownNotSuspending(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`local b = nu.text.markdown("# Hola\n\ntexto", {width=20}); return b.height >= 2`, "true")
+	h.expectEval(`local b = enu.text.markdown("# Hola\n\ntexto", {width=20}); return b.height >= 2`, "true")
 }
 
 // TestMarkdownViaLuaInspect ejercita la firma desde Lua y comprueba dimensiones.
 func TestMarkdownViaLuaInspect(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local b = nu.text.markdown("# Titulo\n\nParrafo.\n\n- a\n- b", {width=40})
+		local b = enu.text.markdown("# Titulo\n\nParrafo.\n\n- a\n- b", {width=40})
 		assert(b.width <= 40, "width")
 		assert(b.height >= 4, "height "..b.height)
 		return "ok"

@@ -37,9 +37,9 @@ end
 
 -- toolkit.app(opts) -> App. Monta una app sobre una región.
 --   * `region`: una `Region` ya creada (api.md §9.1) sobre la que pintar. O bien
---     `x/y/w/h/z` para que la app cree la suya con `nu.ui.region`. Necesita
---     `nu.ui` (headless, G20, no hay UI: el consumidor comprueba `nu.has("ui")`
---     antes —chat.md §8—; aquí, si no hay `nu.ui`, es EINVAL accionable).
+--     `x/y/w/h/z` para que la app cree la suya con `enu.ui.region`. Necesita
+--     `enu.ui` (headless, G20, no hay UI: el consumidor comprueba `enu.has("ui")`
+--     antes —chat.md §8—; aquí, si no hay `enu.ui`, es EINVAL accionable).
 --   * `root`: el contenedor raíz (default: un `vbox` que ocupa la región). Se le
 --     da el área de la región.
 --   * `theme`: el Theme (default `toolkit.theme.default`).
@@ -47,22 +47,22 @@ end
 --     foco. Un test puede desactivarlo y enrutar a mano con `app:handle_key`.
 function M.app(opts)
   opts = opts or {}
-  if nu.has == nil or not nu.has("ui") then
-    einval("toolkit.app: nu.ui no está disponible (headless, G20). "
-      .. "Comprueba nu.has(\"ui\") antes de montar una app (chat.md §8).")
+  if enu.has == nil or not enu.has("ui") then
+    einval("toolkit.app: enu.ui no está disponible (headless, G20). "
+      .. "Comprueba enu.has(\"ui\") antes de montar una app (chat.md §8).")
   end
 
   local region = opts.region
   if region == nil then
     if opts.w == nil or opts.h == nil then
       -- Sin región dada ni tamaño: ocupa la pantalla entera.
-      local s = nu.ui.size()
+      local s = enu.ui.size()
       opts.w = opts.w or s.w
       opts.h = opts.h or s.h
       opts.x = opts.x or 0
       opts.y = opts.y or 0
     end
-    region = nu.ui.region({ x = opts.x or 0, y = opts.y or 0, w = opts.w, h = opts.h, z = opts.z })
+    region = enu.ui.region({ x = opts.x or 0, y = opts.y or 0, w = opts.w, h = opts.h, z = opts.z })
     -- guardamos el tamaño con que la creamos (el compositor recorta, pero el
     -- lienzo lógico es este).
   end
@@ -91,7 +91,7 @@ function M.app(opts)
 
   -- enrutado de input (api.md §9.3, S31): UN on_input que entrega al foco.
   if opts.manage_input ~= false then
-    self._input = nu.ui.on_input(function(ev)
+    self._input = enu.ui.on_input(function(ev)
       return self:handle_key(ev)
     end)
   end
@@ -104,13 +104,13 @@ end
 
 -- App:relayout() recalcula el layout del árbol sobre el área de la región. La
 -- región es opaca (no expone su w/h a Lua), así que la app usa el tamaño con el
--- que se montó (`self.w/h`), o consulta `nu.ui.size()` si ocupa la pantalla. Tras
+-- que se montó (`self.w/h`), o consulta `enu.ui.size()` si ocupa la pantalla. Tras
 -- el layout, repinta.
 function App:relayout(w, h)
   w = w or self.w
   h = h or self.h
   if w == nil or h == nil then
-    local s = nu.ui.size()
+    local s = enu.ui.size()
     w = w or s.w
     h = h or s.h
   end
@@ -233,7 +233,7 @@ end
 function App:_viewport_for(node, ax, ay)
   local vp = node._viewport
   if vp == nil then
-    vp = nu.ui.region({ x = ax, y = ay, w = node.w, h = node.h, z = (self.z or 0) + 1 })
+    vp = enu.ui.region({ x = ax, y = ay, w = node.w, h = node.h, z = (self.z or 0) + 1 })
     node._viewport = vp
     self._viewports = self._viewports or {}
     self._viewports[#self._viewports + 1] = vp
@@ -279,8 +279,8 @@ function App:set_focus(w)
   -- ui_events.go)—: pisarlo rompería a sus suscriptores. El enrutado del foco de
   -- widget es vocabulario del toolkit (api.md §9.3), así que su evento vive en el
   -- namespace del toolkit. Payload `{app, widget}`: quién y a qué widget enfocó.
-  if nu.events then
-    nu.events.emit("toolkit:focus", { app = self, widget = w })
+  if enu.events then
+    enu.events.emit("toolkit:focus", { app = self, widget = w })
   end
   self:_request_paint()
 end
@@ -318,7 +318,7 @@ end
 -- lo deja pasar (false) para que la pila del core lo ofrezca al handler de abajo
 -- (otra app, un keymap). Es el handler que la app apila con `on_input`. Una tecla
 -- de navegación de foco por defecto: `tab`/`shift+tab` cambian de widget (lo
--- consume la app); el resto va al foco. El chat remapea con `nu.ui.keymap`.
+-- consume la app); el resto va al foco. El chat remapea con `enu.ui.keymap`.
 function App:handle_key(ev)
   if not self._alive then
     return false

@@ -1,6 +1,6 @@
 package runtime
 
-// Tests del lado Lua de `nu.ui` §9.1 (S29): `size`, `region`, `blit`/`fill`/
+// Tests del lado Lua de `enu.ui` §9.1 (S29): `size`, `region`, `blit`/`fill`/
 // `clear`, sus errores accionables, y la integración con `reload` (una región es
 // un `ownedHandle`: al recargar su plugin se destruye, G2). El recorte/viewport/
 // z-order/coalescing —la lógica 🔒— se blindan en `compositor_test.go` con
@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// newHarnessUI construye un harness con un tamaño de pantalla de `nu.ui` fijo
+// newHarnessUI construye un harness con un tamaño de pantalla de `enu.ui` fijo
 // (inyectado por `WithUISize`), para que `size()` y el recorte de regiones sean
 // deterministas sin depender del entorno ni de un TTY. Fuerza la UI con
 // `WithForceUI(true)` (gating G20, S32): el entorno de test es headless, así que sin
-// forzarlo `nu.ui` no existiría.
+// forzarlo `enu.ui` no existiría.
 func newHarnessUI(t *testing.T, w, h int) *harness {
 	t.Helper()
 	rt := New(WithDataDir(t.TempDir()), WithConfigDir(t.TempDir()), WithUISize(w, h), WithForceUI(true))
@@ -35,8 +35,8 @@ func TestUIPainterLive(t *testing.T) {
 		t.Fatalf("Boot falló: %v", err)
 	}
 	h.eval(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 10, h = 1 })
-		r:blit(0, 0, nu.ui.block({ "hey" }))
+		local r = enu.ui.region({ x = 0, y = 0, w = 10, h = 1 })
+		r:blit(0, 0, enu.ui.block({ "hey" }))
 	`)
 	// El painter pinta como mucho cada ~30 ms; espera holgado a un par de ticks.
 	deadline := time.Now().Add(2 * time.Second)
@@ -52,20 +52,20 @@ func TestUIPainterLive(t *testing.T) {
 	t.Fatal("el painter no pintó ningún frame tras Boot + blit")
 }
 
-// nu.ui.size() devuelve el tamaño inyectado.
+// enu.ui.size() devuelve el tamaño inyectado.
 func TestUISize(t *testing.T) {
 	h := newHarnessUI(t, 100, 40)
-	h.expectEval(`local s = nu.ui.size(); return s.w, s.h`, "100", "40")
+	h.expectEval(`local s = enu.ui.size(); return s.w, s.h`, "100", "40")
 }
 
-// nu.ui.region + blit + size del Block: el snippet crea una región, blittea un
+// enu.ui.region + blit + size del Block: el snippet crea una región, blittea un
 // Block construido a mano y comprueba que no lanza. La inspección fina del
 // contenido es de los tests Go (la región es opaca a Lua).
 func TestUIRegionBlitSnippet(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	h.expectEval(`
-		local r = nu.ui.region({ x = 1, y = 1, w = 10, h = 3, z = 2 })
-		local blk = nu.ui.block({ "hola", { { text = "mundo", style = { bold = true } } } })
+		local r = enu.ui.region({ x = 1, y = 1, w = 10, h = 3, z = 2 })
+		local blk = enu.ui.block({ "hola", { { text = "mundo", style = { bold = true } } } })
 		r:blit(0, 0, blk)
 		r:blit(0, -1, blk)   -- scroll: re-blit con otro offset (G28), no debe lanzar
 		r:fill({ bg = "#202020" })
@@ -74,13 +74,13 @@ func TestUIRegionBlitSnippet(t *testing.T) {
 	`, "ok")
 }
 
-// nu.ui.region exige `w` y `h`: sin ellos, EINVAL accionable.
+// enu.ui.region exige `w` y `h`: sin ellos, EINVAL accionable.
 func TestUIRegionRequiresWH(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
-	if se := h.evalErr(`return nu.ui.region({ x = 0, y = 0 })`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`return enu.ui.region({ x = 0, y = 0 })`); se.Code != CodeEINVAL {
 		t.Fatalf("region sin w/h: code = %q, want EINVAL", se.Code)
 	}
-	if se := h.evalErr(`return nu.ui.region({ w = -1, h = 2 })`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`return enu.ui.region({ w = -1, h = 2 })`); se.Code != CodeEINVAL {
 		t.Fatalf("region con w negativo: code = %q, want EINVAL", se.Code)
 	}
 }
@@ -90,7 +90,7 @@ func TestUIRegionRequiresWH(t *testing.T) {
 func TestUIRegionBlitBadBlock(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	se := h.evalErr(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
 		return r:blit(0, 0, r)   -- una Region no es un Block
 	`)
 	if se.Code != CodeEINVAL {
@@ -103,7 +103,7 @@ func TestUIRegionBlitBadBlock(t *testing.T) {
 func TestUIRegionFillBadStyle(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	se := h.evalErr(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
 		return r:fill({ bg = "accent" })   -- nombre semántico: no es del core
 	`)
 	if se.Code != CodeEINVAL {
@@ -118,9 +118,9 @@ func TestUIRegionFillBadStyle(t *testing.T) {
 func TestUIRegionLifecycleSnippet(t *testing.T) {
 	h := newHarnessUI(t, 20, 10)
 	h.expectEval(`
-		local a = nu.ui.region({ x = 0, y = 0, w = 5, h = 3 })
-		local b = nu.ui.region({ x = 2, y = 1, w = 5, h = 3 })
-		a:blit(0, 0, nu.ui.block({ "hola" }))
+		local a = enu.ui.region({ x = 0, y = 0, w = 5, h = 3 })
+		local b = enu.ui.region({ x = 2, y = 1, w = 5, h = 3 })
+		a:blit(0, 0, enu.ui.block({ "hola" }))
 		a:move(1, 1)            -- recolocar
 		a:resize(8, 4)          -- cambiar tamaño lógico (conserva lo que cabe)
 		a:raise()               -- al frente
@@ -140,7 +140,7 @@ func TestUIRegionLifecycleSnippet(t *testing.T) {
 func TestUIRegionMethodsAfterDestroy(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	se := h.evalErr(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
 		r:destroy()
 		return r:move(1, 1)   -- región muerta: EINVAL accionable
 	`)
@@ -149,11 +149,11 @@ func TestUIRegionMethodsAfterDestroy(t *testing.T) {
 	}
 }
 
-// S30: resize con tamaño negativo → EINVAL (coherente con nu.ui.region).
+// S30: resize con tamaño negativo → EINVAL (coherente con enu.ui.region).
 func TestUIRegionResizeNegative(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	se := h.evalErr(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 2 })
 		return r:resize(-1, 2)
 	`)
 	if se.Code != CodeEINVAL {
@@ -227,9 +227,9 @@ func TestUIRegionOwnedHandleG2(t *testing.T) {
 func TestUIInputSnippet(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
 	h.expectEval(`
-		local ih = nu.ui.on_input(function(ev) return false end)
-		local km = nu.ui.keymap("g g", function() end)
-		local km2 = nu.ui.keymap("ctrl+k", function() end, { timeout_ms = 100 })
+		local ih = enu.ui.on_input(function(ev) return false end)
+		local km = enu.ui.keymap("g g", function() end)
+		local km2 = enu.ui.keymap("ctrl+k", function() end, { timeout_ms = 100 })
 		ih:pop()      -- quita el handler de la pila
 		km:unmap()    -- quita el keymap
 		km2:unmap()
@@ -242,7 +242,7 @@ func TestUIInputSnippet(t *testing.T) {
 // keymap muerto silencioso).
 func TestUIKeymapBadSeqEINVAL(t *testing.T) {
 	h := newHarnessUI(t, 20, 5)
-	se := h.evalErr(`nu.ui.keymap("ctrl+", function() end)`)
+	se := h.evalErr(`enu.ui.keymap("ctrl+", function() end)`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("un seq mal formado debería ser EINVAL, fue %q", se.Code)
 	}

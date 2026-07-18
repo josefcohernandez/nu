@@ -19,7 +19,7 @@ package runtime
 //     `bar/baz.lua`→`bar.baz`). Todas ANTES de correr ningún init, para que un
 //     `require` cruzado (agent→providers) resuelva desde el primer momento.
 //  3. `runInitWasm` por cada plugin EN ORDEN TOPOLÓGICO, empujando su contexto al
-//     `ownerStack` (dueño correcto de `nu.log`/`nu.plugin.current` durante el init).
+//     `ownerStack` (dueño correcto de `enu.log`/`enu.plugin.current` durante el init).
 //  4. `runUserInitWasm`: el `init.lua` del usuario, el ÚLTIMO (§14).
 //  5. `core:ready` una sola vez, y `RunTasks` para drenar las tasks que los init
 //     lanzaron (el equivalente wasm de soltar el token en gopher: las tasks
@@ -40,7 +40,7 @@ import (
 
 // BootWasm ejecuta el arranque canónico (§14) sobre la Instance wasm. Es el gemelo
 // de `Boot` (loader.go) que `Runtime.Boot` invoca cuando el backend es wasm.
-// Devuelve un error de carga accionable (grafo inválido, `nu.toml` roto, fallo de
+// Devuelve un error de carga accionable (grafo inválido, `enu.toml` roto, fallo de
 // construcción del estado wasm) sin haber corrido ningún `init.lua`; los fallos de
 // un init individual se aíslan (ADR-008) y no se propagan.
 func (l *loader) BootWasm() error {
@@ -49,7 +49,7 @@ func (l *loader) BootWasm() error {
 	}
 	l.booted = true
 
-	// Una config de runtime rota (`nu.toml` mal formado) aborta antes de tocar
+	// Una config de runtime rota (`enu.toml` mal formado) aborta antes de tocar
 	// plugin alguno (§12), igual que en gopher.
 	if l.configErr != nil {
 		return l.configErr
@@ -97,8 +97,10 @@ func (l *loader) BootWasm() error {
 
 	// Drena las tasks que los init.lua (y los handlers de core:ready) hayan lanzado:
 	// el equivalente wasm de soltar el token en gopher (las tasks encoladas durante
-	// el arranque corren después de él). En headless (sin UI) esto termina; el bucle
-	// interactivo del driver de TTY es aparte (pendiente, ver bitácora).
+	// el arranque corren después de él). Retorna en la quiescencia de primer plano
+	// SIN matar el fondo (G44): los `every` que un init.lua arrancara quedan
+	// pausados y el bombeo continuo del modo interactivo (PumpTasks, driver.go) o
+	// el próximo drenaje headless los reanudan.
 	if err := l.rt.wasm.RunTasks(context.Background()); err != nil {
 		return err
 	}
@@ -131,8 +133,8 @@ func (l *loader) registerWasmModules(ordered []*pluginInfo) error {
 }
 
 // runInitWasm ejecuta el `init.lua` de un plugin sobre la Instance wasm con su
-// contexto empujado al `ownerStack` (así `nu.plugin.current()` y el owner de
-// `nu.log` son ese plugin durante el init, §14). Un `init.lua` ausente es válido
+// contexto empujado al `ownerStack` (así `enu.plugin.current()` y el owner de
+// `enu.log` son ese plugin durante el init, §14). Un `init.lua` ausente es válido
 // (el plugin puede ser solo módulos `lua/`). Un error del init queda AISLADO
 // (ADR-008): se loguea, se emite `core:plugin.error`, y el arranque sigue. El owner
 // se saca pase lo que pase.
@@ -167,7 +169,7 @@ func (l *loader) runInitWasm(p *pluginInfo) {
 // reloadWasm recarga un plugin ya cargado sobre la Instance wasm (api.md §14, G2).
 // Es el gemelo de `loader.reload` (loader.go) para el backend wasm y sigue sus
 // MISMOS pasos, en el MISMO orden (best-effort, G2 — deshace lo que el core sabe
-// deshacer). Lo invoca el HostFn SUSPENDENTE `nu.plugin.reload` (vmwasm_plugin.go),
+// deshacer). Lo invoca el HostFn SUSPENDENTE `enu.plugin.reload` (vmwasm_plugin.go),
 // que corre en la goroutine de fondo del scheduler: por eso puede llamar a
 // `l.rt.wasm.Eval` (re-entra la VM tomando `inst.mu`, que en ese punto está libre).
 //
@@ -178,7 +180,7 @@ func (l *loader) reloadWasm(name string) error {
 	p := l.find(name)
 	if p == nil {
 		return &StructuredError{Code: CodeEINVAL,
-			Message: fmt.Sprintf("no se puede recargar el plugin %q: no está cargado (nu.plugin.reload es para plugins ya cargados, §14)", name)}
+			Message: fmt.Sprintf("no se puede recargar el plugin %q: no está cargado (enu.plugin.reload es para plugins ya cargados, §14)", name)}
 	}
 
 	// 1. `core:plugin.unload {name}` ANTES de soltar nada: las extensiones enganchadas
@@ -191,6 +193,14 @@ func (l *loader) reloadWasm(name string) error {
 	//    (`every`). Tras esto los viejos no disparan: "reload no deja handlers
 	//    huérfanos" (G2).
 	l.releaseOwnerHandlesWasm(p.Name)
+
+	//    Y el registro Go por dueño (handles.go): el preludio solo conoce subs y
+	//    timers Lua; los procesos de `enu.proc.spawn` y los watchers de `enu.fs.watch`
+	//    del plugin viven en el scheduler Go y sin este release sobrevivirían a la
+	//    recarga (el contrato de proc.go es explícito: no deben).
+	if l.rt.sched != nil {
+		l.rt.sched.releaseOwnerHandles(p.Name)
+	}
 
 	// 3. Relee del disco los módulos `lua/` del plugin (pueden haber cambiado) y vacía
 	//    su caché de `require`: un módulo modificado debe re-ejecutarse, no servirse
@@ -268,12 +278,12 @@ func (l *loader) emitLoadedWasm(p *pluginInfo) {
 
 // emitCoreEventWasm emite un evento `core:*` sobre la Instance wasm con un payload
 // de strings (o sin payload si `payload` es nil). Construye la llamada
-// `nu.events.emit(name, {k=v, ...})` con literales Lua ESCAPADOS (luaStringLit): el
+// `enu.events.emit(name, {k=v, ...})` con literales Lua ESCAPADOS (luaStringLit): el
 // payload viene de Go (nombres/rutas de plugin) y no debe poder inyectar código.
 // Corre síncrono (emit no suspende, M08): sus handlers se despachan aquí mismo.
 func (l *loader) emitCoreEventWasm(name string, payload map[string]string) {
 	var b strings.Builder
-	b.WriteString("nu.events.emit(")
+	b.WriteString("enu.events.emit(")
 	b.WriteString(luaStringLit(name))
 	if payload != nil {
 		b.WriteString(", {")

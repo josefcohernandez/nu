@@ -1,6 +1,6 @@
-# Licencia del intérprete embebido (nu.wasm)
+# Licencia del intérprete embebido (enu.wasm)
 
-`nu.wasm` contiene el código de **PUC-Lua 5.4.7** (https://www.lua.org)
+`enu.wasm` contiene el código de **PUC-Lua 5.4.7** (https://www.lua.org)
 compilado a WebAssembly, junto al shim del kernel (`shim/`).
 
 Lua se distribuye bajo la **licencia MIT**:
@@ -19,6 +19,6 @@ Lua se distribuye bajo la **licencia MIT**:
 
 La licencia MIT es compatible con la Apache-2.0 del proyecto (ADR-013). Las
 fuentes de Lua NO se versionan en este repo (se clonan pineadas en `build.sh`);
-lo que se comitea es el artefacto `nu.wasm`, reproducible desde esas fuentes y
+lo que se comitea es el artefacto `enu.wasm`, reproducible desde esas fuentes y
 el shim. El shim (`shim/`, copyright de Diego Barea) es Apache-2.0 como el resto
 del proyecto.

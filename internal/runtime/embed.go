@@ -2,12 +2,12 @@ package runtime
 
 // Infraestructura de extensiones embebidas (api.md §14, ADR-010, S12).
 //
-// Las extensiones oficiales de nu (agente, chat, providers, MCP, toolkit...) se
+// Las extensiones oficiales de enu (agente, chat, providers, MCP, toolkit...) se
 // distribuyen DENTRO del binario con `go:embed` —para no romper la promesa "un
 // binario, offline" (ADR-001/ADR-010): activar una embebida NUNCA requiere red—,
-// pero están **INACTIVAS por defecto** (ADR-010): nu instalado es un runtime
+// pero están **INACTIVAS por defecto** (ADR-010): enu instalado es un runtime
 // desnudo, y el harness es una elección del usuario, no un hecho consumado. Una
-// embebida solo se carga si `config.dir()/nu.toml` la nombra en `plugins.enabled`.
+// embebida solo se carga si `config.dir()/enu.toml` la nombra en `plugins.enabled`.
 //
 // Las extensiones oficiales reales (la Fase 8, S36-S45) ya viven bajo `embedded/`:
 // `agent`, `chat`, `providers`, `sessions`, `mcp`, `toolkit` y `repl`. Se añadieron
@@ -16,7 +16,7 @@ package runtime
 // Junto a ellas convive `embedded/example/`: una extensión STUB mínima, conservada
 // a propósito como FIXTURE del propio mecanismo de embebido + gating. Al ser trivial
 // e independiente de las oficiales, deja probar en aislamiento que: (a) por defecto
-// NO se carga; (b) activada por `nu.toml` sí, con `source="builtin"`; (c) un
+// NO se carga; (b) activada por `enu.toml` sí, con `source="builtin"`; (c) un
 // directorio de usuario del mismo nombre la sustituye — sin acoplar esos tests a la
 // lógica de ninguna extensión real. Por eso queda fuera del conjunto de producto
 // (`nonProductEmbedded`, abajo): es andamiaje de pruebas, no algo que el usuario
@@ -52,7 +52,7 @@ const embeddedRoot = "embedded"
 
 // embeddedNames devuelve los nombres de directorio de las extensiones embebidas
 // disponibles (cada subdirectorio de `embedded/` que tenga `plugin.toml`). Es el
-// catálogo de lo que `nu.toml` puede activar sin tenerlo en disco. El nombre de
+// catálogo de lo que `enu.toml` puede activar sin tenerlo en disco. El nombre de
 // DIRECTORIO no tiene por qué coincidir con el `name` del manifiesto, pero por
 // convención lo hace; el loader usa el `name` real tras extraer y parsear.
 func embeddedNames() ([]string, error) {
@@ -91,7 +91,7 @@ var nonProductEmbedded = map[string]bool{
 // las extensiones embebidas DISPONIBLES (`embeddedNames`) menos el andamiaje de
 // `nonProductEmbedded` (`example`). Es la ÚNICA fuente de verdad de "qué activa el
 // conjunto oficial": la usan tanto la acción de la pantalla de runtime desnudo
-// (`ActivateOfficial`, vía TTY, G21) como el flag `nu --default-config` (sin TTY),
+// (`ActivateOfficial`, vía TTY, G21) como el flag `enu --default-config` (sin TTY),
 // de modo que ambos enchufan exactamente lo mismo (la coherencia que G33 exige). El
 // orden hereda el de `embeddedNames` (no garantizado por `fs.ReadDir`); el loader lo
 // reordena topológicamente por `requires`, así que el orden aquí es irrelevante.

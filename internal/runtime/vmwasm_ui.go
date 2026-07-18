@@ -20,13 +20,13 @@ package runtime
 //
 // EL BLOCK COMO BlockObj. `NewBlock` devuelve el `*block` real (block.go) como
 // `vmwasm.BlockObj`; el adaptador de región recupera el `*block` con `b.(*block)`
-// para `blitBlock`. Así el handle de un Block (asignado por `nu.ui._block` o por las
-// primitivas de `nu.text`) resuelve a su `*block` en Go y el blit es la copia de
+// para `blitBlock`. Así el handle de un Block (asignado por `enu.ui._block` o por las
+// primitivas de `enu.text`) resuelve a su `*block` en Go y el blit es la copia de
 // ventana de siempre (G28), sin re-render.
 //
 // GATING HEADLESS (G20). `registerUIWasm` sólo instala el backend si el Runtime tiene
-// UI (`rt.ui != nil`); en headless (`nu -e`, CI, salida redirigida) no se registra y
-// `nu.ui` no existe —el mismo gating que el backend gopher (ui.go, S32)—.
+// UI (`rt.ui != nil`); en headless (`enu -e`, CI, salida redirigida) no se registra y
+// `enu.ui` no existe —el mismo gating que el backend gopher (ui.go, S32)—.
 
 import (
 	"fmt"
@@ -34,23 +34,23 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // registerUIWasm instala el backend de UI del Pool wasm apuntando al compositor real
 // del Runtime (§9). SÓLO si hay UI concedida (`rt.ui != nil`, gating G20): en headless
-// no se registra y `nu.ui` no existe. Debe llamarse antes de `NewInstance` (el preludio
-// se arma con el catálogo completo, y la presencia de UI decide si `nu.ui` existe).
+// no se registra y `enu.ui` no existe. Debe llamarse antes de `NewInstance` (el preludio
+// se arma con el catálogo completo, y la presencia de UI decide si `enu.ui` existe).
 func registerUIWasm(p *vmwasm.Pool, rt *Runtime) {
 	if rt.ui == nil {
-		return // headless (G20): sin compositor no hay nu.ui
+		return // headless (G20): sin compositor no hay enu.ui
 	}
 	p.SetUIBackend(newCompositorBackend(rt.ui.comp, rt.ui.clipWriter, rt.ui.clipReader))
 
-	// nu.ui._check_style(style): valida un Style literal (§9.2, G22) SIN aplicarlo,
+	// enu.ui._check_style(style): valida un Style literal (§9.2, G22) SIN aplicarlo,
 	// devolviendo EINVAL si el color no es del core (un nombre semántico, un hex mal
 	// formado, un índice fuera de rango). Lo consulta el envoltorio Lua de
-	// `nu.ui.region` antes de `Region:fill`, porque `RegionObj.Fill` (M11) es void y no
+	// `enu.ui.region` antes de `Region:fill`, porque `RegionObj.Fill` (M11) es void y no
 	// tiene canal de error: gopher (regionFill) lanza EINVAL ante un estilo inválido, y
 	// esta primitiva restaura esa paridad sin cambiar la interfaz del binding. Un
 	// `style` nil (fill sin estilo, equivalente a clear) es válido.
@@ -86,11 +86,11 @@ func newCompositorBackend(comp *compositor, clipWriter io.Writer, clipReader io.
 	return &compositorBackend{comp: comp, clipWriter: clipWriter, clipReader: clipReader}
 }
 
-// Size devuelve el tamaño de la pantalla en celdas (nu.ui.size), directo del
+// Size devuelve el tamaño de la pantalla en celdas (enu.ui.size), directo del
 // compositor.
 func (b *compositorBackend) Size() (int, int) { return b.comp.w, b.comp.h }
 
-// Caps devuelve las capacidades del terminal (nu.ui.caps, §9.2). Mismo criterio que
+// Caps devuelve las capacidades del terminal (enu.ui.caps, §9.2). Mismo criterio que
 // `uiCaps`/`detectColors` del backend gopher: colores por entorno, el resto en el
 // default conservador (false) hasta que la Fase 6 negocie protocolos. Los valores
 // cruzan el wire, así que `colors` va como int64.
@@ -103,7 +103,7 @@ func (b *compositorBackend) Caps() map[string]any {
 	}
 }
 
-// NewBlock construye un Block (nu.ui.block) a partir de las líneas del wire: una
+// NewBlock construye un Block (enu.ui.block) a partir de las líneas del wire: una
 // línea es un string (span único sin estilo) o un array de spans `{text, style?}`.
 // Reusa el parser VM-agnóstico `parseLinesWasm` (equivalente a `parseLine`/
 // `parseStyle` de gopher, pero desde `[]any`) y devuelve el `*block` real como
@@ -117,7 +117,7 @@ func (b *compositorBackend) NewBlock(lines []any) (vmwasm.BlockObj, error) {
 	return newBlock(parsed), nil
 }
 
-// NewRegion crea una región de composición (nu.ui.region) sobre el compositor real y
+// NewRegion crea una región de composición (enu.ui.region) sobre el compositor real y
 // la envuelve en un adaptador que traduce sus métodos. El dueño (para el reload de
 // gopher, G2) no aplica en wasm —el ciclo de vida lo lleva la tabla de handles de la
 // Instance (M10)—, así que se etiqueta con "" (vacío).
@@ -223,7 +223,7 @@ func (ra *regionAdapter) Cursor(x, y int, show bool) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Parseo VM-agnóstico de líneas y estilos (equivalente a parseLine/parseStyle/
 // normalizeColor de ui.go, pero desde `[]any`/`map[string]any` del wire). Lo reusan
-// tanto NewBlock/Fill (aquí) como los themes de nu.text (vmwasm_text.go).
+// tanto NewBlock/Fill (aquí) como los themes de enu.text (vmwasm_text.go).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // parseLinesWasm convierte las líneas de un Block (del wire) a `[][]span`. Cada línea
@@ -340,7 +340,7 @@ func normalizeColorWasm(v any) (string, error) {
 
 // wasmTruthy replica la verdad de Lua para un valor del wire: nil y false son falsos,
 // todo lo demás verdadero. Lo usan los atributos booleanos de `parseStyleWasm` y el
-// `render` de `nu.text.diff` (un `bold = 1` o `render = {}` cuentan como true, como en
+// `render` de `enu.text.diff` (un `bold = 1` o `render = {}` cuentan como true, como en
 // `lua.LVAsBool`).
 func wasmTruthy(v any) bool {
 	if v == nil {

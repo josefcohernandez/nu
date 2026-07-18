@@ -92,7 +92,7 @@ local function abbrev_cwd(path)
   if home and home ~= "" and path:sub(1, #home) == home then
     path = "~" .. path:sub(#home + 1)
   end
-  if nu.text.width(path) <= 28 then return path end
+  if enu.text.width(path) <= 28 then return path end
   local segs = {}
   for s in path:gmatch("[^/]+") do segs[#segs + 1] = s end
   if #segs >= 2 then

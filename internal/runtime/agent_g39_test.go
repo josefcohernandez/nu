@@ -23,7 +23,7 @@ func TestForkOptsReAloja(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `
@@ -56,7 +56,7 @@ func TestForkHerenciaCompleta(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `
@@ -98,7 +98,7 @@ func TestForkPermisosSoloRecortan(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `
@@ -129,7 +129,7 @@ func TestForkAtIndexaMensajes(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `

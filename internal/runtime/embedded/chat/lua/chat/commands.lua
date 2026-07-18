@@ -12,7 +12,7 @@
 -- con un PICKER difuso (`/model` sin arg, `/sessions`, `/fork`) quedan con su
 -- handler conectado a la API del agente/providers/sesiones pero el picker visual es
 -- la capa modal (chat.md §1, `toolkit.stack`) — v1 acepta el argumento por texto y
--- documenta el picker como mejora (claude_decisions.md S43). El handler SUSPENDE
+-- documenta el picker como mejora (docs/decisiones-implementacion.md S43). El handler SUSPENDE
 -- (⏸): aplica `Session:set_model`, reanuda, etc.
 
 local M = {}
@@ -201,7 +201,7 @@ function M.install_builtins(deps)
       if sessions == nil or sessions.list == nil then
         return "el listado de sesiones no está disponible"
       end
-      local ok, list = pcall(sessions.list, ctx.session.cwd or nu.fs.cwd())
+      local ok, list = pcall(sessions.list, ctx.session.cwd or enu.fs.cwd())
       if not ok or type(list) ~= "table" or #list == 0 then
         return "no hay sesiones guardadas para este proyecto"
       end
@@ -209,7 +209,7 @@ function M.install_builtins(deps)
       for _, s in ipairs(list) do
         lines[#lines + 1] = "  " .. tostring(s.id or s)
       end
-      lines[#lines + 1] = "(reanuda con  nu --continue  o /sessions <id> en una versión futura)"
+      lines[#lines + 1] = "(reanuda con  enu --continue  o /sessions <id> en una versión futura)"
       return table.concat(lines, "\n")
     end })
   -- /compact, /fork, /permissions (chat.md §4): delegan en la API del agente
@@ -224,6 +224,24 @@ function M.install_builtins(deps)
         return "no se pudo compactar: " .. ((type(err) == "table" and err.message) or tostring(err))
       end
       return "la compactación manual aún no está disponible"
+    end })
+
+  -- /retry: re-ejecuta el último turno tras un error (chat.md §4, G43). Delega en
+  -- Session:retry (agente.md §2), que re-ejecuta sobre el historial vigente SIN
+  -- anexar mensaje nuevo — el camino de la acción de reintento tras un `agent:error`
+  -- retryable. El turno se pinta solo por los eventos `agent:*` (turn.start/delta/
+  -- message); aquí solo capturamos el fallo del propio retry (EINVAL: turno en
+  -- vuelo, sesión cerrada, historial vacío) para no reventar el input.
+  M.command({ name = "retry", description = "reintenta el último turno fallido",
+    handler = function(_args, ctx)
+      if not (ctx.session and ctx.session.retry) then
+        return "el reintento no está disponible"
+      end
+      local ok, err = pcall(ctx.session.retry, ctx.session)
+      if not ok then
+        return "no se pudo reintentar: " .. ((type(err) == "table" and err.message) or tostring(err))
+      end
+      return nil
     end })
 
   -- /fork: bifurca la sesión y CONTINÚA en la rama (chat.md §4, P28). Usa

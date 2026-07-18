@@ -1,0 +1,99 @@
+---
+// Layout base de todas las páginas. Cabecera (title, meta, OG, favicon, fuentes,
+// estilos) + script inline de theme/lang antes del primer paint (sin flash).
+// Sin emojis, sin SVG de iconos (salvo el favicon), todo rectangular.
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
+// IBM Plex Sans (self-hosted, mismo criterio "cero dependencias externas" que la
+// mono): SOLO para el cuerpo de la prosa de docs (W-03). Pesos usados: 400
+// (cuerpo), 400 itálica (énfasis/citas), 600 (negritas). El resto —chrome,
+// títulos, código, tablas— sigue en mono. Ver --font-prose en tokens.css.
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/400-italic.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '../styles/tokens.css';
+import '../styles/global.css';
+// Admonitions (:::note/:::tip/:::caution): una sola definición para las dos
+// superficies de contenido markdown (.markdown de la wiki y .api-prose de la
+// referencia), por eso se importa aquí y no en cada página.
+import '../styles/admonitions.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  // Idioma de la página. En 'fixed' (páginas de contenido /docs, /api, /plugins,
+  // ES y EN) lo fija la URL, no localStorage; en 'runtime' (portada, 404) el
+  // usuario lo alterna en cliente como hasta ahora (W-04).
+  lang?: 'es' | 'en';
+  langMode?: 'fixed' | 'runtime';
+  // URLs homólogas de esta página en cada idioma: el picker de idioma NAVEGA a
+  // ellas en las páginas de contenido en vez de solo cambiar el chrome.
+  langHome?: { es: string; en: string };
+}
+
+const {
+  title = 'enu',
+  description = 'enu — un runtime de Lua orientado a terminal cuya killer app es un coding harness.',
+  lang = 'es',
+  langMode = 'runtime',
+  langHome,
+} = Astro.props;
+
+const base = import.meta.env.BASE_URL;
+const site = Astro.site?.href.replace(/\/$/, '') ?? '';
+const ogImage = `${site}${base}og.png`;
+---
+
+<!doctype html>
+<html
+  lang={lang}
+  data-theme="enu"
+  data-lang={lang}
+  data-lang-mode={langMode}
+  data-lang-home-es={langHome?.es}
+  data-lang-home-en={langHome?.en}
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Theme e idioma antes del primer paint: sin flash. El theme siempre sale
+         de localStorage. El idioma depende del modo: en 'fixed' (páginas de
+         contenido) lo manda la URL —el SSR ya pintó data-lang correcto— y solo
+         sincronizamos localStorage para que la portada y el resto del sitio
+         sigan el último idioma elegido; en 'runtime' (portada, 404) lo lee de
+         localStorage como siempre. -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('enu-theme');
+          if (['enu', 'dracula', 'gruvbox', 'solarized'].indexOf(t) === -1) t = 'enu';
+          document.documentElement.setAttribute('data-theme', t);
+          var fixed = document.documentElement.getAttribute('data-lang-mode') === 'fixed';
+          if (fixed) {
+            var pageLang = document.documentElement.getAttribute('data-lang') === 'en' ? 'en' : 'es';
+            localStorage.setItem('enu-lang', pageLang);
+          } else {
+            var l = localStorage.getItem('enu-lang') === 'en' ? 'en' : 'es';
+            document.documentElement.setAttribute('data-lang', l);
+            document.documentElement.setAttribute('lang', l);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

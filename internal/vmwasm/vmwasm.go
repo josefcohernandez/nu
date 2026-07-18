@@ -1,13 +1,13 @@
-// Package vmwasm es el backend de VM de nu basado en PUC-Lua oficial compilado
+// Package vmwasm es el backend de VM de enu basado en PUC-Lua oficial compilado
 // a WebAssembly y ejecutado sobre wazero (Go puro, CGO_ENABLED=0). Materializa
-// [ADR-019]; el plan por sesiones vive en docs/migracion-vm.md.
+// [ADR-019]; el plan por sesiones vive en docs/archive/migracion-vm.md.
 //
-// Esta sesión (M02) provee el CIMIENTO: el blob nu.wasm embebido, un Pool que lo
+// Esta sesión (M02) provee el CIMIENTO: el blob enu.wasm embebido, un Pool que lo
 // compila una vez e instancia N veces (aislamiento físico de memoria por
 // instancia — la base de los workers de M12), el trampolín de desenrollado
 // Snapshot/Restore (que M03 endurece) y la costura de dispatch host genérica
-// (que M05 rellena con el marshaling y las primitivas nu.*). Todavía NO hay
-// scheduler, ni nu.*, ni integración con el Runtime del kernel: eso es M04+.
+// (que M05 rellena con el marshaling y las primitivas enu.*). Todavía NO hay
+// scheduler, ni enu.*, ni integración con el Runtime del kernel: eso es M04+.
 package vmwasm
 
 import (
@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -25,12 +26,12 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-// nuWasm es el blob del intérprete: PUC-Lua 5.4.7 + el shim del kernel,
+// enuWasm es el blob del intérprete: PUC-Lua 5.4.7 + el shim del kernel,
 // reproducible con internal/vmwasm/build.sh (DM1: se comitea; un job de CI
 // verifica su hash contra las fuentes).
 //
-//go:embed nu.wasm
-var nuWasm []byte
+//go:embed enu.wasm
+var enuWasm []byte
 
 // Dispatcher es la costura de llamada Lua→Go: recibe el id de una primitiva y
 // sus argumentos ya copiados de la memoria wasm, y devuelve el resultado (bytes)
@@ -38,9 +39,9 @@ var nuWasm []byte
 // el dispatcher por defecto rechaza todo (aún no hay primitivas).
 type Dispatcher func(id int32, args []byte) ([]byte, error)
 
-// Pool compila nu.wasm una sola vez y fabrica instancias que comparten el
+// Pool compila enu.wasm una sola vez y fabrica instancias que comparten el
 // módulo compilado pero NO la memoria (cada Instance tiene su estado Lua). El
-// registro de primitivas (reg) también se comparte: las primitivas nu.* son las
+// registro de primitivas (reg) también se comparte: las primitivas enu.* son las
 // mismas para todas las instancias (el estado por-instancia lo lleva el *Instance
 // que el HostFn recibe).
 type Pool struct {
@@ -49,14 +50,23 @@ type Pool struct {
 	reg      *hostRegistry
 	ui       UIBackend // backend de compositor (M11); nil = headless (G20)
 
-	isWorker      bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
-	modules       map[string]string // fuentes de módulo por nombre para require (M13, DM5)
-	apiVersion    int               // nivel de nu.version.api que inyecta el preludio (M13, lo fija el Runtime)
-	verMajor      int               // nu.version.major/minor/patch (api.md §1); los fija el Runtime
+	isWorker bool              // true en el Pool de un worker (M12): preludio sin ui/events/spawn
+	modules  map[string]string // fuentes de módulo por nombre para require (M13, DM5)
+
+	// ownerSnapshot es el resolvedor del dueño VIGENTE del estado principal (G56,
+	// ADR-024): lo fija el Runtime con SetOwnerSnapshot (típicamente rt.currentOwner).
+	// enu.worker._spawn —HostFn SÍNCRONA, en la goroutine que conduce la VM, donde la
+	// pila de dueños es coherente por construcción (ADR-004)— lo llama para tomar la
+	// FOTO del dueño del worker en el momento del spawn. Sólo lo tiene el Pool
+	// principal (un worker no anida workers, P11); nil en Pools sin Runtime (tests de
+	// bajo nivel). No se lee jamás desde la goroutine de un worker.
+	ownerSnapshot func() string
+	apiVersion    int // nivel de enu.version.api que inyecta el preludio (M13, lo fija el Runtime)
+	verMajor      int // enu.version.major/minor/patch (api.md §1); los fija el Runtime
 	verMinor      int
 	verPatch      int
-	extraPreludio []string      // snippets Lua que aporta el catálogo (M13b: wrappers finos)
-	sliceBudget   time.Duration // presupuesto por slice del watchdog (DM4); ≤0 lo desactiva (workers, G15)
+	extraPreludio []preludioSnippet // snippets Lua que aporta el catálogo (M13b: wrappers finos)
+	sliceBudget   time.Duration     // presupuesto por slice del watchdog (DM4); ≤0 lo desactiva (workers, G15)
 
 	// Registro de workers vivos de este Pool (M12), para _send/_recv/_terminate y
 	// para el apagado ordenado. Sólo lo usa el Pool principal.
@@ -66,7 +76,7 @@ type Pool struct {
 }
 
 // El runtime wazero y el módulo compilado se COMPARTEN a nivel de proceso: el
-// blob nu.wasm se compila con el JIT UNA sola vez (páginas ejecutables mmap
+// blob enu.wasm se compila con el JIT UNA sola vez (páginas ejecutables mmap
 // caras), no por Pool. Es lo que el doc del Pool promete ("compila una vez") y
 // lo que evita el OOM de crear N runtimes JIT (p. ej. en la suite de tests).
 // Distintos Pools comparten runtime+módulo pero tienen su propio registro de
@@ -91,7 +101,7 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 		// Snapshot/Restore sigue funcionando con este config (comprobado). Cerrar el
 		// módulo NO basta: no interrumpe un Call ya en curso.
 		cfg := wazero.NewRuntimeConfig().WithCloseOnContextDone(true)
-		// Caché de compilación en disco (M15, veto de experiencia): el JIT de nu.wasm
+		// Caché de compilación en disco (M15, veto de experiencia): el JIT de enu.wasm
 		// —páginas ejecutables mmap— es el grueso del arranque en FRÍO (~230 ms). Cada
 		// invocación del binario es un proceso nuevo, así que sin caché se recompila
 		// siempre. Persistirla hace que a partir del 2º arranque se cargue el módulo YA
@@ -103,7 +113,7 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 		}
 		sharedRT = wazero.NewRuntimeWithConfig(ctx, cfg)
 		wasi_snapshot_preview1.MustInstantiate(ctx, sharedRT)
-		if _, err := sharedRT.NewHostModuleBuilder("nu").
+		if _, err := sharedRT.NewHostModuleBuilder("enu").
 			NewFunctionBuilder().WithFunc(hostTry).Export("host_try").
 			NewFunctionBuilder().WithFunc(hostThrow).Export("host_throw").
 			NewFunctionBuilder().WithFunc(hostDispatch).Export("host_dispatch").
@@ -112,9 +122,9 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 			sharedErr = fmt.Errorf("vmwasm: registrar módulo host: %w", err)
 			return
 		}
-		sharedCompiled, sharedErr = sharedRT.CompileModule(ctx, nuWasm)
+		sharedCompiled, sharedErr = sharedRT.CompileModule(ctx, enuWasm)
 		if sharedErr != nil {
-			sharedErr = fmt.Errorf("vmwasm: compilar nu.wasm: %w", sharedErr)
+			sharedErr = fmt.Errorf("vmwasm: compilar enu.wasm: %w", sharedErr)
 		}
 	})
 	return sharedRT, sharedCompiled, sharedErr
@@ -123,7 +133,7 @@ func sharedRuntime() (wazero.Runtime, wazero.CompiledModule, error) {
 // wasmCompilationCache prepara la caché de compilación en disco (M15). Devuelve nil
 // si el directorio de caché no se puede preparar —el arranque sigue, solo recompila—.
 // Usa NU_WASM_CACHE si está fijada (los tests la aíslan a un tmpdir); si no, el dir de
-// caché del usuario (`os.UserCacheDir()/nu/wasm`).
+// caché del usuario (`os.UserCacheDir()/enu/wasm`).
 func wasmCompilationCache() wazero.CompilationCache {
 	dir := os.Getenv("NU_WASM_CACHE")
 	if dir == "" {
@@ -131,7 +141,7 @@ func wasmCompilationCache() wazero.CompilationCache {
 		if err != nil {
 			return nil
 		}
-		dir = filepath.Join(base, "nu", "wasm")
+		dir = filepath.Join(base, "enu", "wasm")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil
@@ -160,7 +170,7 @@ func newBarePool() (*Pool, error) {
 // registerGlobals expone las dos getters síncronas que SetGlobalString usa para
 // pasar un global Lua desde Go sin interpolar código: __pending_gname devuelve el
 // nombre y __pending_gval el valor de la ranura de un solo hueco de la Instance. La
-// Eval de SetGlobalString hace `_G[nu.__pending_gname()] = nu.__pending_gval()`.
+// Eval de SetGlobalString hace `_G[enu.__pending_gname()] = enu.__pending_gval()`.
 func (p *Pool) registerGlobals() {
 	p.Register("__pending_gname", func(inst *Instance, _ []any) ([]any, error) {
 		return []any{inst.pendingGName}, nil
@@ -176,7 +186,7 @@ func (p *Pool) registerGlobals() {
 	})
 }
 
-// EmitEvent emite `name` con `payload` en el bus nu.events del estado principal, sin
+// EmitEvent emite `name` con `payload` en el bus enu.events del estado principal, sin
 // interpolar (ranura de un hueco + getters + una Eval). Es la vía por la que los
 // eventos ui:* del core (que el driver de TTY observa: resize, focus, suspend/resume)
 // llegan al bus wasm, paridad con rt.sched.emit del backend gopher. `payload` puede
@@ -187,7 +197,7 @@ func (inst *Instance) EmitEvent(name string, payload map[string]any) error {
 	inst.mu.Lock()
 	inst.pendingEName, inst.pendingEPayload = name, payload
 	inst.mu.Unlock()
-	_, lerr, err := inst.Eval("nu.events.emit(nu.__pending_ename(), nu.__pending_epayload())")
+	_, lerr, err := inst.Eval("enu.events.emit(enu.__pending_ename(), enu.__pending_epayload())")
 	if err != nil {
 		return err
 	}
@@ -200,7 +210,7 @@ func (inst *Instance) EmitEvent(name string, payload map[string]any) error {
 // WithLock ejecuta `fn` con el mutex de la Instance tomado —el mismo que serializa
 // los Call a la VM (Eval/schedStep)—. Es la vía por la que el PINTOR (armPainter) y
 // el driver de TTY leen el compositor de forma EXCLUYENTE con las host functions de
-// nu.ui que lo mutan durante un Call: en gopher el token del scheduler serializa
+// enu.ui que lo mutan durante un Call: en gopher el token del scheduler serializa
 // pintor y mutaciones; en wasm ese papel lo hace este mutex. `fn` no debe re-entrar
 // la VM (no llamar a Eval), sólo tocar estado Go compartido (el compositor).
 func (inst *Instance) WithLock(fn func()) {
@@ -220,7 +230,7 @@ func (inst *Instance) SetGlobalString(name, value string) error {
 	inst.mu.Lock()
 	inst.pendingGName, inst.pendingGVal = name, value
 	inst.mu.Unlock()
-	_, lerr, err := inst.Eval("_G[nu.__pending_gname()] = nu.__pending_gval()")
+	_, lerr, err := inst.Eval("_G[enu.__pending_gname()] = enu.__pending_gval()")
 	if err != nil {
 		return err
 	}
@@ -231,7 +241,7 @@ func (inst *Instance) SetGlobalString(name, value string) error {
 }
 
 // NewPool prepara el Pool PRINCIPAL: despacho de handles (M10) y el host de
-// workers (M12: nu.worker.spawn y sus primitivas). El backend de UI se añade
+// workers (M12: enu.worker.spawn y sus primitivas). El backend de UI se añade
 // aparte con SetUIBackend (M11).
 func NewPool() (*Pool, error) {
 	p, err := newBarePool()
@@ -239,16 +249,16 @@ func NewPool() (*Pool, error) {
 		return nil, err
 	}
 	p.registerHandleDispatch() // primitivas genéricas de despacho de métodos (M10)
-	p.registerWorkerHost()     // nu.worker.spawn/_send/_recv/_terminate (M12)
+	p.registerWorkerHost()     // enu.worker.spawn/_send/_recv/_terminate (M12)
 	return p, nil
 }
 
-// SetAPIVersion fija el nivel de nu.version.api que el preludio expone. Lo llama
+// SetAPIVersion fija el nivel de enu.version.api que el preludio expone. Lo llama
 // el Runtime al construir el estado wasm (M13), con su APILevel. Debe llamarse
 // antes de NewInstance (el preludio se arma con él).
 func (p *Pool) SetAPIVersion(v int) { p.apiVersion = v }
 
-// SetVersion fija major/minor/patch de nu.version (api.md §1), además del api que
+// SetVersion fija major/minor/patch de enu.version (api.md §1), además del api que
 // pone SetAPIVersion. Lo llama el Runtime con sus constantes de versión. Debe
 // llamarse antes de NewInstance.
 func (p *Pool) SetVersion(major, minor, patch int) {
@@ -263,12 +273,41 @@ func (p *Pool) SetVersion(major, minor, patch int) {
 // un mini-runtime cuyo trabajo es quemar CPU). Debe llamarse antes de NewInstance.
 func (p *Pool) SetSliceBudget(d time.Duration) { p.sliceBudget = d }
 
+// preludioSnippet es un fragmento Lua del catálogo con su marca de disponibilidad
+// (G45): workerSafe distingue los wrappers [W] —que spawnWorker copia al preludio
+// de cada worker— de los solo-principal (p. ej. enu.fs.watch, que depende de
+// enu.events, inexistente en un worker). needs enumera los thunks que el wrapper
+// envuelve: el snippet solo cruza si alguno está concedido por caps, de modo que
+// la superficie no concedida NO EXISTE dentro del worker (deny-by-default, §14)
+// también en su capa Lua, no solo en los thunks.
+type preludioSnippet struct {
+	src        string
+	workerSafe bool
+	needs      []string
+}
+
 // AddPreludio añade un snippet Lua que se ejecuta al final del preludio, cuando la
-// tabla `nu` ya está montada. Es el punto de extensión con el que un módulo del
-// catálogo (M13b) aporta un wrapper fino en Lua —p. ej. nu.re.compile, que ensambla
+// tabla `enu` ya está montada. Es el punto de extensión con el que un módulo del
+// catálogo (M13b) aporta un wrapper fino en Lua —p. ej. enu.re.compile, que ensambla
 // la tabla mixta de capturas que el wire no puede cruzar de una pieza—. Debe
-// llamarse antes de NewInstance.
-func (p *Pool) AddPreludio(snippet string) { p.extraPreludio = append(p.extraPreludio, snippet) }
+// llamarse antes de NewInstance. Esta variante registra el snippet como
+// SOLO-PRINCIPAL: no cruza a los workers.
+func (p *Pool) AddPreludio(snippet string) {
+	p.extraPreludio = append(p.extraPreludio, preludioSnippet{src: snippet})
+}
+
+// AddPreludioW es AddPreludio con marca [W] (G45): el snippet además cruza al
+// preludio de cada worker, porque envuelve superficie que api.md §16 declara
+// disponible en workers. La marca es por-snippet y no en bloque porque conviven
+// wrappers [W] (log, re, text, proc, ws, http.stream, search.grep) con wrappers
+// solo-principal (fs.watch). `needs` son los nombres de los thunks que el wrapper
+// llama (p. ej. "re._compile"): el snippet cruza solo si caps concede alguno —la
+// misma autoridad (workerGrants) que poda los thunks poda sus wrappers, y un
+// módulo no concedido no existe en el worker tampoco como tabla Lua (§14). Sin
+// needs, el snippet cruza siempre.
+func (p *Pool) AddPreludioW(snippet string, needs ...string) {
+	p.extraPreludio = append(p.extraPreludio, preludioSnippet{src: snippet, workerSafe: true, needs: needs})
+}
 
 // Close libera las instancias del Pool. El runtime wazero es compartido a nivel
 // de proceso y no se cierra aquí (vive lo que el proceso); las instancias se
@@ -289,7 +328,7 @@ type tryFrame struct {
 }
 
 // Instance es un estado Lua aislado (su propia memoria lineal). No es seguro
-// para uso concurrente: como el estado principal de nu, un solo hilo lo maneja
+// para uso concurrente: como el estado principal de enu, un solo hilo lo maneja
 // (el scheduler de M06 lo serializa; un worker de M12 tiene su propia Instance).
 type Instance struct {
 	pool   *Pool
@@ -313,9 +352,19 @@ type Instance struct {
 	pendingInput   []map[string]any // cola de eventos de input crudos (M11, FeedInput)
 	workerChans    *workerChannels  // canales con el padre, si esta Instance es un worker (M12)
 
+	// workerOwner es la FOTO del plugin dueño tomada en el spawn (G56, ADR-024):
+	// la identidad con que las primitivas [W] atribuidas por dueño (enu.log, enu.proc)
+	// corren DENTRO de este worker, inmutable durante toda su vida. Vacío en el estado
+	// principal (no es un worker). La captura enu.worker._spawn en el estado principal
+	// —donde el ownerStack es coherente— y viaja COPIADA aquí, como los mensajes: nunca
+	// se lee el ownerStack del padre desde la goroutine del worker (elimina el data
+	// race de SEC-05 por diseño). Sólo lo toca NewInstance→spawnWorker (fijación) y el
+	// accesor WorkerOwner (lectura): inmutable tras el spawn, sin carrera.
+	workerOwner string
+
 	// pendingGName/pendingGVal es la ranura de un solo hueco por la que SetGlobalString
 	// (M13d) pasa un global Lua desde Go SIN interpolar código: se fija bajo mu y una
-	// Eval lo aplica con `_G[nu.__pending_gname()] = nu.__pending_gval()`. Es la vía
+	// Eval lo aplica con `_G[enu.__pending_gname()] = enu.__pending_gval()`. Es la vía
 	// por la que el BINARIO pasa sus args CLI al driver Lua sobre wasm (paridad con
 	// rt.L.SetGlobal en gopher). Single-goroutine (ADR-004): sin carrera entre el set y
 	// la Eval que lo lee (mismo patrón que pendingInput/FeedInput).
@@ -324,7 +373,7 @@ type Instance struct {
 
 	// pendingEName/pendingEPayload es la ranura por la que EmitEvent inyecta un evento
 	// del core (ui:resize, ui:focus…) en el bus wasm desde Go, sin interpolar: se fija
-	// bajo mu y una Eval hace `nu.events.emit(nu.__pending_ename(), nu.__pending_epayload())`.
+	// bajo mu y una Eval hace `enu.events.emit(enu.__pending_ename(), enu.__pending_epayload())`.
 	// Es la paridad wasm de rt.sched.emit para los eventos ui:* que nacen en el driver.
 	pendingEName    string
 	pendingEPayload map[string]any
@@ -336,14 +385,40 @@ type Instance struct {
 	sliceBudget  time.Duration
 	taskDeadline time.Time
 
-	mu sync.Mutex // sólo protege contra reentrada accidental en tests, no concurrencia real
+	// mu serializa TODA entrada a la VM en producción: los Call del bucle de
+	// RunTasks (schedStep), los Eval de EmitEvent que llegan desde goroutines de
+	// fondo (watchers de fs, señales), FeedInput del driver de TTY y el acceso del
+	// pintor al compositor vía WithLock. Es el sustituto wasm del token del
+	// scheduler (ADR-004): quitarlo, o añadir un camino de entrada que no lo tome,
+	// reintroduce un data race sobre la memoria del módulo.
+	mu sync.Mutex
 
 	// slotMu serializa el par "fijar la ranura + Eval" de SetGlobalString/EmitEvent:
 	// como ambos sueltan `mu` entre el set y la Eval (la Eval la re-toma), dos
-	// llamadas concurrentes (p. ej. la entrega de dos watchers de nu.fs.watch desde
+	// llamadas concurrentes (p. ej. la entrega de dos watchers de enu.fs.watch desde
 	// goroutines distintas) podrían pisarse la ranura pendiente. slotMu hace atómico
 	// ese par sin bloquear el `mu` que conduce la VM.
 	slotMu sync.Mutex
+
+	// Estado del BOMBEO del scheduler (G44). Vive en la Instance —no en cada
+	// invocación de RunTasks— para que el trabajo de fondo (los `every`) SOBREVIVA
+	// a la quiescencia de primer plano: su petición en vuelo sigue viva, su
+	// resultado espera en `pumpCh` (buffer 64) y la siguiente invocación (u otro
+	// `PumpTasks`) lo reanuda — pausa, no muerte. `pumpKick` es el timbre (buffer
+	// 1, "queda pulsado hasta que alguien lo mira"): `Eval`/`CoSpawn` lo tocan
+	// para que el trabajo encolado desde fuera del bucle (EmitEvent, FeedInput,
+	// un handler) despierte al `select` sin esperar al vencimiento casual del IO
+	// en vuelo. `pumpActive` (CAS) impide dos bucles simultáneos sobre el mismo
+	// estado. Los campos sin sincronización propia (inject/outstanding/cancels)
+	// los toca SOLO la goroutine que ganó el CAS: el propio CAS ordena las
+	// invocaciones sucesivas desde goroutines distintas.
+	pumpCh          chan asyncResult
+	pumpKick        chan struct{}
+	pumpInject      []any
+	pumpOutstanding int
+	pumpReqCancels  map[int64]context.CancelFunc
+	pumpOrphans     []context.CancelFunc
+	pumpActive      atomic.Bool
 }
 
 // NewInstance instancia el módulo compilado (memoria fresca), cablea el
@@ -351,7 +426,11 @@ type Instance struct {
 // libs del baseline. El dispatcher arranca en el que rechaza todo; SetDispatcher
 // lo sustituye (M05).
 func (p *Pool) NewInstance() (*Instance, error) {
-	inst := &Instance{pool: p, handles: newHandleTable(), sliceBudget: p.sliceBudget}
+	inst := &Instance{pool: p, handles: newHandleTable(), sliceBudget: p.sliceBudget,
+		pumpCh:         make(chan asyncResult, 64),
+		pumpKick:       make(chan struct{}, 1),
+		pumpReqCancels: make(map[int64]context.CancelFunc),
+	}
 	// ctx con el snapshotter (lo exige el trampolín), cancelable (worker:terminate,
 	// M12) y con la propia instancia.
 	base := experimental.WithSnapshotter(context.Background())
@@ -389,7 +468,7 @@ func (p *Pool) NewInstance() (*Instance, error) {
 	// sustituirlo (lo usa algún test de la costura).
 	inst.dispatch = inst.dispatchPrimitive
 
-	// Preludio: construye la tabla `nu` (thunks sobre las primitivas registradas) y
+	// Preludio: construye la tabla `enu` (thunks sobre las primitivas registradas) y
 	// el codec de wire en Lua. Se corre una vez, con el catálogo ya completo.
 	if _, lerr, err := inst.Eval(p.preludio()); err != nil || lerr != "" {
 		return nil, fmt.Errorf("vmwasm: preludio: lerr=%q err=%w", lerr, err)
@@ -429,10 +508,27 @@ func (inst *Instance) readResult() string {
 	return string(b)
 }
 
+// kickPump toca el timbre del bombeo (G44): señala al select de runTaskLoop que
+// puede haber trabajo nuevo en la cola de ready (una task spawneada por un
+// handler, un Future resuelto). No bloqueante y con buffer 1: el timbre queda
+// pulsado hasta que el bucle lo mira, y los toques redundantes se funden. Un
+// toque espurio solo cuesta un paso vacío del scheduler.
+func (inst *Instance) kickPump() {
+	select {
+	case inst.pumpKick <- struct{}{}:
+	default:
+	}
+}
+
 // Eval carga y corre un chunk protegido. Devuelve (resultado, errorLua, errorGo):
 // errorLua != "" es un error de Lua capturado (el chunk lanzó); errorGo != nil
 // es un fallo duro del motor (trap wasm). Sólo uno es no-cero.
+//
+// Al terminar toca el timbre del bombeo (G44): un chunk puede haber encolado
+// trabajo (EmitEvent y FeedInput entran por aquí; sus handlers hacen
+// enu.task.spawn), y sin el toque ese trabajo esperaría al azar del IO en vuelo.
 func (inst *Instance) Eval(chunk string) (string, string, error) {
+	defer inst.kickPump()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 	if err := inst.writeBuf([]byte(chunk)); err != nil {
@@ -458,7 +554,9 @@ const (
 )
 
 // CoSpawn crea una corrutina desde `chunk`. Devuelve su ref (>0) para reanudarla.
+// Toca el timbre del bombeo al salir (G44), como Eval.
 func (inst *Instance) CoSpawn(chunk string) (int32, error) {
+	defer inst.kickPump()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 	if err := inst.writeBuf([]byte(chunk)); err != nil {
@@ -493,7 +591,7 @@ func (inst *Instance) CoResume(ref int32, arg *string) (CoStatus, string, error)
 	return CoStatus(r[0]), inst.readResult(), nil
 }
 
-// --- funciones host (módulo "nu", compartidas; enrutan por ctx) --------------
+// --- funciones host (módulo "enu", compartidas; enrutan por ctx) --------------
 
 // hostTry implementa LUAI_TRY: toma un snapshot, corre el cuerpo protegido
 // re-entrando en wasm; un LUAI_THROW vuelve aquí como Restore (retorna 1). Un

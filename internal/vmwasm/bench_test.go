@@ -65,7 +65,7 @@ func BenchmarkBridgeYieldResume(b *testing.B) {
 }
 
 // BenchmarkSchedulerHostcallCycle mide el ciclo COMPLETO del scheduler por cada
-// primitiva ⏸: una primitiva no-op (`nu.bench.noop`) llamada en bucle desde una
+// primitiva ⏸: una primitiva no-op (`enu.bench.noop`) llamada en bucle desde una
 // task. Cada llamada dispara un paso de scheduler (enc/dec del wire), un despacho
 // en goroutine de fondo, un canal y una reanudación. NO es el número del veto (que
 // es el puente puro, arriba): es el coste de orquestación real, reportado como
@@ -78,7 +78,7 @@ func BenchmarkSchedulerHostcallCycle(b *testing.B) {
 	})
 	// La task hace b.N llamadas ⏸: el bucle vive en Lua para que el timer mida sólo
 	// el ciclo, no el arranque de la task ni el spawn.
-	code := fmt.Sprintf("nu.task.spawn(function() for i = 1, %d do nu.bench.noop() end end)", b.N)
+	code := fmt.Sprintf("enu.task.spawn(function() for i = 1, %d do enu.bench.noop() end end)", b.N)
 	if _, lerr, err := inst.Eval(code); err != nil || lerr != "" {
 		b.Fatalf("Eval: lerr=%q err=%v", lerr, err)
 	}
@@ -90,13 +90,13 @@ func BenchmarkSchedulerHostcallCycle(b *testing.B) {
 }
 
 // BenchmarkTaskSpawnAwait mide un patrón realista de orquestación: una task que
-// lanza otra y espera su resultado (spawn+await, el corazón de nu.task). No es el
+// lanza otra y espera su resultado (spawn+await, el corazón de enu.task). No es el
 // ciclo puro del puente pero sí el coste de coordinar dos tasks por el scheduler.
 func BenchmarkTaskSpawnAwait(b *testing.B) {
 	inst := poolWithB(b, func(p *Pool) {})
-	code := fmt.Sprintf(`nu.task.spawn(function()
+	code := fmt.Sprintf(`enu.task.spawn(function()
   for i = 1, %d do
-    local t = nu.task.spawn(function() return i end)
+    local t = enu.task.spawn(function() return i end)
     t:await()
   end
 end)`, b.N)

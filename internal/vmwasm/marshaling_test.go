@@ -118,9 +118,9 @@ func TestEchoPrimitiva(t *testing.T) {
 			return args, nil // devuelve lo que reciba
 		})
 	})
-	// Lua llama nu.test.echo con varios valores y comprueba que vuelven idénticos.
+	// Lua llama enu.test.echo con varios valores y comprueba que vuelven idénticos.
 	out, lerr, err := inst.Eval(`
-		local a, b, c, d = nu.test.echo(42, "hola", true, nil)
+		local a, b, c, d = enu.test.echo(42, "hola", true, nil)
 		return tostring(a) .. "|" .. tostring(b) .. "|" .. tostring(c) .. "|" .. tostring(d)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
@@ -139,7 +139,7 @@ func TestEchoIntVsFloat(t *testing.T) {
 		})
 	})
 	out, lerr, err := inst.Eval(`
-		local i, f = nu.test.echo(7, 7.0)
+		local i, f = enu.test.echo(7, 7.0)
 		return math.type(i) .. "," .. math.type(f)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
@@ -157,7 +157,7 @@ func TestEchoTablaAnidada(t *testing.T) {
 		})
 	})
 	out, lerr, err := inst.Eval(`
-		local t = nu.test.echo({ nombre = "nu", tags = { "a", "b" }, n = 3 })
+		local t = enu.test.echo({ nombre = "nu", tags = { "a", "b" }, n = 3 })
 		return t.nombre .. ":" .. t.tags[2] .. ":" .. tostring(t.n)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
@@ -179,8 +179,8 @@ func TestEchoBytesNoUTF8(t *testing.T) {
 	})
 	// Lua recibe los 3 bytes crudos y los devuelve; Go cuenta 3.
 	out, lerr, err := inst.Eval(`
-		local raw = nu.test.raw()
-		return tostring(#raw) .. ":" .. tostring(nu.test.len(raw))`)
+		local raw = enu.test.raw()
+		return tostring(#raw) .. ":" .. tostring(enu.test.len(raw))`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
 	}
@@ -189,7 +189,7 @@ func TestEchoBytesNoUTF8(t *testing.T) {
 	}
 }
 
-// M05.7: el sentinel NULL (nu.json.NULL) cruza como sí mismo, distinto de nil.
+// M05.7: el sentinel NULL (enu.json.NULL) cruza como sí mismo, distinto de nil.
 func TestEchoNullSentinel(t *testing.T) {
 	inst := poolWith(t, func(p *Pool) {
 		p.Register("test.echo", func(inst *Instance, args []any) ([]any, error) {
@@ -198,7 +198,7 @@ func TestEchoNullSentinel(t *testing.T) {
 			return []any{isNull}, nil
 		})
 	})
-	out, lerr, err := inst.Eval(`return tostring(nu.test.echo(nu.json.NULL))`)
+	out, lerr, err := inst.Eval(`return tostring(enu.test.echo(enu.json.NULL))`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
 	}
@@ -216,7 +216,7 @@ func TestEchoErrorEstructurado(t *testing.T) {
 		})
 	})
 	out, lerr, err := inst.Eval(`
-		local ok, e = pcall(function() return nu.test.falla() end)
+		local ok, e = pcall(function() return enu.test.falla() end)
 		return tostring(ok) .. ":" .. tostring(e.code) .. ":" .. tostring(e.message) .. ":" .. tostring(e.detail)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
@@ -234,7 +234,7 @@ func TestEchoErrorGenerico(t *testing.T) {
 		})
 	})
 	out, lerr, err := inst.Eval(`
-		local ok, e = pcall(function() return nu.test.crash() end)
+		local ok, e = pcall(function() return enu.test.crash() end)
 		return tostring(ok) .. ":" .. tostring(e.code) .. ":" .. tostring(e.message)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)

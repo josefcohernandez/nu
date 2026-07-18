@@ -1,7 +1,7 @@
 package runtime
 
 // Catálogo de codecs sobre el backend wasm (migracion-vm.md M13b, §12). Es la
-// contraparte de codecs.go para internal/vmwasm: registra nu.json/toml/yaml como
+// contraparte de codecs.go para internal/vmwasm: registra enu.json/toml/yaml como
 // HostFn de vmwasm, reutilizando las MISMAS librerías Go (encoding/json,
 // BurntSushi/toml, yaml.v3). El trabajo de serialización es idéntico al del backend
 // gopher; lo único que cambia es el marshaling de la frontera, que en wasm ya lo
@@ -14,7 +14,7 @@ package runtime
 //     JSON con `42` decodifica a un INTEGER Lua (no un float), preservado en el
 //     round-trip. gopher (Lua 5.1) los colapsaba a número.
 //   - el sentinel NULL cruza como vmwasm.Null (no un userdata por-estado), pero la
-//     semántica es la misma: null → nu.json.NULL en decode, y de vuelta a null.
+//     semántica es la misma: null → enu.json.NULL en decode, y de vuelta a null.
 
 import (
 	"bytes"
@@ -27,11 +27,11 @@ import (
 	"github.com/BurntSushi/toml"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
-// registerCodecsWasm cuelga nu.json/toml/yaml del catálogo de un Pool wasm. El
-// preludio los monta bajo nu.<fmt> y añade nu.json.NULL (el sentinel).
+// registerCodecsWasm cuelga enu.json/toml/yaml del catálogo de un Pool wasm. El
+// preludio los monta bajo enu.<fmt> y añade enu.json.NULL (el sentinel).
 func registerCodecsWasm(p *vmwasm.Pool) {
 	p.Register("json.encode", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		pretty := false
@@ -66,7 +66,7 @@ func registerCodecsWasm(p *vmwasm.Pool) {
 		if err := dec.Decode(&goVal); err != nil {
 			return nil, codecErr("json", "decode", err.Error())
 		}
-		return []any{decodedToWire(goVal, true)}, nil // useNull: null → nu.json.NULL
+		return []any{decodedToWire(goVal, true)}, nil // useNull: null → enu.json.NULL
 	})
 
 	p.Register("toml.encode", func(inst *vmwasm.Instance, args []any) ([]any, error) {
@@ -128,7 +128,7 @@ func arg0(args []any) any {
 }
 
 func codecErr(format, op, msg string) error {
-	return &vmwasm.StructuredError{Code: "EINVAL", Message: "nu." + format + "." + op + ": " + msg}
+	return &vmwasm.StructuredError{Code: "EINVAL", Message: "enu." + format + "." + op + ": " + msg}
 }
 
 // wireToEncodable convierte el valor de la frontera (lo que da el wire) al valor Go

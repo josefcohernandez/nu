@@ -8,7 +8,7 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
-// `nu.text.highlight` — syntax highlighting de un snippet a un `Block` (api.md
+// `enu.text.highlight` — syntax highlighting de un snippet a un `Block` (api.md
 // §10, sesión S24). Es CPU puro: tokeniza un string ya en memoria y emite líneas
 // de spans coloreados, sin esperar IO. Por eso es **[W] pero NINGUNA ⏸** (como
 // `width`/`wrap`/`truncate`/`markdown` de S22/S23 y los codecs de S18): no usa el
@@ -20,7 +20,7 @@ import (
 // intacto): se obtiene un lexer por nombre de lenguaje, se tokeniza el código y se
 // agrupan los tokens por línea (`chroma.SplitTokensIntoLines`), emitiendo un span
 // por tramo con el color que el theme le asigna a su tipo de token. Ni una función
-// pública de más: solo se cuelga `nu.text.highlight`.
+// pública de más: solo se cuelga `enu.text.highlight`.
 //
 // ───────────────────────────────────────────────────────────────────────────
 // EL DEGRADADO A TEXTO PLANO (la lógica propia a blindar).

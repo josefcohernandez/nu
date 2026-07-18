@@ -23,7 +23,7 @@ func TestPermissionDeniedHeadless(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlToolStub, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				TOOLNAME, TOOLARGS = "touch", { path = "x.txt" }
@@ -36,7 +36,7 @@ func TestPermissionDeniedHeadless(t *testing.T) {
 				-- ve escrituras hechas por un handler mientras la task está suspendida
 				-- al otro lado del puente pcall (consecuencia de ADR-011; anotado).
 				EV = nil
-				nu.events.on("agent:permission.denied", function(p) EV = p end)
+				enu.events.on("agent:permission.denied", function(p) EV = p end)
 				local s = agent.session{ model = "test/m1" }   -- mode "ask" por defecto
 				s:send("toca el fichero")
 				-- El tool_result denegado quedó en el historial como bloque:
@@ -77,7 +77,7 @@ func TestPermissionDeniedPorLista(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlToolStub, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				TOOLNAME, TOOLARGS = "touch", { path = "x.txt" }
@@ -87,7 +87,7 @@ func TestPermissionDeniedPorLista(t *testing.T) {
 					handler = function(args, ctx) return "hecho" end,
 				}
 				EV = nil  -- global: ver la nota del test anterior (ADR-011)
-				nu.events.on("agent:permission.denied", function(p) EV = p end)
+				enu.events.on("agent:permission.denied", function(p) EV = p end)
 				local s = agent.session{
 					model = "test/m1",
 					permissions = { deny = { "touch" } },

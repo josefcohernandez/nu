@@ -43,7 +43,7 @@ func registerCounter(p *Pool) {
 func TestHandleMetodos(t *testing.T) {
 	inst := poolWith(t, registerCounter)
 	out, lerr, err := inst.Eval(`
-		local c = nu.test.counter()
+		local c = enu.test.counter()
 		c:inc()
 		c:inc(5)
 		return tostring(c:get())`)
@@ -59,8 +59,8 @@ func TestHandleMetodos(t *testing.T) {
 func TestHandleIdentidad(t *testing.T) {
 	inst := poolWith(t, registerCounter)
 	out, lerr, err := inst.Eval(`
-		local a = nu.test.counter()
-		local b = nu.test.counter()
+		local a = enu.test.counter()
+		local b = enu.test.counter()
 		a:inc(); a:inc()
 		b:inc()
 		return tostring(a:get()) .. "," .. tostring(b:get())`)
@@ -101,8 +101,8 @@ func TestHandleLiberado(t *testing.T) {
 	t.Cleanup(func() { _ = inst.Close() })
 
 	out, lerr, err := inst.Eval(`
-		local c = nu.test.counter()
-		nu.test.free(c.__id)
+		local c = enu.test.counter()
+		enu.test.free(c.__id)
 		local ok, e = pcall(function() return c:get() end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if err != nil || lerr != "" {
@@ -124,9 +124,9 @@ func TestHandleRoundTrip(t *testing.T) {
 		})
 	})
 	out, lerr, err := inst.Eval(`
-		local c = nu.test.counter()
+		local c = enu.test.counter()
 		c:inc(9)
-		local c2 = nu.test.echo(c)   -- cruza a Go y vuelve
+		local c2 = enu.test.echo(c)   -- cruza a Go y vuelve
 		return tostring(c2:get())`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)

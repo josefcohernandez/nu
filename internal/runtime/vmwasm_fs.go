@@ -1,6 +1,6 @@
 package runtime
 
-// Catálogo de nu.fs sobre el backend wasm (M13b, §5). Contraparte de fs.go: las
+// Catálogo de enu.fs sobre el backend wasm (M13b, §5). Contraparte de fs.go: las
 // mismas primitivas (read/write/append/stat/list/mkdir/remove/rename/copy/tmpdir/
 // cwd) reusando las MISMAS funciones Go VM-agnósticas (writeAtomic/writeExclusive/
 // copyFile/fsState.ensureTmpdir) y las mismas constantes de permisos. Todas ⏸
@@ -15,6 +15,7 @@ package runtime
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -23,7 +24,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	ignore "github.com/sabhiram/go-gitignore"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // mapFsErrorWasm traduce un error del SO al error estructurado del core (§1.4),
@@ -42,7 +43,7 @@ func mapFsErrorWasm(err error) error {
 }
 
 func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
-	// nu.fs.read(path) -> string ⏸
+	// enu.fs.read(path) -> string ⏸
 	p.RegisterSuspending("fs.read", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		data, err := os.ReadFile(path)
@@ -52,19 +53,29 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{string(data)}, nil
 	})
 
-	// nu.fs.write(path, data, opts?) ⏸ — escritura atómica; opts.exclusive = O_EXCL.
+	// enu.fs.write(path, data, opts?) ⏸ — escritura atómica; opts.exclusive = O_EXCL;
+	// opts.mode = modo de creación fijado con chmod explícito, NO recortado por el
+	// umask (§5, G57), componible con exclusive.
 	p.RegisterSuspending("fs.write", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		data := []byte(argString(args, 1))
 		exclusive := false
+		var mode *os.FileMode
 		if opts, ok := arg(args, 2).(map[string]any); ok {
 			exclusive, _ = opts["exclusive"].(bool)
+			if v, present := opts["mode"]; present && v != nil {
+				m, err := parseFileMode(v)
+				if err != nil {
+					return nil, err
+				}
+				mode = &m
+			}
 		}
 		var err error
 		if exclusive {
-			err = writeExclusive(path, data)
+			err = writeExclusive(path, data, mode)
 		} else {
-			err = writeAtomic(path, data)
+			err = writeAtomic(path, data, mode)
 		}
 		if err != nil {
 			return nil, mapFsErrorWasm(err)
@@ -72,7 +83,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.append(path, data) ⏸
+	// enu.fs.append(path, data) ⏸
 	p.RegisterSuspending("fs.append", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		data := []byte(argString(args, 1))
@@ -89,7 +100,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.stat(path) -> {size, mtime_ms, is_dir, mode}? ⏸ — inexistente → nil.
+	// enu.fs.stat(path) -> {size, mtime_ms, is_dir, mode}? ⏸ — inexistente → nil.
 	p.RegisterSuspending("fs.stat", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		info, err := os.Stat(path)
@@ -107,7 +118,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		}}, nil
 	})
 
-	// nu.fs.list(dir) -> {name, is_dir}[] ⏸ — inexistente → ENOENT.
+	// enu.fs.list(dir) -> {name, is_dir}[] ⏸ — inexistente → ENOENT.
 	p.RegisterSuspending("fs.list", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		dir, _ := args[0].(string)
 		des, err := os.ReadDir(dir)
@@ -121,7 +132,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{arr}, nil
 	})
 
-	// nu.fs.mkdir(path) ⏸ — MkdirAll (mkdir -p), idempotente.
+	// enu.fs.mkdir(path) ⏸ — MkdirAll (mkdir -p), idempotente.
 	p.RegisterSuspending("fs.mkdir", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		if err := os.MkdirAll(path, fsDirPerm); err != nil {
@@ -130,7 +141,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.remove(path, opts?) ⏸ — inexistente → no-op; dir no vacío exige recursive.
+	// enu.fs.remove(path, opts?) ⏸ — inexistente → no-op; dir no vacío exige recursive.
 	p.RegisterSuspending("fs.remove", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		path, _ := args[0].(string)
 		recursive := false
@@ -152,7 +163,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.rename(from, to) ⏸
+	// enu.fs.rename(from, to) ⏸
 	p.RegisterSuspending("fs.rename", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		if err := os.Rename(argString(args, 0), argString(args, 1)); err != nil {
 			return nil, mapFsErrorWasm(err)
@@ -160,7 +171,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.copy(from, to) ⏸ — copia en streaming.
+	// enu.fs.copy(from, to) ⏸ — copia en streaming.
 	p.RegisterSuspending("fs.copy", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		if err := copyFile(argString(args, 0), argString(args, 1)); err != nil {
 			return nil, mapFsErrorWasm(err)
@@ -168,7 +179,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.fs.tmpdir() -> string ⏸ — el scratch de la sesión (compartido, rt.fs).
+	// enu.fs.tmpdir() -> string ⏸ — el scratch de la sesión (compartido, rt.fs).
 	p.RegisterSuspending("fs.tmpdir", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		dir, err := rt.fs.ensureTmpdir()
 		if err != nil {
@@ -177,7 +188,7 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{dir}, nil
 	})
 
-	// nu.fs.cwd() -> string — la ÚNICA de fs que NO es ⏸ (consulta pura).
+	// enu.fs.cwd() -> string — la ÚNICA de fs que NO es ⏸ (consulta pura).
 	p.Register("fs.cwd", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		dir, err := os.Getwd()
 		if err != nil {
@@ -186,9 +197,9 @@ func registerFsWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{dir}, nil
 	})
 
-	// nu.fs.watch (§5, §16, S15): observador del FS con lotes+debounce. Se registra
+	// enu.fs.watch (§5, §16, S15): observador del FS con lotes+debounce. Se registra
 	// aparte para no ensuciar el bloque de primitivas ⏸ (paridad con registerWatch,
-	// que registerFs llama para mantener la superficie de nu.fs junta).
+	// que registerFs llama para mantener la superficie de enu.fs junta).
 	registerWatchWasm(p, rt)
 }
 
@@ -205,7 +216,26 @@ func argString(args []any, i int) string {
 	return s
 }
 
-// --- nu.fs.watch sobre el backend wasm (S15, §5, §16, inventario 🔒 G7) ---
+// parseFileMode valida el `opts.mode` de `enu.fs.write` (§5, G57): un entero de
+// permisos en el rango `0..0o777`. Un valor no numérico, con parte fraccionaria,
+// negativo o fuera de rango → `EINVAL` (no se adivina: un modo mal puesto es un
+// error de programación, no un default silencioso). Los números de Lua cruzan la
+// frontera wasm como `float64`/`int64` (httpNum los normaliza), así que se
+// comprueba que sea entero exacto antes de estrecharlo a `os.FileMode`. El rango
+// se acota a los bits de permiso: los bits especiales (setuid/setgid/sticky)
+// quedan fuera de v1 —la API es aburrida y crece por adición—.
+func parseFileMode(v any) (os.FileMode, error) {
+	n, ok := httpNum(v)
+	if !ok {
+		return 0, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "enu.fs.write: opts.mode debe ser un número (entero de permisos, p. ej. 0o600)"}
+	}
+	if n != math.Trunc(n) || n < 0 || n > 0o777 {
+		return 0, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "enu.fs.write: opts.mode debe ser un entero de permisos en 0..0o777 (p. ej. 0o600)"}
+	}
+	return os.FileMode(uint32(n)), nil
+}
+
+// --- enu.fs.watch sobre el backend wasm (S15, §5, §16, inventario 🔒 G7) ---
 //
 // Contraparte de watch.go. El RETO es que en gopher la goroutine de fondo del
 // watcher ENTREGA el lote llamando directamente a la LFunction bajo el token
@@ -213,7 +243,7 @@ func argString(args []any, i int) string {
 // guardarse Go-side ni invocarse desde una goroutine. La entrega, sin embargo,
 // sigue siendo PUSH desde Go —igual que gopher—: la goroutine de run() vuelca el
 // lote por `inst.EmitEvent`, que toma el mutex de la Instance (el "token" de esta
-// casa) y corre `nu.events.emit` en el estado principal. El wrapper Lua (AddPreludio)
+// casa) y corre `enu.events.emit` en el estado principal. El wrapper Lua (AddPreludio)
 // suscribe un handler por evento de nombre único (derivado del id del handle) que
 // desenvuelve el lote y llama al `fn` del usuario. Así NO hace falta una task Lua
 // viva bombeando `_recv` —que, al ser de primer plano y suspendida, colgaría la
@@ -241,13 +271,27 @@ type wasmWatcher struct {
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
+
+	// ownerName/sched: ciclo de vida más allá del `stop` explícito. El watcher se
+	// etiqueta con el dueño vigente al crearse (S13): `enu.plugin.reload` corta los
+	// watchers de ESE plugin (vía release, como a sus procesos), y `Runtime.Close`
+	// corta todos los vivos (stopAllWatchers) — sin esto, goroutine y fd de
+	// fsnotify sobrevivían a ambos. `sched` es nil en los tests mínimos.
+	ownerName string
+	sched     *scheduler
 }
 
-// registerWatchWasm cuelga `nu.fs._watch` (la primitiva síncrona que arma el
+// wasmWatcher implementa ownedHandle (S13): un reload del plugin dueño lo para
+// igual que mata a sus procesos. release NO toca el registro por dueño (eso lo
+// orquesta releaseOwnerHandles); stop sí se desregistra del mapa de vivos.
+func (w *wasmWatcher) release()      { w.stop() }
+func (w *wasmWatcher) owner() string { return w.ownerName }
+
+// registerWatchWasm cuelga `enu.fs._watch` (la primitiva síncrona que arma el
 // watcher y devuelve el handle) y el método `Watcher:stop`, e instala el wrapper
-// `nu.fs.watch` (AddPreludio) que envuelve el handle con la suscripción de entrega.
+// `enu.fs.watch` (AddPreludio) que envuelve el handle con la suscripción de entrega.
 func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
-	// nu.fs._watch(path, opts?) -> Watcher. SÍNCRONA (no ⏸): arma el observador y
+	// enu.fs._watch(path, opts?) -> Watcher. SÍNCRONA (no ⏸): arma el observador y
 	// devuelve el handle en el acto, como fsWatch en gopher. Un path inexistente →
 	// ENOENT (fsnotify no vigila lo que no existe); debounce_ms negativo → EINVAL.
 	p.Register("fs._watch", func(inst *vmwasm.Instance, args []any) ([]any, error) {
@@ -272,7 +316,7 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 			}
 		}
 		if debounceMs < 0 {
-			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "nu.fs.watch: debounce_ms no puede ser negativo"}
+			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "enu.fs.watch: debounce_ms no puede ser negativo"}
 		}
 
 		// El path debe existir para observarlo (§5): inexistente → ENOENT por el mapeo.
@@ -303,12 +347,21 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 			}
 		}
 
+		// Dueño de supervisión del watcher: se resuelve con el canónico `ownerForInst`
+		// (G56, ADR-024). Hoy enu.fs.watch NO es worker-safe (su entrega depende de
+		// enu.events, ausente en un worker), así que `inst` es siempre el principal y
+		// esto equivale a `rt.currentOwner()`; usar el resolvedor común garantiza que, si
+		// mañana cruzara al worker, tome la foto del spawn y no lea el ownerStack del
+		// padre (la regla de superficie futura de ADR-024).
+		fsOwner, _ := rt.ownerForInst(inst)
 		w := &wasmWatcher{
 			fsw:       fsw,
 			recursive: recursive,
 			debounce:  time.Duration(debounceMs) * time.Millisecond,
 			gi:        gi,
 			stopCh:    make(chan struct{}),
+			ownerName: fsOwner,
+			sched:     rt.sched,
 		}
 		if err := w.addTree(root, info.IsDir()); err != nil {
 			_ = fsw.Close()
@@ -317,6 +370,10 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 
 		h := inst.AllocHandle("Watcher", w)
 		w.evname = fmt.Sprintf("core:__fs_watch.%d", uint32(h))
+		if rt.sched != nil {
+			rt.sched.trackWatcher(w) // para Runtime.Close (stopAllWatchers)
+			rt.sched.track(w)        // para enu.plugin.reload (registro por dueño, G2)
+		}
 		go w.run(inst)
 		return []any{h}, nil
 	})
@@ -327,23 +384,26 @@ func registerWatchWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// Wrapper Lua: nu.fs.watch(path, opts?, fn) -> Watcher. Acepta la forma ergonómica
+	// Wrapper Lua: enu.fs.watch(path, opts?, fn) -> Watcher. Acepta la forma ergonómica
 	// watch(path, fn). Suscribe un handler al evento de entrega del watcher (nombre
 	// único derivado del id del handle) que desenvuelve el lote y llama a `fn(events)`;
 	// Watcher:stop cancela la suscripción y corta la entrega Go. El handler corre bajo
 	// el pcall del bus (ADR-008), igual que en gopher.
+	//
+	// AddPreludio (sin W) deliberado: fs.watch NO es [W] (api.md §16) — su entrega
+	// corre sobre enu.events, que en un worker no existe (G45).
 	p.AddPreludio(`
-nu.fs = nu.fs or {}
-function nu.fs.watch(path, opts, fn)
+enu.fs = enu.fs or {}
+function enu.fs.watch(path, opts, fn)
   if fn == nil and type(opts) == "function" then
     fn = opts
     opts = nil
   end
   if type(fn) ~= "function" then
-    error({ code = "EINVAL", message = "nu.fs.watch: se requiere una funcion handler" })
+    error({ code = "EINVAL", message = "enu.fs.watch: se requiere una funcion handler" })
   end
-  local w = nu.fs._watch(path, opts)                 -- handle {__id}; ENOENT/EINVAL si procede
-  local sub = nu.events.on("core:__fs_watch." .. w.__id, function(p) fn(p.events) end)
+  local w = enu.fs._watch(path, opts)                 -- handle {__id}; ENOENT/EINVAL si procede
+  local sub = enu.events.on("core:__fs_watch." .. w.__id, function(p) fn(p.events) end)
   w.stop = function(self)
     sub:cancel()
     return __hcall(self.__id, "stop")
@@ -420,7 +480,7 @@ func (w *wasmWatcher) run(inst *vmwasm.Instance) {
 }
 
 // deliver vuelca un lote al estado principal por el bus de eventos. EmitEvent toma
-// el mutex de la Instance (serializado con schedStep) y corre `nu.events.emit` en el
+// el mutex de la Instance (serializado con schedStep) y corre `enu.events.emit` en el
 // estado principal: es el análogo del deliverBatch de gopher (que toma el token).
 // Atiende a stopCh antes de emitir: parado entre acumular y entregar → no entrega.
 func (w *wasmWatcher) deliver(inst *vmwasm.Instance, batch []watchEvent) {
@@ -441,11 +501,15 @@ func (w *wasmWatcher) deliver(inst *vmwasm.Instance, batch []watchEvent) {
 }
 
 // stop corta el watcher: cierra stopCh (la goroutine de run retorna) y el watcher del
-// SO (sus goroutines mueren). Idempotente (stopOnce): parar dos veces es inocuo.
+// SO (sus goroutines mueren), y se desregistra del mapa de vivos del scheduler.
+// Idempotente (stopOnce): parar dos veces es inocuo.
 func (w *wasmWatcher) stop() {
 	w.stopOnce.Do(func() {
 		close(w.stopCh)
 		_ = w.fsw.Close()
+		if w.sched != nil {
+			w.sched.untrackWatcher(w)
+		}
 	})
 }
 

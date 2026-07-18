@@ -15,9 +15,9 @@
 --      CANÓNICO** de providers.md §2.3 (`text`, `thinking`, `tool_call.begin`,
 --      `tool_call.delta`, `tool_call.end`, `usage`, `done`).
 --
--- Todo sobre la API pública (api.md, corolario de completitud): `nu.http.stream`
+-- Todo sobre la API pública (api.md, corolario de completitud): `enu.http.stream`
 -- + `Stream:events()` (§8, el parser SSE ya entrega `{event, data, id}`),
--- `nu.json.encode/decode` (§12), `error` estructurado (ADR-009). NINGÚN
+-- `enu.json.encode/decode` (§12), `error` estructurado (ADR-009). NINGÚN
 -- privilegio de kernel: es Lua puro sobre la superficie congelada (ADR-003).
 --
 -- Reusa el módulo público de S36: `register_adapter` lo registra desde el
@@ -290,7 +290,7 @@ end
 -- make_iterator(stream, provider) -> función iteradora de Events. Consume el SSE
 -- de Anthropic con `stream:events()` (api.md §8: ya parsea `event: <tipo>\ndata:
 -- <json>\n\n` y entrega `{event, data, id}`), decodifica el `data` con
--- `nu.json.decode`, y mantiene la MÁQUINA DE ESTADOS del mensaje: bloques de
+-- `enu.json.decode`, y mantiene la MÁQUINA DE ESTADOS del mensaje: bloques de
 -- contenido por ÍNDICE, acumulando texto, razonamiento y el JSON de args de
 -- tool_use (que llega troceado en `input_json_delta`), hasta `message_stop`.
 --
@@ -340,7 +340,7 @@ local function make_iterator(stream, provider)
       -- se decodifica AHORA (al cerrar el bloque). JSON vacío -> tabla vacía.
       local args = {}
       if b.json_acc ~= nil and b.json_acc ~= "" then
-        local ok, decoded = pcall(nu.json.decode, b.json_acc)
+        local ok, decoded = pcall(enu.json.decode, b.json_acc)
         if ok and type(decoded) == "table" then
           args = decoded
         end
@@ -367,7 +367,7 @@ local function make_iterator(stream, provider)
     -- overloaded son retryables; 4xx no.
     if kind == "error" then
       local code, msg = "unknown", "error del proveedor (SSE)"
-      local ok, payload = pcall(nu.json.decode, evt.data or "")
+      local ok, payload = pcall(enu.json.decode, evt.data or "")
       if ok and type(payload) == "table" and type(payload.error) == "table" then
         code = payload.error.type or code
         msg = payload.error.message or msg
@@ -377,7 +377,7 @@ local function make_iterator(stream, provider)
     end
 
     -- A partir de aquí el evento lleva un `data` JSON que decodificamos.
-    local ok, d = pcall(nu.json.decode, evt.data or "")
+    local ok, d = pcall(enu.json.decode, evt.data or "")
     if not ok or type(d) ~= "table" then
       -- Dato no decodificable en un evento conocido: lo ignoramos (robustez),
       -- como un comentario SSE.
@@ -512,7 +512,7 @@ end
 -- ---------------------------------------------------------------------------
 
 -- stream(req, provider) -> iterator<Event> ⏸ (providers.md §3). Traduce el
--- request, abre `nu.http.stream` (⏸, api.md §8), comprueba el status, y devuelve
+-- request, abre `enu.http.stream` (⏸, api.md §8), comprueba el status, y devuelve
 -- el iterador que parsea el SSE de Anthropic al stream canónico. La cancelación
 -- de la task del agente cierra el Stream subyacente (api.md §8 / §3 obligación 1).
 function M.stream(req, provider)
@@ -528,11 +528,11 @@ function M.stream(req, provider)
 
   local body = to_wire(req, provider)
 
-  local stream = nu.http.stream({
+  local stream = enu.http.stream({
     url = provider.base_url .. "/v1/messages",
     method = "POST",
     headers = auth_headers(provider),
-    body = nu.json.encode(body),
+    body = enu.json.encode(body),
   })
 
   -- El status >= 400 es DATO (api.md §8: `stream` no lanza por status), pero el
@@ -551,7 +551,7 @@ function M.stream(req, provider)
       return acc
     end)
     if ok_chunks and raw ~= "" then
-      local okj, payload = pcall(nu.json.decode, raw)
+      local okj, payload = pcall(enu.json.decode, raw)
       if okj and type(payload) == "table" and type(payload.error) == "table" then
         code = payload.error.type
         if type(payload.error.message) == "string" then

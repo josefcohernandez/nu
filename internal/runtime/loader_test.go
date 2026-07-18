@@ -5,7 +5,7 @@ package runtime
 //   - unicidad de nombre (colisión = error de carga accionable);
 //   - ciclo en `requires` y dependencia ausente = errores accionables;
 //   - `init.lua` del usuario el ÚLTIMO; `core:ready` UNA vez, al final;
-//   - `nu.plugin.current()` correcto DURANTE el init.lua de cada plugin.
+//   - `enu.plugin.current()` correcto DURANTE el init.lua de cada plugin.
 //
 // El andamiaje crea plugins reales en disco (un `t.TempDir`) y un Runtime con
 // `WithPluginDir`/`WithConfigDir` apuntando ahí, igual que lo haría `main`.
@@ -205,7 +205,7 @@ func TestLoaderInitUsuarioElUltimo(t *testing.T) {
 		_traza = _traza or {}
 		_traza[#_traza+1] = "plugin:P"
 		_ready = 0
-		nu.events.on("core:ready", function() _ready = _ready + 1; _traza[#_traza+1] = "ready" end)
+		enu.events.on("core:ready", function() _ready = _ready + 1; _traza[#_traza+1] = "ready" end)
 	`)
 	// init.lua del usuario.
 	if err := os.WriteFile(filepath.Join(cfg, pluginInitName), []byte(`
@@ -228,18 +228,18 @@ func TestLoaderInitUsuarioElUltimo(t *testing.T) {
 	}
 }
 
-// TestPluginCurrentDuranteInit (🔒): `nu.plugin.current()` devuelve el plugin
+// TestPluginCurrentDuranteInit (🔒): `enu.plugin.current()` devuelve el plugin
 // correcto DURANTE su propio init.lua (y distinto por plugin); fuera de todo plugin
 // (chunk de `-e`) devuelve el contexto del usuario.
 func TestPluginCurrentDuranteInit(t *testing.T) {
 	root := t.TempDir()
 	cfg := t.TempDir()
 	writePlugin(t, root, "alfa", "1.2.3", nil, `
-		local c = nu.plugin.current()
+		local c = enu.plugin.current()
 		_alfa = c.name .. "|" .. c.version
 	`)
 	writePlugin(t, root, "beta", "4.5.6", []string{"alfa"}, `
-		local c = nu.plugin.current()
+		local c = enu.plugin.current()
 		_beta = c.name .. "|" .. c.version
 	`)
 
@@ -252,13 +252,13 @@ func TestPluginCurrentDuranteInit(t *testing.T) {
 		t.Errorf("current() durante init de beta: got %q, want %q", got, "beta|4.5.6")
 	}
 	// Fuera de todo plugin (este chunk corre como "user").
-	if got := h.eval(`return nu.plugin.current().name`)[0]; got != "user" {
+	if got := h.eval(`return enu.plugin.current().name`)[0]; got != "user" {
 		t.Errorf("current() fuera de plugin: got %q, want %q", got, "user")
 	}
 }
 
-// TestPluginListYConfig comprueba `nu.plugin.list` (orden topológico, source/enabled)
-// y `nu.config.dir/data_dir` desde el lado del autor de extensiones (snippet Lua,
+// TestPluginListYConfig comprueba `enu.plugin.list` (orden topológico, source/enabled)
+// y `enu.config.dir/data_dir` desde el lado del autor de extensiones (snippet Lua,
 // Definition of Done §2).
 func TestPluginListYConfig(t *testing.T) {
 	root := t.TempDir()
@@ -277,7 +277,7 @@ func TestPluginListYConfig(t *testing.T) {
 	// list devuelve los dos plugins en orden topológico (base antes que sobre),
 	// ambos source=user, enabled=true.
 	out := h.eval(`
-		local l = nu.plugin.list()
+		local l = enu.plugin.list()
 		local parts = {}
 		for _, p in ipairs(l) do
 			parts[#parts+1] = p.name .. ":" .. p.source .. ":" .. tostring(p.enabled)
@@ -285,15 +285,15 @@ func TestPluginListYConfig(t *testing.T) {
 		return table.concat(parts, ",")
 	`)[0]
 	if out != "base:user:true,sobre:user:true" {
-		t.Fatalf("nu.plugin.list: got %q", out)
+		t.Fatalf("enu.plugin.list: got %q", out)
 	}
 
 	// config.dir / data_dir devuelven lo configurado.
-	if got := h.eval(`return nu.config.dir()`)[0]; got != cfg {
-		t.Errorf("nu.config.dir(): got %q, want %q", got, cfg)
+	if got := h.eval(`return enu.config.dir()`)[0]; got != cfg {
+		t.Errorf("enu.config.dir(): got %q, want %q", got, cfg)
 	}
-	if got := h.eval(`return nu.config.data_dir()`)[0]; got != dataDir {
-		t.Errorf("nu.config.data_dir(): got %q, want %q", got, dataDir)
+	if got := h.eval(`return enu.config.data_dir()`)[0]; got != dataDir {
+		t.Errorf("enu.config.data_dir(): got %q, want %q", got, dataDir)
 	}
 }
 
@@ -366,8 +366,8 @@ func TestLoaderSinPlugins(t *testing.T) {
 		t.Errorf("el init.lua del usuario no corrió en arranque desnudo: %q", got)
 	}
 	// list vacía.
-	if got := h.eval(`return tostring(#nu.plugin.list())`)[0]; got != "0" {
-		t.Errorf("nu.plugin.list debería estar vacía sin plugins: %q", got)
+	if got := h.eval(`return tostring(#enu.plugin.list())`)[0]; got != "0" {
+		t.Errorf("enu.plugin.list debería estar vacía sin plugins: %q", got)
 	}
 }
 

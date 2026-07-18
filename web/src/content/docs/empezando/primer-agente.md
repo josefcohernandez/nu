@@ -1,9 +1,9 @@
 ---
 title: Tu primer agente
-description: Activa las extensiones oficiales, configura un provider de LLM y ejecuta un turno de agente headless con nu -p.
+description: Activa las extensiones oficiales, configura un provider de LLM y ejecuta un turno de agente headless con enu -p.
 ---
 
-El coding harness es la *killer app* de `nu`, pero —fiel al principio de que el
+El coding harness es la *killer app* de `enu`, pero —fiel al principio de que el
 core no sabe lo que es un agente— el agente es una **extensión**. Esta página te
 lleva de un runtime desnudo a un turno de agente funcionando.
 
@@ -16,26 +16,26 @@ de tu provider.
 ## 1. Activa las extensiones oficiales
 
 Las extensiones oficiales vienen embebidas en el binario pero **inactivas por
-defecto** (ADR-010). El agente necesita tres: `providers`, `sessions` y `agent`.
-Actívalas en `nu.toml`, dentro de `nu.config.dir()` (normalmente
-`~/.config/nu/`):
+defecto**. El agente necesita tres: `providers`, `sessions` y `agent`.
+Actívalas en `enu.toml`, dentro de `enu.config.dir()` (normalmente
+`~/.config/enu/`):
 
 ```toml
-# ~/.config/nu/nu.toml
+# ~/.config/enu/enu.toml
 [plugins]
 enabled = ["providers", "sessions", "agent"]
 ```
 
 Si lanzas el agente sin activarlas, el error es accionable: te nombra
-exactamente esta línea de `nu.toml`.
+exactamente esta línea de `enu.toml`.
 
 ## 2. Declara un provider
 
-Los providers de LLM se declaran como **datos** (TOML), no como código (ADR-005).
+Los providers de LLM se declaran como **datos** (TOML), no como código.
 Edita `providers.toml` en el mismo directorio de config:
 
 ```toml
-# ~/.config/nu/providers.toml
+# ~/.config/enu/providers.toml
 [providers.anthropic]
 adapter     = "anthropic"
 base_url    = "https://api.anthropic.com"
@@ -55,20 +55,20 @@ export ANTHROPIC_API_KEY="sk-..."
 
 Un modelo se nombra `"proveedor/id-o-alias"`: `"anthropic/opus"`.
 
-## 3. Un turno headless con `nu -p`
+## 3. Un turno headless con `enu -p`
 
-`nu -p '<prompt>'` ejecuta **un turno de agente headless** y escribe el texto
+`enu -p '<prompt>'` ejecuta **un turno de agente headless** y escribe el texto
 final del asistente a stdout. Es el modo scripting/CI: el motor del agente es
 headless por diseño, así que no necesita terminal interactivo.
 
 ```sh
-nu -p 'resume el README de este proyecto en tres líneas'
+enu -p 'resume el README de este proyecto en tres líneas'
 ```
 
 Selecciona el modelo con `--model` (anula el de `agent.toml`):
 
 ```sh
-nu -p '¿qué hace este repo?' --model anthropic/opus
+enu -p '¿qué hace este repo?' --model anthropic/opus
 ```
 
 ### Permisos en headless
@@ -79,10 +79,10 @@ en una ejecución no interactiva, usa `--auto-permissions` (el riesgo se elige,
 no se hereda):
 
 ```sh
-nu -p 'crea un archivo CHANGELOG.md inicial' --auto-permissions
+enu -p 'crea un archivo CHANGELOG.md inicial' --auto-permissions
 ```
 
-Si una tool se deniega por falta de permiso, `nu` sale con **código 3**
+Si una tool se deniega por falta de permiso, `enu` sale con **código 3**
 (distinto del 1 de un error de ejecución) para que un script distinga "el modelo
 no pudo actuar por permisos" de un fallo real.
 
@@ -92,20 +92,20 @@ no pudo actuar por permisos" de un fallo real.
 de enviar el prompt:
 
 ```sh
-nu -p 'y ahora añade tests' --continue
+enu -p 'y ahora añade tests' --continue
 ```
 
 ## 4. Lo mismo desde Lua
 
-`nu -p` es azúcar sobre la API pública de la extensión `agent`. Esto es,
+`enu -p` es azúcar sobre la API pública de la extensión `agent`. Esto es,
 esencialmente, lo que hace por dentro —y lo que escribirías tú en un `init.lua`
 o un script—:
 
 ```lua
 local agent = require("agent")
 
-nu.task.spawn(function()
-  local s = agent.session{ model = "anthropic/opus", cwd = nu.fs.cwd() }
+enu.task.spawn(function()
+  local s = agent.session{ model = "anthropic/opus", cwd = enu.fs.cwd() }
   local final = s:send("resume el README en tres líneas")  -- ⏸ ejecuta el turno
   s:close()
 
@@ -114,7 +114,7 @@ nu.task.spawn(function()
   for _, b in ipairs(final.content) do
     if b.type == "text" then text = text .. b.text end
   end
-  nu.fs.write(nu.fs.tmpdir() .. "/respuesta.txt", text)
+  enu.fs.write(enu.fs.tmpdir() .. "/respuesta.txt", text)
 end)
 ```
 
@@ -125,5 +125,5 @@ pudiera construir con la API pública, sería la API la que está incompleta.
 ## Siguiente paso
 
 Ya tienes el harness funcionando. A partir de aquí, la [referencia de la
-API](/nu/referencia/convenciones/) documenta cada primitiva del core sobre la
+API](/enu/api/convenciones/) documenta cada primitiva del core sobre la
 que se construye todo esto.

@@ -1,0 +1,313 @@
+---
+// Portada (pantalla 11a) + móvil (14d). Columna flex a viewport completo, cuerpo
+// centrado verticalmente. La portada NO lleva nav docs·api·plugins — su menú
+// [i][d][a][g] es la nav.
+import Base from '../layouts/Base.astro';
+import HeaderHome from '../components/HeaderHome.astro';
+import Wordmark from '../components/Wordmark.astro';
+import { INSTALL_CMD, RELEASES_URL, VERSION, LICENSE, GITHUB_URL } from '../lib/const';
+import { i18n } from '../lib/i18n';
+
+const es = i18n.es; // build-time en español; el swap a EN es en cliente
+const themes = ['enu', 'dracula', 'gruvbox', 'solarized'];
+const langs = ['es', 'en'];
+---
+<Base title="enu">
+  <div class="terminal" tabindex="0">
+    <!-- Header desktop (pickers a la derecha); en móvil se oculta y los pickers
+         bajan al footer. -->
+    <HeaderHome />
+
+    <!-- Header móvil: solo wordmark + versión. -->
+    <header class="m-header">
+      <Wordmark />
+      <span class="ver">{VERSION}</span>
+    </header>
+
+    <main class="body">
+      <div class="prompt-line">$ enu</div>
+      <h1 class="slogan">
+        <span data-i18n="sloganA">{es.sloganA}</span><br />
+        <span class="key" data-i18n="sloganB">{es.sloganB}</span>
+      </h1>
+      <p class="lead" data-i18n="body">{es.body}</p>
+
+      <!-- Menú desktop: líneas [x] etiqueta — descripción. -->
+      <nav class="menu-desktop">
+        <div class="mrow">
+          <span class="enu-key">[<b>i</b>]</span>
+          <span data-i18n="k1">{es.k1}</span>
+          <span class="dim"> — {INSTALL_CMD}</span>
+        </div>
+        <div class="mrow">
+          <span class="enu-key">[<b>d</b>]</span>
+          <span data-i18n="k2">{es.k2}</span>
+          <span class="dim"> — <span data-i18n="k2d">{es.k2d}</span></span>
+        </div>
+        <div class="mrow">
+          <span class="enu-key">[<b>a</b>]</span>
+          <span>api</span>
+          <span class="dim"> — <span data-i18n="kApiD">{es.kApiD}</span></span>
+        </div>
+        <div class="mrow">
+          <span class="enu-key">[<b>g</b>]</span>
+          <span>github ↗</span>
+        </div>
+      </nav>
+
+      <!-- Prompt interactivo (solo desktop). El hint tenue tras el cursor
+           anuncia que la línea es tecleable (W-06); keyboard.ts lo oculta al
+           primer carácter y lo restaura al vaciarse el buffer. -->
+      <div class="prompt">
+        <span id="enu-prompt" class="dim">&gt;</span>
+        <span id="enu-typed" class="bright"></span><span class="enu-cursor"></span>
+        <span id="enu-hint" class="prompt-hint" data-i18n="hint">{es.hint}</span>
+      </div>
+      <div id="enu-feedback" class="feedback"></div>
+
+      <!-- Menú móvil: filas táctiles de ancho completo. La primaria [i] con
+           borde key; el resto con borde border. -->
+      <nav class="menu-mobile">
+        <a href={INSTALL_CMD} class="trow primary" data-touch-menu="i">
+          <span class="enu-key">[<b>i</b>]</span>
+          <span data-i18n="k1">{es.k1}</span>
+          <span class="tail dim">curl | sh</span>
+        </a>
+        <a href="#" class="trow" data-touch-menu="d">
+          <span class="enu-key">[<b>d</b>]</span>
+          <span data-i18n="k2">{es.k2}</span>
+        </a>
+        <a href="#" class="trow" data-touch-menu="a">
+          <span class="enu-key">[<b>a</b>]</span>
+          <span>api</span>
+        </a>
+        <a href={GITHUB_URL} class="trow" data-touch-menu="g">
+          <span class="enu-key">[<b>g</b>]</span>
+          <span>github ↗</span>
+        </a>
+      </nav>
+    </main>
+
+    <!-- Footer desktop: apache-2.0 izq, versión (link a releases) der. -->
+    <footer class="foot">
+      <span>{LICENSE}</span>
+      <a href={RELEASES_URL} target="_blank" rel="noopener" class="ver-link">{VERSION}</a>
+    </footer>
+
+    <!-- Footer móvil: theme/lang como filas de texto clicable + apache-2.0. -->
+    <footer class="m-foot">
+      <div class="m-pickers">
+        <span class="dim">theme:</span>
+        {themes.map((t) => (
+          <span
+            data-theme-pick={t}
+            style={t === 'enu'
+              ? 'color:var(--key);font-weight:600'
+              : 'color:var(--dim);font-weight:400'}
+          >{t === 'enu' ? `[${t}]` : t}</span>
+        ))}
+      </div>
+      <div class="m-langrow">
+        <span class="dim">lang:
+          {langs.map((l) => (
+            <span
+              data-lang-pick={l}
+              style={l === 'es'
+                ? 'color:var(--key);font-weight:600'
+                : 'color:var(--dim);font-weight:400'}
+            >{l === 'es' ? `[${l}]` : l}</span>
+          ))}
+        </span>
+        <span class="dim">{LICENSE}</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    import { initKeyboard, setFeedback } from '../scripts/keyboard';
+    import { INSTALL_CMD } from '../lib/const';
+    initKeyboard({ mode: 'home' });
+    // Foco en el terminal para el recuadro de foco visible (el teclado escucha
+    // en window de todas formas).
+    const term = document.querySelector<HTMLElement>('.terminal');
+    term?.focus({ preventScroll: true });
+
+    // Filas táctiles del menú móvil: replican las acciones sin teclado físico.
+    document.querySelectorAll<HTMLElement>('[data-touch-menu]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        const k = el.getAttribute('data-touch-menu');
+        if (k === 'i') {
+          e.preventDefault();
+          try {
+            navigator.clipboard?.writeText(INSTALL_CMD);
+          } catch {}
+          setFeedback('→ ' + INSTALL_CMD);
+        }
+        // d/a/g llevan href real (d/a se cablearán al montarse esas fases).
+      });
+    });
+  </script>
+</Base>
+
+<style>
+  .terminal {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    outline: none;
+    cursor: text;
+  }
+  .body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 60px;
+    font-size: var(--fs-6);
+    line-height: 2;
+  }
+  .prompt-line {
+    color: var(--dim);
+    font-size: var(--fs-4);
+    margin-bottom: 20px;
+  }
+  .slogan {
+    margin: 0 0 14px;
+    font-size: var(--fs-12);
+    line-height: 1.4;
+    font-weight: 600;
+    color: var(--bright);
+  }
+  .slogan .key {
+    color: var(--key);
+  }
+  .lead {
+    color: var(--fg);
+    font-size: var(--fs-8);
+    line-height: 1.8;
+    max-width: 450px;
+    margin: 0 0 26px;
+  }
+  .menu-desktop .mrow {
+    white-space: pre-wrap;
+  }
+  .dim {
+    color: var(--dim);
+  }
+  .bright {
+    color: var(--bright);
+  }
+  .prompt {
+    margin-top: 22px;
+  }
+  /* Hint del prompt: tenue y a la misma altura que el texto tecleado (hereda el
+     fs-6 de .body, sin literal). Separado del cursor por un margen; sin
+     transición porque global.css las prohíbe. */
+  .prompt-hint {
+    color: var(--dim);
+    margin-left: 12px;
+  }
+  .feedback {
+    color: var(--dim);
+    font-size: var(--fs-4);
+    min-height: 26px;
+    white-space: pre-wrap;
+  }
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    font-size: var(--fs-2);
+    color: var(--dim);
+  }
+  .ver-link {
+    color: var(--dim);
+    text-decoration: underline;
+  }
+
+  /* Elementos solo-móvil, ocultos en desktop. */
+  .m-header,
+  .m-foot,
+  .menu-mobile {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .body {
+      padding: 36px 24px;
+    }
+    .slogan {
+      font-size: var(--fs-11);
+    }
+    .lead {
+      font-size: var(--fs-5);
+    }
+    /* Sin prompt ni feedback en móvil (no hay teclado físico). */
+    .prompt,
+    .feedback,
+    .menu-desktop,
+    .foot {
+      display: none;
+    }
+    .m-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: var(--fs-2);
+    }
+    .m-header .ver {
+      color: var(--dim);
+    }
+    .menu-mobile {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .trow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      padding: 13px 16px;
+      min-height: 48px;
+      color: var(--fg);
+    }
+    .trow.primary {
+      border-color: var(--key);
+      color: var(--bright);
+    }
+    .trow .tail {
+      margin-left: auto;
+      font-size: var(--fs-2);
+    }
+    .m-foot {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      font-size: var(--fs-2);
+    }
+    .m-pickers,
+    .m-langrow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .m-langrow {
+      justify-content: space-between;
+    }
+    .m-pickers [data-theme-pick],
+    .m-langrow [data-lang-pick] {
+      cursor: pointer;
+    }
+    .m-langrow [data-lang-pick] {
+      margin-left: 6px;
+    }
+  }
+</style>

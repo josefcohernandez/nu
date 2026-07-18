@@ -1,12 +1,12 @@
 package runtime
 
-// Portapapeles de `nu.ui` vía OSC 52 (api.md §9.2, sesión S32). Dos firmas, ambas
-// **solo estado principal** (ADR-008: `nu.ui` no cruza a workers ni existe headless):
+// Portapapeles de `enu.ui` vía OSC 52 (api.md §9.2, sesión S32). Dos firmas, ambas
+// **solo estado principal** (ADR-008: `enu.ui` no cruza a workers ni existe headless):
 //
-//   - `nu.ui.clipboard_set(s)` — copia `s` al portapapeles del sistema escribiendo
+//   - `enu.ui.clipboard_set(s)` — copia `s` al portapapeles del sistema escribiendo
 //     la secuencia OSC 52 `ESC ] 52 ; c ; <base64(s)> BEL` al terminal. No ⏸: es un
 //     write directo de unos bytes; el terminal la interpreta y no responde nada.
-//   - `nu.ui.clipboard_get() -> string?` ⏸ — pide el portapapeles enviando la
+//   - `enu.ui.clipboard_get() -> string?` ⏸ — pide el portapapeles enviando la
 //     consulta OSC 52 (`ESC ] 52 ; c ; ? BEL`) y **espera la respuesta** del terminal
 //     (de ahí ⏸): el terminal contesta con `ESC ] 52 ; c ; <base64> ST/BEL`, que se
 //     parsea a la cadena original. `nil` si el terminal no soporta OSC 52 o si pasa el

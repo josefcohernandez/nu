@@ -46,7 +46,7 @@ func TestTrampolinAnidamientoProfundo(t *testing.T) {
 // M03.1b: rebasar el techo de llamadas C DEGRADA CON GRACIA — es un error de
 // Lua capturable ("C stack overflow"), NO un trap del motor, y el estado
 // sobrevive. Semántica idéntica a la del Lua nativo; ningún caso de uso real de
-// nu anida 200 pcalls, pero blindar la degradación evita que un plugin
+// enu anida 200 pcalls, pero blindar la degradación evita que un plugin
 // patológico tumbe el estado.
 func TestTrampolinTechoLlamadasCDegrada(t *testing.T) {
 	inst := newInstance(t)

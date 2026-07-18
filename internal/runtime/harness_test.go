@@ -30,16 +30,16 @@ type harness struct {
 // automático al terminar la prueba.
 //
 // **`WithForceUI(true)` (gating G20, S32):** los tests corren headless (sin TTY), así
-// que sin forzarlo `nu.ui` no existiría (el gating real lo decide la detección de
-// TTY). Como muchas pruebas de S22–S31 ejercitan `nu.ui` (block/region/input) en este
+// que sin forzarlo `enu.ui` no existiría (el gating real lo decide la detección de
+// TTY). Como muchas pruebas de S22–S31 ejercitan `enu.ui` (block/region/input) en este
 // entorno headless, el arnés FUERZA la activación de la UI: así el gating real (por
-// TTY) sigue aplicando al binario `nu` y la suite no se rompe. Una prueba que quiera
-// observar el comportamiento HEADLESS (que `nu.ui` no exista) construye su runtime con
+// TTY) sigue aplicando al binario `enu` y la suite no se rompe. Una prueba que quiera
+// observar el comportamiento HEADLESS (que `enu.ui` no exista) construye su runtime con
 // `WithForceUI(false)` a mano (ver `gating_test.go`).
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	// data_dir y config_dir temporales: `nu.log` escribe en disco y el arranque LEE
-	// `nu.toml` de config_dir; ninguno debe tocar el directorio real del usuario (que,
+	// data_dir y config_dir temporales: `enu.log` escribe en disco y el arranque LEE
+	// `enu.toml` de config_dir; ninguno debe tocar el directorio real del usuario (que,
 	// con el conjunto de producto activado, arrancaría el chat y demás). El TempDir se
 	// borra al acabar la prueba. (Hermeticidad del config — necesaria desde G35, en que
 	// un chat sin modelo arranca una UI degradada que rompería tests ajenos.)
@@ -60,7 +60,7 @@ func newHarnessBudget(t *testing.T, budget time.Duration) *harness {
 	return &harness{t: t, rt: rt}
 }
 
-// logLines devuelve las líneas escritas hasta ahora en el fichero de `nu.log`
+// logLines devuelve las líneas escritas hasta ahora en el fichero de `enu.log`
 // del runtime bajo prueba. Devuelve vacío si nada se ha logueado (el fichero se
 // crea perezosamente en la primera escritura). Es la vía por la que una prueba
 // comprueba lo que un snippet logueó.
@@ -90,7 +90,7 @@ func withToken(rt *Runtime, fn func()) {
 
 // defWasmGlobal define un global Lua evaluando `code` en el ESTADO PRINCIPAL del
 // backend wasm. Es la vía por la que un test inyecta una primitiva de andamiaje
-// EXPRESABLE EN LUA (p. ej. un echo que suspende con nu.task.sleep). Falla la prueba
+// EXPRESABLE EN LUA (p. ej. un echo que suspende con enu.task.sleep). Falla la prueba
 // si el snippet de definición no evalúa limpio.
 func (h *harness) defWasmGlobal(code string) {
 	h.t.Helper()
@@ -166,7 +166,7 @@ func (h *harness) expectEval(code string, want ...string) {
 func TestHarnessSmoke(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`return 1 + 1`, "2")
-	if got := h.eval(`return nu.version.api`); len(got) != 1 || strings.TrimSpace(got[0]) == "" {
-		t.Fatalf("nu.version.api inesperado: %q", got)
+	if got := h.eval(`return enu.version.api`); len(got) != 1 || strings.TrimSpace(got[0]) == "" {
+		t.Fatalf("enu.version.api inesperado: %q", got)
 	}
 }

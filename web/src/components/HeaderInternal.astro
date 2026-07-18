@@ -1,0 +1,130 @@
+---
+// Header de las páginas internas (docs/api/plugins). Lo montan las fases
+// posteriores; aquí queda listo y estilado.
+//
+// Props:
+//   active:   'docs' | 'api' | 'plugins'  — la pestaña activa se pinta invertida
+//             (texto bg sobre fondo key).
+//   routePath: ruta a mostrar, p. ej. 'docs/core/filosofia.md'. Se parte en
+//             directorio (dim) + fichero (bright) por el último '/'.
+import Wordmark from './Wordmark.astro';
+import { GITHUB_URL } from '../lib/const';
+import type { Lang } from '../lib/i18n';
+
+interface Props {
+  active: 'docs' | 'api' | 'plugins';
+  routePath?: string;
+  // Idioma de la página: fija los enlaces de pestaña (/en/… en EN) y el estado
+  // inicial del picker de idioma. El picker navega a la homóloga (W-04).
+  lang?: Lang;
+}
+const { active, routePath = '', lang = 'es' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const pref = lang === 'en' ? 'en/' : '';
+
+const tabs = [
+  { id: 'docs', label: 'docs', href: `${base}${pref}docs` },
+  { id: 'api', label: 'api', href: `${base}${pref}api` },
+  { id: 'plugins', label: 'plugins', href: `${base}${pref}plugins` },
+] as const;
+
+const langs: Lang[] = ['es', 'en'];
+
+// Parte la ruta en directorio + fichero (el fichero es lo que va tras el
+// último '/').
+const slash = routePath.lastIndexOf('/');
+const routeDir = slash >= 0 ? routePath.slice(0, slash + 1) : '';
+const routeFile = slash >= 0 ? routePath.slice(slash + 1) : routePath;
+---
+<header class="int-header">
+  <div class="left">
+    <Wordmark />
+    <nav class="nav">
+      {tabs.map((t, i) => (
+        <>
+          {i > 0 && <span class="sep">·</span>}
+          <a href={t.href} class={t.id === active ? 'tab active' : 'tab'}>{t.label}</a>
+        </>
+      ))}
+    </nav>
+    {routePath && (
+      <span class="route">
+        <span class="dir">{routeDir}</span><span class="file">{routeFile}</span>
+      </span>
+    )}
+  </div>
+  <div class="right">
+    <span class="langpick">
+      <span class="lbl">lang:</span>
+      {langs.map((l) => (
+        <span
+          data-lang-pick={l}
+          style={l === lang
+            ? 'color:var(--key);font-weight:600'
+            : 'color:var(--dim);font-weight:400'}
+        >{l === lang ? `[${l}]` : l}</span>
+      ))}
+    </span>
+    <a href={GITHUB_URL} target="_blank" rel="noopener" class="gh">github ↗</a>
+  </div>
+</header>
+
+<style>
+  .int-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: var(--fs-2);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .left,
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sep {
+    color: var(--dim);
+  }
+  .tab {
+    color: var(--fg);
+    text-transform: lowercase;
+  }
+  .tab.active {
+    background: var(--key);
+    color: var(--bg);
+    padding: 2px 7px;
+    font-weight: 600;
+  }
+  .route {
+    font-size: var(--fs-2);
+  }
+  .route .dir {
+    color: var(--dim);
+  }
+  .route .file {
+    color: var(--bright);
+  }
+  .langpick {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .langpick .lbl {
+    color: var(--dim);
+  }
+  .langpick [data-lang-pick] {
+    cursor: pointer;
+  }
+  .gh {
+    color: var(--dim);
+  }
+</style>

@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b: nu.search sobre wasm (§11). Paridad con search_test.go sobre el
+// Tests de M13b: enu.search sobre wasm (§11). Paridad con search_test.go sobre el
 // backend wasm: files respeta .gitignore/glob, fuzzy ordena estable por score,
 // grep itera según llegan con {path, line_no, line, ranges} y sus rangos byte
 // 1-based (reconstruibles por line:sub, coherente con S26), case/max, y los
@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
-// wasmSearchRun registra nu.search sobre una Instance, inyecta ROOT, evalúa el
+// wasmSearchRun registra enu.search sobre una Instance, inyecta ROOT, evalúa el
 // `setup` (que crea tasks) y conduce el bucle; devuelve la global `out`. Un plazo
 // acota un cuelgue accidental (un grep que nunca cierra) a un fallo claro.
 func wasmSearchRun(t *testing.T, root, setup string) string {
@@ -89,8 +89,8 @@ func makeSearchTreeWasm(t *testing.T) string {
 func TestSearchWasmFilesGitignore(t *testing.T) {
 	root := makeSearchTreeWasm(t)
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
-			local fs = nu.search.files(ROOT)
+		enu.task.spawn(function()
+			local fs = enu.search.files(ROOT)
 			local rel = {}
 			for _, p in ipairs(fs) do rel[#rel+1] = p:sub(#ROOT + 2) end
 			table.sort(rel)
@@ -106,8 +106,8 @@ func TestSearchWasmFilesGitignore(t *testing.T) {
 func TestSearchWasmFilesGlob(t *testing.T) {
 	root := makeSearchTreeWasm(t)
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
-			local fs = nu.search.files(ROOT, { glob = "*.go" })
+		enu.task.spawn(function()
+			local fs = enu.search.files(ROOT, { glob = "*.go" })
 			local rel = {}
 			for _, p in ipairs(fs) do rel[#rel+1] = p:sub(#ROOT + 2) end
 			table.sort(rel)
@@ -123,11 +123,11 @@ func TestSearchWasmFilesGlob(t *testing.T) {
 func TestSearchWasmFilesHiddenMax(t *testing.T) {
 	root := makeSearchTreeWasm(t)
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
-			local fs = nu.search.files(ROOT, { hidden = true })
+		enu.task.spawn(function()
+			local fs = enu.search.files(ROOT, { hidden = true })
 			local hasHidden = false
 			for _, p in ipairs(fs) do if p:find("%.hidden%.txt$") then hasHidden = true end end
-			local fm = nu.search.files(ROOT, { max = 2 })
+			local fm = enu.search.files(ROOT, { max = 2 })
 			out = tostring(hasHidden) .. ":" .. tostring(#fm)
 		end)`)
 	if out != "true:2" {
@@ -140,14 +140,14 @@ func TestSearchWasmFilesHiddenMax(t *testing.T) {
 // "zzz" (3) no casa. Cuatro "ab" idénticos salen en orden de entrada 1234.
 func TestSearchWasmFuzzy(t *testing.T) {
 	out := wasmSearchRun(t, t.TempDir(), `
-		nu.task.spawn(function()
-			local r = nu.search.fuzzy("abc", { "abc", "axbxc", "zzz", "xxabc" })
+		enu.task.spawn(function()
+			local r = enu.search.fuzzy("abc", { "abc", "axbxc", "zzz", "xxabc" })
 			local desc = true
 			for i = 2, #r do if r[i].score > r[i-1].score then desc = false end end
 			local has3 = false
 			for _, m in ipairs(r) do if m.index == 3 then has3 = true end end
 			-- estabilidad: cuatro candidatos idénticos → orden de entrada 1,2,3,4.
-			local s = nu.search.fuzzy("ab", { "ab", "ab", "ab", "ab" })
+			local s = enu.search.fuzzy("ab", { "ab", "ab", "ab", "ab" })
 			local stable = s[1].index .. s[2].index .. s[3].index .. s[4].index
 			out = #r .. ":" .. tostring(r[1].index) .. ":" .. tostring(desc) .. ":" .. tostring(has3) .. ":" .. stable
 		end)`)
@@ -161,8 +161,8 @@ func TestSearchWasmFuzzy(t *testing.T) {
 // M13b.search.5: fuzzy con max recorta a los N mejores.
 func TestSearchWasmFuzzyMax(t *testing.T) {
 	out := wasmSearchRun(t, t.TempDir(), `
-		nu.task.spawn(function()
-			local r = nu.search.fuzzy("a", { "a", "ba", "xa", "aa" }, { max = 2 })
+		enu.task.spawn(function()
+			local r = enu.search.fuzzy("a", { "a", "ba", "xa", "aa" }, { max = 2 })
 			out = tostring(#r)
 		end)`)
 	if out != "2" {
@@ -177,11 +177,11 @@ func TestSearchWasmFuzzyMax(t *testing.T) {
 func TestSearchWasmGrepAll(t *testing.T) {
 	root := makeSearchTreeWasm(t)
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local n = 0
 			local subok = true
 			local lnok = true
-			for r in nu.search.grep("TODO", { root = ROOT }) do
+			for r in enu.search.grep("TODO", { root = ROOT }) do
 				n = n + 1
 				local rg = r.ranges[1]
 				if r.line:sub(rg[1], rg[2]) ~= "TODO" then subok = false end
@@ -209,20 +209,20 @@ func TestSearchWasmGrepGlobCaseMax(t *testing.T) {
 	mk("y.txt", "hello en txt\n")
 
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- glob *.go + case sensible: "hello" en minúscula → 2 líneas (solo x.go).
 			local nGlob = 0
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "sensitive" }) do
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "sensitive" }) do
 				nGlob = nGlob + 1
 			end
 			-- case insensible en x.go: hello/HELLO/hello → 3 líneas.
 			local nCI = 0
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive" }) do
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive" }) do
 				nCI = nCI + 1
 			end
 			-- max=1 sobre esos 3 matches → exactamente 1.
 			local nMax = 0
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive", max = 1 }) do
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive", max = 1 }) do
 				nMax = nMax + 1
 			end
 			out = nGlob .. ":" .. nCI .. ":" .. nMax
@@ -249,10 +249,10 @@ func TestSearchWasmGrepParallel(t *testing.T) {
 		}
 	}
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local total = 0
 			local perpath = {}
-			for r in nu.search.grep("MARK", { root = ROOT }) do
+			for r in enu.search.grep("MARK", { root = ROOT }) do
 				total = total + 1
 				perpath[r.path] = (perpath[r.path] or 0) + 1
 			end
@@ -274,15 +274,15 @@ func TestSearchWasmGrepParallel(t *testing.T) {
 func TestSearchWasmErrors(t *testing.T) {
 	root := t.TempDir()
 	out := wasmSearchRun(t, root, `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local _, e1 = pcall(function()
-				for r in nu.search.grep("x", { root = ROOT .. "/no-existe" }) do end
+				for r in enu.search.grep("x", { root = ROOT .. "/no-existe" }) do end
 			end)
-			local _, e2 = pcall(function() return nu.search.files(ROOT, 5) end)
-			local _, e3 = pcall(function() return nu.search.files(ROOT, { glob = 7 }) end)
-			local _, e4 = pcall(function() return nu.search.grep("x", { glob = "*.go" }) end)
-			local _, e5 = pcall(function() return nu.search.fuzzy("a", { "ok", 5 }) end)
-			local _, e6 = pcall(function() return nu.search.fuzzy("a", { "ok" }, 5) end)
+			local _, e2 = pcall(function() return enu.search.files(ROOT, 5) end)
+			local _, e3 = pcall(function() return enu.search.files(ROOT, { glob = 7 }) end)
+			local _, e4 = pcall(function() return enu.search.grep("x", { glob = "*.go" }) end)
+			local _, e5 = pcall(function() return enu.search.fuzzy("a", { "ok", 5 }) end)
+			local _, e6 = pcall(function() return enu.search.fuzzy("a", { "ok" }, 5) end)
 			out = e1.code .. ":" .. e2.code .. ":" .. e3.code .. ":" .. e4.code .. ":" .. e5.code .. ":" .. e6.code
 		end)`)
 	if out != "ENOENT:EINVAL:EINVAL:EINVAL:EINVAL:EINVAL" {

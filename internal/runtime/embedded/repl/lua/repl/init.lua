@@ -6,8 +6,8 @@
 -- harness (agente, chat, providers, MCP, toolkit), un **`repl`**: REPL de Lua
 -- sobre la API pública, activable solo — el punto de partida del autor de
 -- extensiones que no quiere el harness (G21)». Es la PRUEBA de que el runtime
--- sirve para más que el agente: `nu` con SOLO `repl` activo es un intérprete Lua
--- interactivo con acceso a `nu.*`.
+-- sirve para más que el agente: `enu` con SOLO `repl` activo es un intérprete Lua
+-- interactivo con acceso a `enu.*`.
 --
 -- ADR-003: el core NO sabe lo que es un REPL; todo esto es Lua puro sobre la API
 -- pública congelada ([api.md](../../../../../docs/api.md)), SIN privilegio de
@@ -26,7 +26,7 @@
 -- ("todo IO debe pasar por las primitivas async del core"). Queda disponible para
 -- el Lua de usuario tal cual la define la base de PUC-Lua 5.4 (§1.2). Por eso la API
 -- pública BASTA exacta para un REPL: **no hizo falta ninguna primitiva nueva**
--- (`nu.eval` o similar); APILevel sigue en 2, api.md intacto. Si `load` no
+-- (`enu.eval` o similar); APILevel sigue en 2, api.md intacto. Si `load` no
 -- existiera, ESO sería un hallazgo (un REPL oficial inconstruible con la API), pero
 -- no es el caso: el sandbox ya dejó la puerta justa abierta.
 --
@@ -39,7 +39,7 @@
 --       `display`. Si la entrada está INCOMPLETA, `incomplete=true` (para el modo
 --       multilínea: pedir otra línea en vez de reportar un error).
 --   repl.eval_in_task(src, cb) — evalúa en una TASK (para que el código de usuario
---       use funciones ⏸ del core: `nu.fs.read`, `nu.http.request`…) y entrega el
+--       use funciones ⏸ del core: `enu.fs.read`, `enu.http.request`…) y entrega el
 --       resultado a `cb`. La vía que usa el bucle interactivo.
 --   repl.start(opts?) -> Repl   monta la UI interactiva sobre el toolkit (solo TTY).
 --   repl.banner() -> string     el banner de bienvenida (versión + ayuda mínima).
@@ -53,7 +53,7 @@ local M = {}
 -- compile(src) -> (fn|nil, err_msg|nil, incomplete). Compila `src` con la
 -- semántica de un REPL de Lua:
 --
---   1. Intenta `return <src>`. Así una EXPRESIÓN suelta (`1+1`, `nu.version.api`)
+--   1. Intenta `return <src>`. Así una EXPRESIÓN suelta (`1+1`, `enu.version.api`)
 --      se evalúa y devuelve su valor sin que el usuario escriba `return` —el truco
 --      clásico del REPL de Lua—. Si `return <src>` compila, esa es la chunk.
 --   2. Si no (porque `src` es una SENTENCIA: `x = 5`, `for i=1,3 do ... end`, una
@@ -89,7 +89,7 @@ end
 -- string, se entrecomilla (así `"hola"` se distingue de un identificador y los
 -- espacios/vacíos se ven); el resto va por `tostring` (números, booleanos, nil,
 -- tablas/funciones/userdata con su dirección). Es el formato que un REPL imprime;
--- no pretende ser un serializador (eso es `nu.json.encode`, que el usuario llama si
+-- no pretende ser un serializador (eso es `enu.json.encode`, que el usuario llama si
 -- quiere).
 local function format_value(v)
   if type(v) == "string" then
@@ -137,18 +137,18 @@ M._format_value = format_value
 --   { ok = false, error = <err>,                     display = "<texto>", incomplete? }
 --
 --   * EXPRESIÓN (`1+1`)        → ok, values={2}, display="2".
---   * LLAMADA API (`nu.version.api`) → ok, values={2}, display="2".
+--   * LLAMADA API (`enu.version.api`) → ok, values={2}, display="2".
 --   * SENTENCIA (`x = 5`)      → ok, values={}, n=0, display="" (no imprime nada).
---   * ERROR (`error("boom")`, `nu.fs.read` que lanza) → ok=false, error, display.
+--   * ERROR (`error("boom")`, `enu.fs.read` que lanza) → ok=false, error, display.
 --   * SINTAXIS mala (`return )`) → ok=false, display=el mensaje, NO incomplete.
 --   * INCOMPLETA (`function f()`) → ok=false, incomplete=true (pedir otra línea).
 --
 -- IMPORTANTE: `eval` corre la chunk con `pcall` (captura el error del usuario sin
 -- tumbar el repl) PERO no está en una task: una chunk que llame a una función ⏸
--- (`nu.fs.read`…) lanzará "fuera de una task". Para esos casos el bucle interactivo
+-- (`enu.fs.read`…) lanzará "fuera de una task". Para esos casos el bucle interactivo
 -- usa `eval_in_task` (abajo), que corre la misma lógica DENTRO de una task. `eval`
 -- es la unidad pura y síncrona: perfecta para expresiones, sentencias y llamadas a
--- la API NO suspendientes (la mayoría: `nu.version`, `nu.text.*`, `nu.json.*`…).
+-- la API NO suspendientes (la mayoría: `enu.version`, `enu.text.*`, `enu.json.*`…).
 function M.eval(src)
   if type(src) ~= "string" then
     error({ code = "EINVAL", message = "repl.eval espera un string de código Lua" })
@@ -186,8 +186,8 @@ end
 
 -- repl.eval_in_task(src, cb). Evalúa `src` DENTRO de una task y entrega el resultado
 -- de `repl.eval` a `cb(result)`. Es la vía del bucle interactivo: una línea de
--- usuario puede llamar a funciones ⏸ del core (`nu.fs.read`, `nu.http.request`,
--- `nu.search.grep`…), que SOLO corren dentro de una task (§1.3). La task vive lo
+-- usuario puede llamar a funciones ⏸ del core (`enu.fs.read`, `enu.http.request`,
+-- `enu.search.grep`…), que SOLO corren dentro de una task (§1.3). La task vive lo
 -- justo: evalúa y llama al callback. Un error de `eval` mismo (improbable: solo
 -- EINVAL por tipo) se captura para no perder el callback.
 --
@@ -195,7 +195,7 @@ end
 -- implícito); el handler de una tecla (`on_input`) es síncrono y no puede. El patrón
 -- es el mismo que usa `chat:submit` (S43) con `Session:send`.
 function M.eval_in_task(src, cb)
-  nu.task.spawn(function()
+  enu.task.spawn(function()
     local ok, result = pcall(M.eval, src)
     if not ok then
       result = { ok = false, error = result, display = format_error(result) }
@@ -208,18 +208,18 @@ end
 
 -- repl.banner() -> string. El banner de bienvenida: identifica el runtime (versión
 -- + nivel de API, §2) y recuerda lo mínimo (cómo salir). Es texto del runtime, no de
--- un producto (filosofia.md §2): habla de `nu` y su API, no de un agente.
+-- un producto (filosofia.md §2): habla de `enu` y su API, no de un agente.
 function M.banner()
-  local v = nu.version
+  local v = enu.version
   return string.format(
-    "nu %d.%d.%d  ·  REPL de Lua (API %d)\n" ..
+    "enu %d.%d.%d  ·  REPL de Lua (API %d)\n" ..
     "Escribe una expresión Lua y pulsa enter.  ctrl+d o /q para salir.",
     v.major, v.minor, v.patch, v.api)
 end
 
 -- ---------------------------------------------------------------------------
 -- La UI interactiva (el DRIVER TTY): un transcript + un input sobre el toolkit.
--- No se prueba headless (necesita TTY/`nu.ui`, G20); la lógica que SÍ se prueba es
+-- No se prueba headless (necesita TTY/`enu.ui`, G20); la lógica que SÍ se prueba es
 -- `eval`/`eval_in_task`/el banner. La UI es un cliente más del toolkit (S42), como
 -- el chat (S43) pero mucho más simple: sin agente, sin streaming, sin permisos.
 -- ---------------------------------------------------------------------------
@@ -354,19 +354,19 @@ function Repl:quit()
 end
 
 -- repl.start(opts?) -> Repl. Monta la UI interactiva del REPL (el DRIVER TTY).
--- Exige `nu.ui` (TTY interactivo, G20): en headless es EINVAL accionable —el repl
+-- Exige `enu.ui` (TTY interactivo, G20): en headless es EINVAL accionable —el repl
 -- interactivo necesita pantalla; para evaluar Lua sin TTY está `repl.eval` o
--- directamente `nu -e`—. La UI: una `toolkit.app` con un `vbox` de
+-- directamente `enu -e`—. La UI: una `toolkit.app` con un `vbox` de
 --   * un `toolkit.text` (el transcript: banner + entradas + resultados, flex), y
 --   * una fila de entrada (`hbox`: un label-prompt `>` + un `toolkit.input`).
 -- Enter evalúa (keymap global; el input deja pasar enter "pelado", como el chat).
 function M.start(opts)
   opts = opts or {}
-  if not nu.has("ui") then
+  if not enu.has("ui") then
     error({ code = "EINVAL",
       message = "repl.start: no hay UI (headless, G20). El REPL interactivo necesita "
-        .. "un TTY; comprueba nu.has(\"ui\") antes (arquitectura §Distribución). "
-        .. "Para evaluar Lua sin TTY usa repl.eval(src) o `nu -e`." })
+        .. "un TTY; comprueba enu.has(\"ui\") antes (arquitectura §Distribución). "
+        .. "Para evaluar Lua sin TTY usa repl.eval(src) o `enu -e`." })
   end
 
   -- el toolkit es dependencia BLANDA del repl (no en `requires`: el repl se activa
@@ -377,7 +377,7 @@ function M.start(opts)
   if not ok_tk then
     error({ code = "EINVAL",
       message = "repl.start: la UI del REPL usa el toolkit (S42), no disponible. "
-        .. "Actívalo en nu.toml (plugins.enabled = [\"toolkit\", \"repl\"]) o usa "
+        .. "Actívalo en enu.toml (plugins.enabled = [\"toolkit\", \"repl\"]) o usa "
         .. "repl.eval(src) para evaluar sin UI." })
   end
 
@@ -414,17 +414,17 @@ function M.start(opts)
   -- atajos GLOBALES (api.md §9.3): enter evalúa (el input deja pasar enter pelado,
   -- como el editor del chat); ctrl+d sale (la convención del REPL). Por encima del
   -- on_input de la app (el más reciente gana), así funcionan con el foco en el input.
-  self.keymaps[#self.keymaps + 1] = nu.ui.keymap("enter", function()
+  self.keymaps[#self.keymaps + 1] = enu.ui.keymap("enter", function()
     self:_submit()
     return true
   end)
-  self.keymaps[#self.keymaps + 1] = nu.ui.keymap("ctrl+d", function()
+  self.keymaps[#self.keymaps + 1] = enu.ui.keymap("ctrl+d", function()
     self:quit()
     return true
   end)
 
   -- ui:resize (api.md §9.1, "tu región, tu ui:resize"): rehace el layout.
-  self.subs[#self.subs + 1] = nu.events.on("ui:resize", function(p)
+  self.subs[#self.subs + 1] = enu.events.on("ui:resize", function(p)
     if not self._closed and self.app then
       self.app:resize(p and p.w, p and p.h)
       self:_refresh()

@@ -1,0 +1,148 @@
+/* Estilos de /plugins (pantalla 14b). 2 columnas: contenido + carril 230px. El
+ * contenido de la guía (título, pasos, código, cierre) es contenido en español
+ * — igual que la wiki, no lleva data-i18n —; solo el chrome compartido
+ * (HeaderInternal/Statusline) es bilingüe. Sin border-radius/sombras/gradientes. */
+
+.plugins {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.plugins-shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  align-items: start;
+}
+
+/* ── Contenido. ── */
+.plugins-main {
+  padding: 36px 52px;
+  font-size: var(--fs-7);
+  line-height: 1.9;
+  max-width: 600px;
+  min-width: 0;
+}
+
+.plugins-title {
+  margin: 0;
+  color: var(--bright);
+  font-weight: 600;
+  font-size: var(--fs-10);
+}
+.plugins-rule {
+  color: var(--dim);
+  letter-spacing: -1px;
+  margin: 0 0 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.plugins-intro {
+  margin: 0 0 22px;
+  color: var(--fg);
+  font-size: var(--fs-6);
+}
+
+.step {
+  margin-bottom: 20px;
+}
+.step-title {
+  margin: 0 0 8px;
+  color: var(--bright);
+  font-weight: 600;
+  font-size: var(--fs-7);
+}
+
+/* Bloque de código literal (real y funcional): fondo border, tokens del theme. */
+.code {
+  background: var(--border);
+  padding: 12px 18px;
+  font-size: var(--fs-5);
+  line-height: 1.8;
+}
+.code-line {
+  white-space: pre-wrap;
+}
+.code-indent {
+  padding-left: 1.6em;
+}
+.tok-key {
+  color: var(--key);
+}
+.tok-str {
+  color: var(--c2);
+}
+.tok-bright {
+  color: var(--bright);
+}
+.tok-dim {
+  color: var(--dim);
+}
+
+.plugins-close {
+  margin: 22px 0 0;
+  color: var(--dim);
+  font-size: var(--fs-4);
+}
+
+/* ── Carril derecho (230px). ── */
+.plugins-rail {
+  padding: 36px 28px 30px 0;
+  font-size: var(--fs-3);
+  line-height: 1.9;
+}
+.rail-h {
+  color: var(--dim);
+  margin-bottom: 2px;
+}
+.rail-contracts {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 18px;
+}
+.rail-contracts a {
+  color: var(--key);
+}
+
+.examples-card {
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+  color: var(--fg);
+  font-size: var(--fs-2);
+  line-height: 1.8;
+}
+.examples-card a {
+  color: var(--key);
+}
+
+.rail-note {
+  margin-top: 18px;
+  color: var(--dim);
+  font-size: var(--fs-1);
+  line-height: 1.8;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.rail-note a {
+  color: var(--key);
+}
+
+/* ── Móvil (<768px): patrón wiki/api. El carril no desaparece, baja bajo el
+ * contenido (conserva los enlaces de contrato); sin sidebar no hay drawer. ── */
+@media (max-width: 767px) {
+  .plugins-shell {
+    display: block;
+  }
+  .plugins-main {
+    padding: 26px 24px;
+    max-width: none;
+  }
+  .plugins-rail {
+    padding: 0 24px 26px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 22px;
+  }
+}

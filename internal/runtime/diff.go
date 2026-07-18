@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// `nu.text.diff` — diff estructurado de dos strings línea a línea (api.md §10,
+// `enu.text.diff` — diff estructurado de dos strings línea a línea (api.md §10,
 // sesión S25, inventario 🔒). Es CPU puro: compara dos strings ya en memoria y
 // emite los **hunks** (regiones de cambio) y, opcionalmente, un `Block` pintado;
 // no espera IO. Por eso es **[W] pero NINGUNA ⏸** (como `width`/`wrap`/
@@ -17,16 +17,16 @@ import (
 // más larga, el agrupado en hunks) lo hace Go, en puro-Go sin dependencias: el
 // algoritmo line-based clásico (LCS por programación dinámica → backtrack →
 // agrupado con contexto) es pequeño, correcto y testeable en los bordes, así que
-// NO se añade ninguna librería externa (decisión en claude_decisions.md S25). El
+// NO se añade ninguna librería externa (decisión en docs/worklog/README.md S25). El
 // render reusa los helpers de Block de S22 (`newBlock`/spans/`style`) y la
 // resolución de colores literales (`parseStyle`/`normalizeColor`, ui.go, G22).
-// Ni una función pública de más: solo se cuelga `nu.text.diff`.
+// Ni una función pública de más: solo se cuelga `enu.text.diff`.
 //
 // ───────────────────────────────────────────────────────────────────────────
 // LA FORMA DE LOS HUNKS (lo que el visor de diffs / toolkit consume).
 // ───────────────────────────────────────────────────────────────────────────
 //
-// `nu.text.diff(a, b, opts?) -> {hunks, block?}` compara `a` (texto viejo) y `b`
+// `enu.text.diff(a, b, opts?) -> {hunks, block?}` compara `a` (texto viejo) y `b`
 // (texto nuevo) **línea a línea** y devuelve una tabla con:
 //
 //   - `hunks`: un array de hunks. Cada hunk describe una región contigua de

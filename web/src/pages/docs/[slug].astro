@@ -1,0 +1,35 @@
+---
+// Wrapper ES de la wiki (/docs/<slug>). Solo resuelve getStaticPaths contra las
+// colecciones ES y delega el render en el componente compartido WikiPage, que
+// contiene el template de la pantalla 12a parametrizado por idioma (W-04). El
+// gemelo EN vive en pages/en/docs/[slug].astro.
+import { getCollection } from 'astro:content';
+import WikiPage from '../../components/pages/WikiPage.astro';
+import { DOCS } from '../../lib/docmap';
+
+export async function getStaticPaths() {
+  const [wiki, empezar, extensiones] = await Promise.all([
+    getCollection('wiki'),
+    getCollection('empezar'),
+    getCollection('extensiones'),
+  ]);
+  const porId = new Map<string, any>();
+  for (const e of wiki) porId.set(`wiki:${e.id}`, e);
+  for (const e of empezar) porId.set(`empezar:${e.id}`, e);
+  for (const e of extensiones) porId.set(`extensiones:${e.id}`, e);
+
+  return DOCS.map((doc, i) => ({
+    params: { slug: doc.slug },
+    props: {
+      doc,
+      entry: porId.get(`${doc.collection}:${doc.slug}`),
+      index: i,
+      prev: i > 0 ? DOCS[i - 1] : null,
+      next: i < DOCS.length - 1 ? DOCS[i + 1] : null,
+    },
+  }));
+}
+
+const { doc, entry, index, prev, next } = Astro.props;
+---
+<WikiPage doc={doc} entry={entry} index={index} prev={prev} next={next} lang="es" />

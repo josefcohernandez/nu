@@ -65,14 +65,14 @@ func TestG41HandlerYTaskSuspendida(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			pcall(function()
 				local EV = nil
-				nu.events.on("g41:ping", function(p) EV = p end)
+				enu.events.on("g41:ping", function(p) EV = p end)
 				pcall(function() error("ruido previo") end)  -- el detonante original
-				local fut = nu.task.future()
-				nu.task.spawn(function()
-					nu.events.emit("g41:ping", { hola = 1 })
+				local fut = enu.task.future()
+				enu.task.spawn(function()
+					enu.events.emit("g41:ping", { hola = 1 })
 					fut:set(true)
 				end)
 				fut:await()                                   -- ⏸ suspendida bajo pcall
@@ -90,14 +90,14 @@ func TestG41AbortSigueNoCapturable(t *testing.T) {
 	h.eval(`
 		out = "sin-tocar"
 		local tsk
-		tsk = nu.task.spawn(function()
+		tsk = enu.task.spawn(function()
 			pcall(function()
-				nu.task.sleep(60000)      -- ⏸ punto de suspensión: aquí muerde cancel
+				enu.task.sleep(60000)      -- ⏸ punto de suspensión: aquí muerde cancel
 				out = "revivio-dentro-del-pcall" -- NO debe ejecutarse
 			end)
 			out = "revivio-tras-el-pcall"       -- NO debe ejecutarse (aborto no capturable)
 		end)
-		nu.task.spawn(function() tsk:cancel() end)
+		enu.task.spawn(function() tsk:cancel() end)
 	`)
 	h.expectEval(`return out`, "sin-tocar")
 }
@@ -136,16 +136,16 @@ func TestG41AbortConCleanup(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = "nada"
-		nu.task.spawn(function()
-			local fut = nu.task.future()
-			local worker = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local fut = enu.task.future()
+			local worker = enu.task.spawn(function()
 				pcall(function()
-					nu.task.cleanup(function() fut:set("limpio") end)
-					nu.task.sleep(60000)
+					enu.task.cleanup(function() fut:set("limpio") end)
+					enu.task.sleep(60000)
 				end)
 				out = "sobrevivio-al-pcall" -- NO debe ejecutarse (aborto no capturable)
 			end)
-			nu.task.spawn(function() worker:cancel() end)
+			enu.task.spawn(function() worker:cancel() end)
 			out = fut:await()
 		end)
 	`)

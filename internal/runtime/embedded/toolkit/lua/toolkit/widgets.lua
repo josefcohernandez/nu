@@ -5,15 +5,15 @@
 -- catálogo exacto). Tres hojas que cubren la anatomía de chat.md §1:
 --
 --   * **label**: una línea de texto estilizado. La unidad de la statusline y de
---     cabeceras. No focusable. Compone con `nu.ui.block` (un span estilizado).
+--     cabeceras. No focusable. Compone con `enu.ui.block` (un span estilizado).
 --   * **text**: un bloque de texto/markdown de varias líneas, con scroll por
 --     viewport. El transcript del chat (markdown streaming-safe vía
---     `nu.text.markdown`). No focusable por sí mismo (el chat le pone foco
+--     `enu.text.markdown`). No focusable por sí mismo (el chat le pone foco
 --     envolviéndolo si quiere scroll con teclado; aquí el scroll es por API).
 --   * **input**: un editor de UNA línea, FOCUSABLE: consume teclas (caracteres,
 --     backspace, izquierda/derecha, home/end) y mantiene un cursor. Es el germen
 --     del editor del chat (el multilínea es una extensión natural; el contrato
---     —focusable + on_key + caret— es el mismo). Compone con `nu.ui.block`.
+--     —focusable + on_key + caret— es el mismo). Compone con `enu.ui.block`.
 --
 -- TODOS resuelven sus colores con el THEME (G22): guardan estilos con nombres
 -- semánticos y llaman `theme:style(...)` al componer, justo antes de construir el
@@ -64,17 +64,17 @@ function Label:set_style(spec)
 end
 
 -- label:compose(w, h) -> Block. Una sola línea: el texto, truncado al ancho `w`
--- (con `nu.text.truncate`, que respeta graphemes/east-asian), estilizado con el
+-- (con `enu.text.truncate`, que respeta graphemes/east-asian), estilizado con el
 -- theme resuelto a literales. Si el texto vacío, un Block de una línea en blanco
 -- (ocupa su hueco sin desordenar el layout).
 function Label:compose(w, _h)
   local th = resolve_theme(self)
   local txt = self.text or ""
   if w > 0 then
-    txt = nu.text.truncate(txt, w)
+    txt = enu.text.truncate(txt, w)
   end
   local st = th:style(self.style) -- nombres → literales (o nil)
-  return nu.ui.block({ { { text = txt, style = st } } })
+  return enu.ui.block({ { { text = txt, style = st } } })
 end
 
 -- toolkit.widgets.label{text?, style?, id?, pref_h?} -> Label. Un label es de UNA
@@ -123,7 +123,7 @@ function Text:scroll_to(line)
 end
 
 -- text:compose(w, h) -> Block. Render del contenido a ancho `w`. Si `markdown`
--- está activo, `nu.text.markdown` (streaming-safe, S23); si no, `nu.text.wrap`
+-- está activo, `enu.text.markdown` (streaming-safe, S23); si no, `enu.text.wrap`
 -- (word-wrap). Devuelve el Block COMPLETO (puede ser más alto que `h`): la app lo
 -- blittea con el offset de scroll como viewport (api.md §9.1), sin reconstruirlo
 -- al hacer scroll. El theme se pasa a `opts.theme` si la primitiva lo acepta (el
@@ -140,9 +140,9 @@ function Text:compose(w, _h)
     -- hacía que el transcript del chat pareciera "una terminal en blanco". El theme
     -- resuelve los nombres semánticos a literales una sola vez (cacheado).
     local th = resolve_theme(self)
-    return nu.text.markdown(txt, { width = w, theme = th:markdown_opts() })
+    return enu.text.markdown(txt, { width = w, theme = th:markdown_opts() })
   end
-  return nu.text.wrap(txt, w)
+  return enu.text.wrap(txt, w)
 end
 
 -- text:content_height(w) -> integer. El alto del Block compuesto a ancho `w`
@@ -204,7 +204,7 @@ end
 -- handler superior; aquí la app lo llama solo en el input ENFOCADO). Consume las
 -- teclas de edición y devuelve true (consumido); lo que no entiende lo deja pasar
 -- (false), para que un keymap de la app (p. ej. "enviar" con enter, chat.md §3)
--- lo recoja. `ev` es el evento de `nu.ui.on_input` (§9.3): `{type, key, text?}`.
+-- lo recoja. `ev` es el evento de `enu.ui.on_input` (§9.3): `{type, key, text?}`.
 function Input:on_key(ev)
   if ev.type == "paste" and ev.text then
     insert(self, ev.text)
@@ -249,7 +249,7 @@ function Input:compose(w, _h)
 
   local spans
   if txt == "" and not focused and self.placeholder then
-    spans = { { text = nu.text.truncate(self.placeholder, w), style = th:style({ fg = "dim" }) } }
+    spans = { { text = enu.text.truncate(self.placeholder, w), style = th:style({ fg = "dim" }) } }
   else
     local shown = txt
     -- Marca visible del caret cuando está enfocado: un '|' en la posición del
@@ -259,19 +259,19 @@ function Input:compose(w, _h)
       shown = txt:sub(1, self.caret) .. "|" .. txt:sub(self.caret + 1)
     end
     if w > 0 then
-      shown = nu.text.truncate(shown, w)
+      shown = enu.text.truncate(shown, w)
     end
     local st = focused and th:style({ fg = "accent" }) or nil
     spans = { { text = shown, style = st } }
   end
-  return nu.ui.block({ spans })
+  return enu.ui.block({ spans })
 end
 
 -- input:caret_col() -> integer. La columna (en celdas) donde va el cursor real,
 -- para que la app llame `Region:cursor`. Es el ancho del texto a la izquierda del
--- caret (con `nu.text.width`, graphemes correctos).
+-- caret (con `enu.text.width`, graphemes correctos).
 function Input:caret_col()
-  return nu.text.width((self.text or ""):sub(1, self.caret))
+  return enu.text.width((self.text or ""):sub(1, self.caret))
 end
 
 -- ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ function Box:compose(w, h)
   if not bordered then
     for _ = 1, h do rows[#rows + 1] = blank_row() end
     if not fill_style then return nil end -- padding puro: nada que pintar
-    return nu.ui.block(rows)
+    return enu.ui.block(rows)
   end
 
   -- borde superior, con el título embebido: "tl─ título ───tr".
@@ -355,8 +355,8 @@ function Box:compose(w, h)
     local inner = math.max(0, w - 2)
     if self.title and self.title ~= "" and inner >= 4 then
       local cap = math.max(0, inner - 3) -- "─ " antes + " " después dejan hueco
-      local title = nu.text.truncate(self.title, cap)
-      local tw = nu.text.width(title)
+      local title = enu.text.truncate(self.title, cap)
+      local tw = enu.text.width(title)
       local dashes = math.max(0, inner - 2 - tw - 1) -- "─ " (2) + " " (1) tras título
       top = {
         { text = ch.tl, style = bstyle },
@@ -377,7 +377,7 @@ function Box:compose(w, h)
     local inner = math.max(0, w - 2)
     rows[#rows + 1] = { { text = ch.bl .. string.rep(ch.h, inner) .. ch.br, style = bstyle } }
   end
-  return nu.ui.block(rows)
+  return enu.ui.block(rows)
 end
 
 -- Box:relayout(x, y, w, h) coloca al ÚNICO hijo dentro del marco, con inset = borde
@@ -429,8 +429,8 @@ function M.box(opts)
   if opts.child then b:add(opts.child) end
   -- Realce de foco dinámico: cuando el foco se mueve, repinta el marco (su color de
   -- borde depende de si el foco está dentro). Solo si bordeado y reactivo.
-  if b.border ~= "none" and opts.react_focus ~= false and nu.events then
-    b._focus_sub = nu.events.on("toolkit:focus", function()
+  if b.border ~= "none" and opts.react_focus ~= false and enu.events then
+    b._focus_sub = enu.events.on("toolkit:focus", function()
       b:mark_dirty()
     end)
   end
@@ -478,8 +478,8 @@ function RichText:compose(w, _h)
     local txt = tostring(seg.text or "")
     if used >= w then break end
     local avail = w - used
-    txt = nu.text.truncate(txt, avail)
-    local tw = nu.text.width(txt)
+    txt = enu.text.truncate(txt, avail)
+    local tw = enu.text.width(txt)
     if tw > 0 then
       out[#out + 1] = { text = txt, style = th:style(seg.style) }
       used = used + tw
@@ -494,7 +494,7 @@ function RichText:compose(w, _h)
     table.insert(out, 1, { text = pad, style = fill })
   end
   if #out == 0 then out = { { text = "" } } end
-  return nu.ui.block({ out })
+  return enu.ui.block({ out })
 end
 
 -- toolkit.widgets.richtext{spans?, align?, fill_bg?, id?, pref_h?} -> RichText.
@@ -511,12 +511,12 @@ function M.richtext(opts)
 end
 
 -- ---------------------------------------------------------------------------
--- spinner: indicador de actividad ANIMADO (frames vía nu.task.every).
+-- spinner: indicador de actividad ANIMADO (frames vía enu.task.every).
 -- ---------------------------------------------------------------------------
 --
 -- Lo que faltaba para que el chat no pareciera "una terminal muerta" entre el envío
 -- y el primer delta: un glifo que gira + una etiqueta ("Pensando… 3s · esc para
--- interrumpir"). Avanza el frame con `nu.task.every(ms, fn)` (api.md §3, timer
+-- interrumpir"). Avanza el frame con `enu.task.every(ms, fn)` (api.md §3, timer
 -- periódico de handler síncrono) y se ensucia para repintar. `start()` arranca el
 -- timer; `stop()` lo detiene (y deja de ocupar sitio si `pref_h` se pone a 0 desde
 -- fuera). Idempotentes. Siempre llamar `stop()` al desmontar (no fuga el timer).
@@ -534,7 +534,7 @@ end
 function Spinner:start()
   if self._timer then return self end
   self.frame = self.frame or 1
-  self._timer = nu.task.every(self.interval, function()
+  self._timer = enu.task.every(self.interval, function()
     self.frame = (self.frame % #self.frames) + 1
     self:mark_dirty()
   end)
@@ -562,11 +562,11 @@ function Spinner:compose(w, _h)
   -- recorta la línea entera al ancho.
   local line, used = {}, 0
   for _, s in ipairs(spans) do
-    local t = nu.text.truncate(s.text, math.max(0, w - used))
-    used = used + nu.text.width(t)
+    local t = enu.text.truncate(s.text, math.max(0, w - used))
+    used = used + enu.text.width(t)
     line[#line + 1] = { text = t, style = s.style }
   end
-  return nu.ui.block({ line })
+  return enu.ui.block({ line })
 end
 
 -- toolkit.widgets.spinner{label?, frames?, interval?, color?, id?} -> Spinner.

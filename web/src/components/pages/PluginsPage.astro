@@ -1,0 +1,157 @@
+---
+// Plantilla compartida de la página única /plugins (pantalla 14b): "Escribe tu
+// primer plugin". No es una colección: el copy de los tres pasos es contenido
+// (literales del prototipo, código real), aquí keyed por idioma (W-04) — el
+// mismo registro directo del ES, traducido al inglés. Solo el chrome
+// (HeaderInternal/Statusline) sale de i18n.ts. La consumen los wrappers
+// pages/plugins.astro (ES) y pages/en/plugins.astro (EN).
+import Base from '../../layouts/Base.astro';
+import HeaderInternal from '../HeaderInternal.astro';
+import Statusline from '../Statusline.astro';
+import { GITHUB_URL } from '../../lib/const';
+import { i18n, type Lang } from '../../lib/i18n';
+import '../../styles/plugins.css';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'es' } = Astro.props;
+const t = i18n[lang];
+const base = import.meta.env.BASE_URL;
+const pref = lang === 'en' ? 'en/' : '';
+
+// Copy de producto de la página, en ambos idiomas (mismo registro directo).
+const COPY = {
+  es: {
+    metaTitle: 'plugins · enu',
+    metaDesc: 'Escribe tu primer plugin de enu: plugin.toml + init.lua en tres pasos.',
+    title: 'Escribe tu primer plugin',
+    intro:
+      'Un plugin es un directorio con dos ficheros. Nada de toolchains: lo escribes, lo activas, existe.',
+    step3: '3 · actívalo en enu.toml',
+    sayMsg: '¡hola desde tu plugin!',
+    close: 'Escribe /hola en el chat. Ya eres autor de plugins.',
+    railH: 'contratos para colgarse',
+    examples:
+      'examples/ trae una TUI completa escrita en Lua puro sobre la API del core.',
+    railNote: 'la regla de oro: lua decide, go ejecuta',
+  },
+  en: {
+    metaTitle: 'plugins · enu',
+    metaDesc: 'Write your first enu plugin: plugin.toml + init.lua in three steps.',
+    title: 'Write your first plugin',
+    intro:
+      'A plugin is a directory with two files. No toolchains: you write it, you enable it, it exists.',
+    step3: '3 · enable it in enu.toml',
+    sayMsg: 'hello from your plugin!',
+    close: "Type /hola in the chat. You're a plugin author now.",
+    railH: 'contracts to hook into',
+    examples:
+      'examples/ ships a complete TUI written in pure Lua on top of the core API.',
+    railNote: 'the golden rule: lua decides, go executes',
+  },
+}[lang];
+
+// Teclas de la statusline (pantalla 14b, sin n/p: es una sola página).
+const keys = [
+  { k: 'j/k', label: t.kScroll, i18n: 'kScroll' },
+  { k: ':', label: t.kCmd, i18n: 'kCmd' },
+  { k: '/', label: t.kSearch, i18n: 'kSearch' },
+  { k: '?', label: t.kHelp, i18n: 'kHelp' },
+  { k: 'q', label: t.kBack, i18n: 'kBack' },
+];
+
+const posicion = '1/3';
+const contexto = 'plugins/primer-plugin';
+
+// Homólogas para el picker de idioma (W-04).
+const langHome = { es: `${base}plugins`, en: `${base}en/plugins` };
+
+// examples/ existe en la raíz del repo (config XDG_CONFIG_HOME de demo con una
+// TUI en Lua puro): enlaza a su árbol en GitHub, rama por defecto `develop`.
+const examplesUrl = `${GITHUB_URL}/tree/develop/examples`;
+---
+<Base
+  title={COPY.metaTitle}
+  description={COPY.metaDesc}
+  lang={lang}
+  langMode="fixed"
+  langHome={langHome}
+>
+  <div class="plugins">
+    <HeaderInternal active="plugins" routePath="plugins/primer-plugin" lang={lang} />
+
+    <div class="plugins-shell">
+      <main class="plugins-main">
+        <h1 class="plugins-title">{COPY.title}</h1>
+        <div class="plugins-rule" aria-hidden="true">═══════════════════════</div>
+        <p class="plugins-intro">{COPY.intro}</p>
+
+        <section class="step">
+          <h2 class="step-title">1 · plugin.toml</h2>
+          <div class="code">
+            <div class="code-line"><span class="tok-bright">name</span> = <span class="tok-str">"hola"</span></div>
+            <div class="code-line"><span class="tok-bright">version</span> = <span class="tok-str">"0.1.0"</span></div>
+          </div>
+        </section>
+
+        <section class="step">
+          <h2 class="step-title">2 · init.lua</h2>
+          <div class="code">
+            <div class="code-line"><span class="tok-key">local</span> chat = <span class="tok-key">require</span>(<span class="tok-str">"chat"</span>)</div>
+            <div class="code-line">chat.command {'{'}</div>
+            <div class="code-line code-indent">name = <span class="tok-str">"hola"</span>,</div>
+            <div class="code-line code-indent">run = <span class="tok-key">function</span>() chat.say(<span class="tok-str">"{COPY.sayMsg}"</span>) <span class="tok-key">end</span>,</div>
+            <div class="code-line">{'}'}</div>
+          </div>
+        </section>
+
+        <section class="step">
+          <h2 class="step-title">{COPY.step3}</h2>
+          <div class="code">
+            <div class="code-line"><span class="tok-dim">[plugins]</span></div>
+            <div class="code-line"><span class="tok-bright">enabled</span> = [<span class="tok-str">"chat"</span>, <span class="tok-str">"hola"</span>]</div>
+          </div>
+        </section>
+
+        <p class="plugins-close">{COPY.close}</p>
+      </main>
+
+      <aside class="plugins-rail">
+        <div class="rail-h">{COPY.railH}</div>
+        <nav class="rail-contracts">
+          <a href={`${base}${pref}docs/agente`}>agent.tool{'{}'} →</a>
+          <a href={`${base}${pref}docs/agente`}>agent.hook() →</a>
+          <a href={`${base}${pref}docs/chat`}>chat.command{'{}'} →</a>
+          <a href={`${base}${pref}docs/chat`}>chat.renderer() →</a>
+          <a href={`${base}${pref}docs/providers`}>providers.register_adapter() →</a>
+        </nav>
+
+        <div class="examples-card">
+          {COPY.examples}<br />
+          <a href={examplesUrl} target="_blank" rel="noopener">XDG_CONFIG_HOME=examples enu →</a>
+        </div>
+
+        <div class="rail-note">
+          {COPY.railNote} <a href={`${base}${pref}docs/filosofia`}>filosofia →</a>
+        </div>
+      </aside>
+    </div>
+
+    <Statusline left={`${contexto} · ${posicion}`} keys={keys} lang={lang} />
+  </div>
+
+  <script>
+    import { initPager } from '../../scripts/pager';
+
+    // Página única: sin n/p (no hay módulo siguiente/anterior) y sin % de
+    // lectura (el mock muestra `· 1/3` sin porcentaje).
+    initPager({
+      context: 'plugins/primer-plugin',
+      pos: '1/3',
+      withPercent: false,
+      nextUrl: null,
+      prevUrl: null,
+    });
+  </script>
+</Base>

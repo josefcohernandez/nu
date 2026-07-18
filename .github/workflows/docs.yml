@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      # La wiki publica contratos de docs/ leídos en build: un cambio en la
+      # fuente debe redesplegar la web (antes derivaba en silencio).
+      - 'docs/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -33,7 +36,23 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # Gate de coherencia: la referencia publicada no puede discrepar de
+      # docs/contracts/api.md (la fuente de verdad). Si falla, skill /sync-web.
+      - run: npm run check:drift
+      # Gate de accesibilidad: --fg y --dim deben cumplir contraste AA (≥4.5:1)
+      # sobre --bg en los 4 themes. --dim es texto de lectura (statusline,
+      # citas, footers); si baja de AA, rompe el build (hallazgo W-02).
+      - run: npm run check:contraste
+      # Gate de limpieza (fuente): los pares <!-- nu:interno --> de docs/ deben
+      # estar balanceados antes de renderizar. Si falla, revisa los marcadores.
+      - run: npm run check:limpieza:fuente
+      # Gate de los plugins remark: comportamiento de limpieza y de enlaces
+      # (api.md → /api, resolución de subcarpetas) + pareo WIKI_SLUGS ↔ docmap.
+      - run: node scripts/test-limpieza.mjs --slugs
       - run: npm run build
+      # Gate de limpieza (HTML): ningún marcador de proceso (G##/P##/✅/nu:interno)
+      # puede haberse filtrado al HTML publicado. Si falla, skill /alta-wiki.
+      - run: npm run check:limpieza
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist

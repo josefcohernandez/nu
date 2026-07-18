@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.re` (api.md §10, sesión S26). La lógica propia a blindar (no es
+// Tests de `enu.re` (api.md §10, sesión S26). La lógica propia a blindar (no es
 // 🔒 pero la forma de capturas/rangos es decisión nuestra): la **forma de las
 // capturas** de `match` (array 1-based + grupos con nombre), las **unidades de
 // los rangos** de `find_all` (offsets de byte 1-based estilo `string.find`,
@@ -25,7 +25,7 @@ import (
 func TestReMatchPositional(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("(\\d+)-(\\d+)")
+		local re = enu.re.compile("(\\d+)-(\\d+)")
 		local caps = re:match("12-34")
 		assert(caps ~= nil, "debería casar")
 		assert(caps[1] == "12-34", "caps[1] match completo, got "..tostring(caps[1]))
@@ -40,7 +40,7 @@ func TestReMatchPositional(t *testing.T) {
 func TestReMatchNamed(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("(?P<year>\\d{4})-(?P<month>\\d{2})")
+		local re = enu.re.compile("(?P<year>\\d{4})-(?P<month>\\d{2})")
 		local caps = re:match("2026-06")
 		assert(caps[1] == "2026-06", "match completo")
 		assert(caps[2] == "2026", "grupo 1 posicional")
@@ -55,7 +55,7 @@ func TestReMatchNamed(t *testing.T) {
 func TestReMatchNoGroups(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("\\w+")
+		local re = enu.re.compile("\\w+")
 		local caps = re:match("hola mundo")
 		assert(caps[1] == "hola", "match completo, got "..tostring(caps[1]))
 		assert(caps[2] == nil, "no hay grupo 2")
@@ -67,7 +67,7 @@ func TestReMatchNoGroups(t *testing.T) {
 func TestReMatchNoMatch(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("\\d+")
+		local re = enu.re.compile("\\d+")
 		local caps = re:match("sin numeros aqui")
 		assert(caps == nil, "sin match debe ser nil")
 		return "ok"
@@ -78,9 +78,9 @@ func TestReMatchNoMatch(t *testing.T) {
 func TestReMatchEmptyString(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("\\d+")
+		local re = enu.re.compile("\\d+")
 		assert(re:match("") == nil, "patrón que exige dígitos no casa el vacío")
-		local re2 = nu.re.compile("\\d*")
+		local re2 = enu.re.compile("\\d*")
 		local caps = re2:match("")
 		assert(caps ~= nil and caps[1] == "", "\\d* casa el vacío con match vacío")
 		return "ok"
@@ -91,7 +91,7 @@ func TestReMatchEmptyString(t *testing.T) {
 func TestReMatchOptionalGroup(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("(a)?b")
+		local re = enu.re.compile("(a)?b")
 		local caps = re:match("b")
 		assert(caps[1] == "b", "match completo")
 		assert(caps[2] == "", "grupo opcional ausente -> string vacío, got "..tostring(caps[2]))
@@ -108,7 +108,7 @@ func TestReFindAllRanges(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
 		local s = "a1 b22 c333"
-		local re = nu.re.compile("\\d+")
+		local re = enu.re.compile("\\d+")
 		local ranges = re:find_all(s)
 		assert(#ranges == 3, "3 coincidencias, got "..#ranges)
 		-- reconstrucción exacta por s:sub
@@ -127,7 +127,7 @@ func TestReFindAllRanges(t *testing.T) {
 func TestReFindAllNone(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("\\d+")
+		local re = enu.re.compile("\\d+")
 		local ranges = re:find_all("sin nada")
 		assert(#ranges == 0, "tabla vacía")
 		return "ok"
@@ -142,7 +142,7 @@ func TestReFindAllUTF8(t *testing.T) {
 	h.expectEval(`
 		-- "áéí" ocupa 6 bytes (2 cada uno); el dígito viene después.
 		local s = "áéí7"
-		local re = nu.re.compile("\\d")
+		local re = enu.re.compile("\\d")
 		local ranges = re:find_all(s)
 		assert(#ranges == 1, "una coincidencia")
 		-- "7" está en el byte 7 (tras 6 bytes de las vocales)
@@ -158,7 +158,7 @@ func TestReFindAllEmptyMatch(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
 		local s = "ab"
-		local re = nu.re.compile("x*")  -- casa el vacío en cada posición
+		local re = enu.re.compile("x*")  -- casa el vacío en cada posición
 		local ranges = re:find_all(s)
 		assert(#ranges >= 1, "al menos una coincidencia vacía")
 		-- el primer match vacío está al inicio: start=1, end=0
@@ -174,7 +174,7 @@ func TestReFindAllEmptyMatch(t *testing.T) {
 func TestReReplaceNumbered(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("(\\d+)-(\\d+)")
+		local re = enu.re.compile("(\\d+)-(\\d+)")
 		local out = re:replace("12-34 y 56-78", "$2/$1")
 		assert(out == "34/12 y 78/56", "swap de grupos en ambas, got "..out)
 		return "ok"
@@ -185,7 +185,7 @@ func TestReReplaceNumbered(t *testing.T) {
 func TestReReplaceNamed(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("(?P<y>\\d{4})-(?P<m>\\d{2})")
+		local re = enu.re.compile("(?P<y>\\d{4})-(?P<m>\\d{2})")
 		local out = re:replace("2026-06", "${m}/${y}")
 		assert(out == "06/2026", "reorden por nombre, got "..out)
 		return "ok"
@@ -196,7 +196,7 @@ func TestReReplaceNamed(t *testing.T) {
 func TestReReplaceNoMatch(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("\\d+")
+		local re = enu.re.compile("\\d+")
 		assert(re:replace("sin numeros", "X") == "sin numeros", "intacto")
 		return "ok"
 	`, "ok")
@@ -206,7 +206,7 @@ func TestReReplaceNoMatch(t *testing.T) {
 func TestReReplaceAll(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local re = nu.re.compile("a")
+		local re = enu.re.compile("a")
 		assert(re:replace("banana", "o") == "bonono", "todas las 'a'")
 		return "ok"
 	`, "ok")
@@ -218,7 +218,7 @@ func TestReReplaceAll(t *testing.T) {
 // EINVAL con mensaje claro (el de regexp.Compile). Es el criterio de hecho.
 func TestReCompileBackreference(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`return nu.re.compile("(a)\\1")`)
+	se := h.evalErr(`return enu.re.compile("(a)\\1")`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("backreference debería dar EINVAL, got %s", se.Code)
 	}
@@ -230,7 +230,7 @@ func TestReCompileBackreference(t *testing.T) {
 // TestReCompileInvalidSyntax: un patrón sintácticamente inválido → EINVAL.
 func TestReCompileInvalidSyntax(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`return nu.re.compile("(abc")`) // paréntesis sin cerrar
+	se := h.evalErr(`return enu.re.compile("(abc")`) // paréntesis sin cerrar
 	if se.Code != CodeEINVAL {
 		t.Fatalf("sintaxis inválida debería dar EINVAL, got %s", se.Code)
 	}
@@ -238,7 +238,7 @@ func TestReCompileInvalidSyntax(t *testing.T) {
 
 // --- uso desde una task -------------------------------------------------------
 
-// TestReFromTask: nu.re funciona dentro de una task (es [W], no ⏸: no necesita
+// TestReFromTask: enu.re funciona dentro de una task (es [W], no ⏸: no necesita
 // task, pero tampoco debe romper en una).
 func TestReFromTask(t *testing.T) {
 	h := newHarness(t)
@@ -247,14 +247,14 @@ func TestReFromTask(t *testing.T) {
 	// aislado por ADR-008 y un fallo pasaría desapercibido; el global lo expone).
 	h.eval(`
 		RE_TASK_V, RE_TASK_N = nil, nil
-		local t1 = nu.task.spawn(function()
-			local re = nu.re.compile("\\d+")
+		local t1 = enu.task.spawn(function()
+			local re = enu.re.compile("\\d+")
 			return re:match("abc 42 def")[1]
 		end)
 		-- await SÍ es válido dentro de una task; ejercita re en dos tasks distintas.
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			RE_TASK_V = t1:await()
-			RE_TASK_N = #nu.re.compile("\\w+"):find_all("hi there")
+			RE_TASK_N = #enu.re.compile("\\w+"):find_all("hi there")
 		end)
 		return "ok"
 	`)
@@ -268,8 +268,8 @@ func TestReTypeMismatch(t *testing.T) {
 	h := newHarness(t)
 	// match sobre un userdata equivocado (un Block) → EINVAL del checkRe.
 	se := h.evalErr(`
-		local b = nu.ui.block({"hola"})
-		local re = nu.re.compile("\\d")
+		local b = enu.ui.block({"hola"})
+		local re = enu.re.compile("\\d")
 		return re.match(b, "1")
 	`)
 	if se.Code != CodeEINVAL {

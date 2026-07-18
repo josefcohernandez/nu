@@ -16,8 +16,8 @@
 --      centinela `data: [DONE]`) al **stream de Eventos CANÓNICO** de §2.3
 --      (`text`, `tool_call.begin/delta/end`, `usage`, `done`).
 --
--- Todo sobre la API pública (api.md, corolario de completitud): `nu.http.stream`
--- + `Stream:events()` (§8), `nu.json` (§12), `error` estructurado (ADR-009).
+-- Todo sobre la API pública (api.md, corolario de completitud): `enu.http.stream`
+-- + `Stream:events()` (§8), `enu.json` (§12), `error` estructurado (ADR-009).
 -- NINGÚN privilegio de kernel: Lua puro sobre la superficie congelada (ADR-003).
 --
 -- DIFERENCIA ESTRUCTURAL con Anthropic que el traductor absorbe (providers.md
@@ -107,7 +107,7 @@ local function push_canonical_message(out, msg)
         tool_calls[#tool_calls + 1] = {
           id = b.id,
           type = "function",
-          ["function"] = { name = b.name, arguments = nu.json.encode(b.args or {}) },
+          ["function"] = { name = b.name, arguments = enu.json.encode(b.args or {}) },
         }
       end
     end
@@ -239,7 +239,7 @@ local function make_iterator(stream, provider)
       if tc ~= nil then
         local args = {}
         if tc.json_acc ~= nil and tc.json_acc ~= "" then
-          local ok, decoded = pcall(nu.json.decode, tc.json_acc)
+          local ok, decoded = pcall(enu.json.decode, tc.json_acc)
           if ok and type(decoded) == "table" then
             args = decoded
           end
@@ -299,7 +299,7 @@ local function make_iterator(stream, provider)
       finished = true
       return
     end
-    local ok, d = pcall(nu.json.decode, data)
+    local ok, d = pcall(enu.json.decode, data)
     if not ok or type(d) ~= "table" then
       return -- chunk no decodificable: robustez (como un comentario SSE)
     end
@@ -361,7 +361,7 @@ end
 -- ---------------------------------------------------------------------------
 
 -- stream(req, provider) -> iterator<Event> ⏸ (providers.md §3). Traduce el
--- request, abre `nu.http.stream` (⏸) a `/chat/completions`, comprueba el status
+-- request, abre `enu.http.stream` (⏸) a `/chat/completions`, comprueba el status
 -- (>=400 -> EPROVIDER accionable; 429 y 5xx retryables) y devuelve el iterador.
 function M.stream(req, provider)
   if type(req) ~= "table" then
@@ -372,11 +372,11 @@ function M.stream(req, provider)
   end
 
   local body = to_wire(req, provider)
-  local stream = nu.http.stream({
+  local stream = enu.http.stream({
     url = provider.base_url .. "/chat/completions",
     method = "POST",
     headers = auth_headers(provider),
-    body = nu.json.encode(body),
+    body = enu.json.encode(body),
   })
 
   if stream.status ~= nil and stream.status >= 400 then
@@ -388,7 +388,7 @@ function M.stream(req, provider)
       return acc
     end)
     if ok_chunks and raw ~= "" then
-      local okj, payload = pcall(nu.json.decode, raw)
+      local okj, payload = pcall(enu.json.decode, raw)
       if okj and type(payload) == "table" and type(payload.error) == "table" then
         code = payload.error.type or payload.error.code
         if type(payload.error.message) == "string" then

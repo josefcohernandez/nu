@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// Tests de S17 (api.md §7): `nu.sys`. Sesión NO 🔒 (wrappers finos), pero
+// Tests de S17 (api.md §7): `enu.sys`. Sesión NO 🔒 (wrappers finos), pero
 // `setenv` tiene lógica propia: el **overlay** de variables que afecta SOLO a
-// subprocesos futuros (§7) y su integración con `nu.proc` (S16). Esa lógica se
+// subprocesos futuros (§7) y su integración con `enu.proc` (S16). Esa lógica se
 // blinda con un test unitario Go de `mergedEnv` (precedencia de capas) y un test
 // de extremo a extremo por el puente ⏸ real (`setenv` + `proc.run`). El resto
 // (`platform`/`env`/`now_ms`/`mono_ms`/`hostname`) se cubre con snippet Lua, que
@@ -33,7 +33,7 @@ func envValue(env []string, key string) (string, bool) {
 // TestMergedEnvPrecedence blinda la precedencia de capas de `mergedEnv` (la
 // integración S16↔S17, §6/§7): entorno heredado del SO < overlay de `setenv` <
 // `opts.env` explícito. Es la pieza que hace que `setenv` "afecte a subprocesos
-// futuros" pisando lo heredado, sin que el `nu` actual cambie, y que un
+// futuros" pisando lo heredado, sin que el `enu` actual cambie, y que un
 // `opts.env` por llamada gane sobre el overlay (control total local).
 func TestMergedEnvPrecedence(t *testing.T) {
 	// Variable de control: la sembramos en el entorno REAL del proceso de test
@@ -120,15 +120,15 @@ func TestSplitEnv(t *testing.T) {
 }
 
 // --- 🔑 Criterio de hecho: setenv se ve en un subproceso lanzado DESPUÉS, no en
-// el `nu` actual (§7, integración S16↔S17, de extremo a extremo) ---
+// el `enu` actual (§7, integración S16↔S17, de extremo a extremo) ---
 
 // TestSetenvFutureSubprocess es el criterio de hecho del plan: tras
-// `nu.sys.setenv("NU_TEST_X","42")`, un `nu.proc.run(["printenv","NU_TEST_X"])`
+// `enu.sys.setenv("NU_TEST_X","42")`, un `enu.proc.run(["printenv","NU_TEST_X"])`
 // lanzado DESPUÉS imprime "42" (lo ve por el overlay), mientras que el entorno
-// del proceso `nu` actual NO cambió —`os.Getenv("NU_TEST_X")` en Go sigue
+// del proceso `enu` actual NO cambió —`os.Getenv("NU_TEST_X")` en Go sigue
 // vacío—. Demuestra "afecta solo a subprocesos futuros, no al actual". `printenv`
 // es coreutils (presente en cualquier Linux de CI) y se invoca SIN shell (argv
-// directo), así que también ejercita la ausencia de shell de `nu.proc`.
+// directo), así que también ejercita la ausencia de shell de `enu.proc`.
 func TestSetenvFutureSubprocess(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("printenv no existe en Windows; el criterio es POSIX")
@@ -146,13 +146,13 @@ func TestSetenvFutureSubprocess(t *testing.T) {
 	// printenv saldría con 1 y stdout vacío y el assert dispararía—.
 	h := newHarness(t)
 	h.expectEval(`
-		local fut = nu.task.future()
-		nu.task.spawn(function()
-			nu.sys.setenv("NU_TEST_X", "42")
-			local r = nu.proc.run({"printenv", "NU_TEST_X"})
+		local fut = enu.task.future()
+		enu.task.spawn(function()
+			enu.sys.setenv("NU_TEST_X", "42")
+			local r = enu.proc.run({"printenv", "NU_TEST_X"})
 			fut:set({ out = r.stdout, code = r.code })
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local res = fut:await()
 			assert(res.code == 0, "printenv debería salir 0 (la var existe vía overlay), code=" .. tostring(res.code))
 			assert(res.out == "42\n", "el subproceso debería ver NU_TEST_X=42, got " .. string.format("%q", res.out))
@@ -160,14 +160,14 @@ func TestSetenvFutureSubprocess(t *testing.T) {
 		return "ok"
 	`, "ok")
 
-	// "No en el actual": el entorno del proceso `nu` (el de Go) NO cambió.
+	// "No en el actual": el entorno del proceso `enu` (el de Go) NO cambió.
 	if v, ok := os.LookupEnv(key); ok {
 		t.Fatalf("§7 violado: setenv mutó el entorno del proceso actual: %s=%q", key, v)
 	}
 }
 
 // TestSetenvNotInCurrentProcessSubprocess refuerza "no en el actual" desde el
-// lado del subproceso: un `nu.proc.run` con `opts.env` explícito que NO incluye
+// lado del subproceso: un `enu.proc.run` con `opts.env` explícito que NO incluye
 // la clave (control total local, §6) NO ve el overlay —printenv sale con 1—.
 // Demuestra que el overlay vive aparte y un env explícito lo deja fuera.
 func TestSetenvNotInCurrentProcessSubprocess(t *testing.T) {
@@ -176,14 +176,14 @@ func TestSetenvNotInCurrentProcessSubprocess(t *testing.T) {
 	}
 	h := newHarness(t)
 	h.expectEval(`
-		local fut = nu.task.future()
-		nu.task.spawn(function()
-			nu.sys.setenv("NU_TEST_Y", "99")
+		local fut = enu.task.future()
+		enu.task.spawn(function()
+			enu.sys.setenv("NU_TEST_Y", "99")
 			-- env explícito sin NU_TEST_Y: control total, el overlay no se aplica.
-			local r = nu.proc.run({"printenv", "NU_TEST_Y"}, { env = { OTHER = "z" } })
+			local r = enu.proc.run({"printenv", "NU_TEST_Y"}, { env = { OTHER = "z" } })
 			fut:set(r.code)
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local code = fut:await()
 			assert(code ~= 0, "con opts.env explícito sin la clave, printenv debe salir != 0 (overlay no aplica), code=" .. tostring(code))
 		end)
@@ -193,22 +193,22 @@ func TestSetenvNotInCurrentProcessSubprocess(t *testing.T) {
 
 // --- Wrappers finos: snippet Lua (platform/env/setenv/now_ms/mono_ms/hostname) ---
 
-// TestSysPlatform comprueba `nu.sys.platform()`: coincide con runtime.GOOS y es
+// TestSysPlatform comprueba `enu.sys.platform()`: coincide con runtime.GOOS y es
 // uno de los esperados en CI (linux/darwin).
 func TestSysPlatform(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`return nu.sys.platform()`, runtime.GOOS)
+	h.expectEval(`return enu.sys.platform()`, runtime.GOOS)
 }
 
-// TestSysEnvOverlay comprueba `nu.sys.env`/`setenv`: una variable inexistente da
+// TestSysEnvOverlay comprueba `enu.sys.env`/`setenv`: una variable inexistente da
 // nil; tras `setenv` se lee por el overlay (por encima del SO); el entorno real
 // del proceso no cambia.
 func TestSysEnvOverlay(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		assert(nu.sys.env("NU_S17_ABSENT") == nil, "inexistente debe ser nil")
-		nu.sys.setenv("NU_S17_ABSENT", "present")
-		assert(nu.sys.env("NU_S17_ABSENT") == "present", "tras setenv, env la lee por el overlay")
+		assert(enu.sys.env("NU_S17_ABSENT") == nil, "inexistente debe ser nil")
+		enu.sys.setenv("NU_S17_ABSENT", "present")
+		assert(enu.sys.env("NU_S17_ABSENT") == "present", "tras setenv, env la lee por el overlay")
 		return "ok"
 	`, "ok")
 	if _, ok := os.LookupEnv("NU_S17_ABSENT"); ok {
@@ -216,12 +216,12 @@ func TestSysEnvOverlay(t *testing.T) {
 	}
 }
 
-// TestSysEnvReadsOSValue comprueba que `nu.sys.env` ve una variable del SO
+// TestSysEnvReadsOSValue comprueba que `enu.sys.env` ve una variable del SO
 // (heredada), no solo el overlay.
 func TestSysEnvReadsOSValue(t *testing.T) {
 	t.Setenv("NU_S17_OS", "value_from_os")
 	h := newHarness(t)
-	h.expectEval(`assert(nu.sys.env("NU_S17_OS") == "value_from_os", "env debe leer la var del SO"); return "ok"`, "ok")
+	h.expectEval(`assert(enu.sys.env("NU_S17_OS") == "value_from_os", "env debe leer la var del SO"); return "ok"`, "ok")
 }
 
 // TestSysClocks comprueba `now_ms`/`mono_ms`: ambos positivos, now_ms cerca del
@@ -229,17 +229,17 @@ func TestSysEnvReadsOSValue(t *testing.T) {
 func TestSysClocks(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local now = nu.sys.now_ms()
+		local now = enu.sys.now_ms()
 		assert(type(now) == "number" and now > 0, "now_ms debe ser un number positivo")
-		local a = nu.sys.mono_ms()
-		local b = nu.sys.mono_ms()
+		local a = enu.sys.mono_ms()
+		local b = enu.sys.mono_ms()
 		assert(type(a) == "number" and type(b) == "number", "mono_ms debe ser number")
 		assert(b >= a, "mono_ms no debe decrecer: a=" .. tostring(a) .. " b=" .. tostring(b))
 		return "ok"
 	`, "ok")
 }
 
-// TestSysHostname comprueba `nu.sys.hostname()`: devuelve un string no vacío que
+// TestSysHostname comprueba `enu.sys.hostname()`: devuelve un string no vacío que
 // coincide con os.Hostname (es un wrapper directo).
 func TestSysHostname(t *testing.T) {
 	want, err := os.Hostname()
@@ -247,32 +247,32 @@ func TestSysHostname(t *testing.T) {
 		t.Skipf("os.Hostname falló en este entorno: %v", err)
 	}
 	h := newHarness(t)
-	got := h.eval(`return nu.sys.hostname()`)
+	got := h.eval(`return enu.sys.hostname()`)
 	if len(got) != 1 || got[0] != want || strings.TrimSpace(got[0]) == "" {
 		t.Fatalf("hostname: got %q, want %q", got, want)
 	}
 }
 
-// TestSysPid comprueba `nu.sys.pid()` (G32): un integer > 0, estable entre
+// TestSysPid comprueba `enu.sys.pid()` (G32): un integer > 0, estable entre
 // llamadas e igual a `os.Getpid()` del proceso de test (el wrapper es directo).
 // Es el `pid` que la extensión sesiones graba en su lockfile (sesiones.md §6).
 func TestSysPid(t *testing.T) {
 	want := os.Getpid()
 	h := newHarness(t)
 	h.expectEval(`
-		local p = nu.sys.pid()
+		local p = enu.sys.pid()
 		assert(type(p) == "number", "pid debe ser un number")
 		assert(p == math.floor(p), "pid debe ser entero")
 		assert(p > 0, "pid debe ser positivo")
-		assert(nu.sys.pid() == p, "pid debe ser estable entre llamadas")
+		assert(enu.sys.pid() == p, "pid debe ser estable entre llamadas")
 		return "ok"`, "ok")
-	got := h.eval(`return tostring(nu.sys.pid())`)
+	got := h.eval(`return tostring(enu.sys.pid())`)
 	if len(got) != 1 || strings.TrimSpace(got[0]) != strconv.Itoa(want) {
 		t.Fatalf("pid: got %q, want %d (== os.Getpid)", got, want)
 	}
 }
 
-// TestSysPidInWorker comprueba que `nu.sys.pid()` está disponible [W]: `sys` es
+// TestSysPidInWorker comprueba que `enu.sys.pid()` está disponible [W]: `sys` es
 // módulo [W] entero (§16), así que `pid` hereda. Con `caps={"sys"}` el worker lo
 // ve; con `caps={"sys.pid"}` también (granularidad de función, G6). Como un worker
 // comparte el proceso del padre (es una goroutine, no un fork), su `pid` coincide
@@ -280,14 +280,14 @@ func TestSysPid(t *testing.T) {
 func TestSysPidInWorker(t *testing.T) {
 	want := os.Getpid()
 	for _, capLua := range []string{`{ caps = {"sys"} }`, `{ caps = {"sys.pid"} }`, ``} {
-		spawn := `nu.worker.spawn("wmod")`
+		spawn := `enu.worker.spawn("wmod")`
 		if capLua != "" {
-			spawn = `nu.worker.spawn("wmod", ` + capLua + `)`
+			spawn = `enu.worker.spawn("wmod", ` + capLua + `)`
 		}
-		h := workerHarness(t, `nu.worker.parent.send({ pid = nu.sys.pid() })`)
+		h := workerHarness(t, `enu.worker.parent.send({ pid = enu.sys.pid() })`)
 		h.eval(`
 			WPID = nil
-			nu.task.spawn(function()
+			enu.task.spawn(function()
 				local w = ` + spawn + `
 				WPID = w:recv().pid
 				w:terminate()
@@ -300,37 +300,40 @@ func TestSysPidInWorker(t *testing.T) {
 }
 
 // TestSysPidDeniedByCaps confirma el deny-by-default (G6): un worker con `caps={}`
-// no recibe `nu.sys` en absoluto, así que `nu.sys.pid` no existe.
+// no recibe `enu.sys` en absoluto, así que `enu.sys.pid` no existe.
 func TestSysPidDeniedByCaps(t *testing.T) {
-	h := workerHarness(t, `nu.worker.parent.send({ has = (nu.sys ~= nil) })`)
+	h := workerHarness(t, `enu.worker.parent.send({ has = (enu.sys ~= nil) })`)
 	h.eval(`
 		HAS = nil
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod", { caps = {} })
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod", { caps = {} })
 			HAS = w:recv().has
 			w:terminate()
 		end)`)
 	h.expectEval(`return tostring(HAS)`, "false")
 }
 
-// TestVersionApiIsTwo blinda el incremento de `nu.version.api` a 2 (G32: la
-// primera adición tras el congelado, `nu.sys.pid`). api.md §17: el contador sube
-// con cada adición.
-func TestVersionApiIsTwo(t *testing.T) {
+// TestVersionApiMatchesAPILevel blinda que `enu.version.api` refleja el `APILevel`
+// del kernel. El contador sube con cada adición a la superficie sagrada (api.md
+// §17): 2 con `enu.sys.pid` (G32), 3 con los frames binarios de `enu.ws` (G52/A-38),
+// 4 con el control de redirects de `enu.http` (G54), 5 con `opts.mode` de
+// `enu.fs.write` (G57). Se afirma contra la constante para no reescribir el test en
+// cada adición.
+func TestVersionApiMatchesAPILevel(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`return tostring(nu.version.api)`, "2")
+	h.expectEval(`return tostring(enu.version.api)`, strconv.Itoa(APILevel))
 }
 
-// TestSysAvailableInTask comprueba que `nu.sys` funciona también desde dentro de
+// TestSysAvailableInTask comprueba que `enu.sys` funciona también desde dentro de
 // una task (es [W]/síncrono, no ⏸: no exige ni prohíbe estar en una task).
 func TestSysAvailableInTask(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local fut = nu.task.future()
-		nu.task.spawn(function()
-			fut:set(nu.sys.platform())
+		local fut = enu.task.future()
+		enu.task.spawn(function()
+			fut:set(enu.sys.platform())
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			assert(fut:await() == "`+runtime.GOOS+`", "platform desde task")
 		end)
 		return "ok"

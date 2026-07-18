@@ -4,16 +4,17 @@
 -- [sesiones.md](../../../../../docs/sesiones.md):
 --
 --   1. **JSONL append-only** (§1-§4): una sesión es un fichero al que solo se
---      añaden líneas (`nu.fs.append` + `nu.json.encode`), nunca se reescribe. El
---      estado se reconstruye por **replay** (leer de arriba abajo, `nu.fs.read` +
---      `nu.json.decode`). Reutiliza el modelo canónico de mensajes
+--      añaden líneas (`enu.fs.append` + `enu.json.encode`), nunca se reescribe. El
+--      estado se reconstruye por **replay** (leer de arriba abajo, `enu.fs.read` +
+--      `enu.json.decode`). Reutiliza el modelo canónico de mensajes
 --      ([providers.md](../../../../../docs/providers.md) §2): el `Message` que el
 --      `done` del adaptador (S37) entrega se persiste tal cual en una entrada
 --      `message`.
 --   2. **Un escritor por sesión** (§6, G5): un lockfile `<sesión>.jsonl.lock`
---      creado con `nu.fs.write{ exclusive = true }` (atómico, G17). Su contenido
+--      creado con `enu.fs.write{ exclusive = true, mode = 0600 }` (atómico, G17;
+--      permisos no world-readable, G57). Su contenido
 --      es la identidad del escritor —`{ pid, hostname, started }`— con el pid de
---      `nu.sys.pid()` (G32) y el hostname de `nu.sys.hostname()` (G17). Un lock
+--      `enu.sys.pid()` (G32) y el hostname de `enu.sys.hostname()` (G17). Un lock
 --      huérfano (pid muerto en esta máquina) se reclama en silencio; uno de otro
 --      hostname o con pid vivo es un conflicto real que el llamante decide.
 --
@@ -28,6 +29,15 @@ local M = {}
 -- líneas con `t` desconocido (forward-compatible); este número solo sube si el
 -- significado de una entrada existente cambiase.
 local FORMAT_VERSION = 1
+
+-- Permisos del transcript y del lockfile (sesiones.md §2/§6): 0600, solo el dueño.
+-- Contienen código y salidas de comandos (transcript) e identidad del escritor
+-- (lock): no deben quedar legibles por otros usuarios. Se aplican con `opts.mode`
+-- (G57), que hace chmod explícito NO recortado por el umask —Lua no tiene literal
+-- octal, de ahí `tonumber("600", 8)`—. El transcript se crea VACÍO con este modo
+-- antes del primer append; los append siguientes preservan el modo del fichero
+-- existente (`O_CREATE` no re-chmod-ea lo ya creado), así que basta fijarlo al crear.
+local SESSION_MODE = tonumber("600", 8)
 
 -- ---------------------------------------------------------------------------
 -- Errores estructurados de la extensión (ESESSION, ADR-009 / api.md §1.4).
@@ -61,7 +71,7 @@ end
 -- sessions_root() -> string. data_dir/sessions (la única convención compartida,
 -- §2). No crea nada todavía.
 local function sessions_root()
-  return nu.config.data_dir() .. "/sessions"
+  return enu.config.data_dir() .. "/sessions"
 end
 
 -- project_dir(cwd) -> string. data_dir/sessions/<slug>.
@@ -72,7 +82,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Superficie pública de rutas (G38). El slug es PARTE DEL FORMATO (sesiones.md
 -- §2): el algoritmo está especificado para que las herramientas externas
--- compongan rutas sin nu; estas funciones puras son la comodidad para plugins
+-- compongan rutas sin enu; estas funciones puras son la comodidad para plugins
 -- (nadie reimplementa la codificación — única fuente Lua de verdad).
 -- ---------------------------------------------------------------------------
 
@@ -90,16 +100,16 @@ end
 -- (§2: ordenación lexicográfica = ordenación temporal). El timestamp en ms va en
 -- hex de ancho fijo para que ordene; el sufijo evita colisiones en el mismo ms.
 -- El PRNG se siembra una sola vez con `now_ms` + `pid` (G32): sin la semilla,
--- gopher-lua daría la MISMA secuencia entre arranques, así que dos procesos `nu`
+-- gopher-lua daría la MISMA secuencia entre arranques, así que dos procesos `enu`
 -- que crearan una sesión en el mismo ms colisionarían en el sufijo; el pid los
 -- separa (el lock exclusivo, §6, solo protege ante ids iguales).
 local seeded = false
 local function gen_id()
   if not seeded then
-    math.randomseed(math.floor(nu.sys.now_ms()) + nu.sys.pid())
+    math.randomseed(math.floor(enu.sys.now_ms()) + enu.sys.pid())
     seeded = true
   end
-  local ms = math.floor(nu.sys.now_ms())
+  local ms = math.floor(enu.sys.now_ms())
   return string.format("%013d-%04x", ms, math.random(0, 0xffff))
 end
 
@@ -108,29 +118,31 @@ end
 -- ---------------------------------------------------------------------------
 
 -- write_lock(lock_path) intenta crear el lockfile con creación EXCLUSIVA (G17):
--- `nu.fs.write{ exclusive = true }` es atómico (O_EXCL) —dos procesos no pueden
--- ganar a la vez—, lanza `EEXIST` si ya existe. El contenido es la identidad del
--- escritor (§6): pid de `nu.sys.pid()` (G32), hostname de `nu.sys.hostname()`
--- (G17), started de `nu.sys.now_ms()`. Devuelve true si lo adquirió.
+-- `enu.fs.write{ exclusive = true }` es atómico (O_EXCL) —dos procesos no pueden
+-- ganar a la vez—, lanza `EEXIST` si ya existe. `mode = 0600` fija los permisos con
+-- chmod explícito, no recortado por el umask (§2/§6, G57): el lockfile guarda la
+-- identidad del escritor y no debe quedar world-readable bajo un umask laxo. El
+-- contenido es la identidad del escritor (§6): pid de `enu.sys.pid()` (G32),
+-- hostname de `enu.sys.hostname()` (G17), started de `enu.sys.now_ms()`.
 local function write_lock(lock_path)
   local meta = {
-    pid      = nu.sys.pid(),
-    hostname = nu.sys.hostname(),
-    started  = nu.sys.now_ms(),
+    pid      = enu.sys.pid(),
+    hostname = enu.sys.hostname(),
+    started  = enu.sys.now_ms(),
   }
-  nu.fs.write(lock_path, nu.json.encode(meta), { exclusive = true })
+  enu.fs.write(lock_path, enu.json.encode(meta), { exclusive = true, mode = SESSION_MODE })
 end
 
 -- read_lock(lock_path) -> meta? Lee y decodifica el lockfile, o nil si no existe
 -- o está corrupto (un lock ilegible se trata como ausente: basura a reemplazar).
 local function read_lock(lock_path)
   local raw = nil
-  local ok = pcall(function() raw = nu.fs.read(lock_path) end)
+  local ok = pcall(function() raw = enu.fs.read(lock_path) end)
   if not ok or raw == nil then
     return nil
   end
   local decoded
-  ok = pcall(function() decoded = nu.json.decode(raw) end)
+  ok = pcall(function() decoded = enu.json.decode(raw) end)
   if not ok or type(decoded) ~= "table" then
     return nil
   end
@@ -141,7 +153,7 @@ end
 -- Lógica de §6:
 --   - intento de creación exclusiva; si lo crea, listo;
 --   - si ya existe (`EEXIST`), se inspecciona el lock vivo:
---       * mismo hostname y pid NO vivo (`nu.proc.alive`=false) → HUÉRFANO (crash):
+--       * mismo hostname y pid NO vivo (`enu.proc.alive`=false) → HUÉRFANO (crash):
 --         se borra en silencio y se reintenta una vez;
 --       * mismo hostname y pid vivo → CONFLICTO REAL → ESESSION{detail.reason="busy"};
 --       * otro hostname → NO verificable (directorio sincronizado) → ESESSION
@@ -159,22 +171,22 @@ local function acquire_lock(lock_path)
 
   -- El lock ya existe: ¿huérfano reclamable o conflicto real?
   local meta = read_lock(lock_path)
-  local my_host = nu.sys.hostname()
+  local my_host = enu.sys.hostname()
 
   if meta == nil then
     -- Lock ilegible/corrupto en esta máquina: basura de un crash. Se limpia y
     -- se reintenta (un único reintento: si vuelve a chocar, es una carrera real).
-    nu.fs.remove(lock_path)
+    enu.fs.remove(lock_path)
   elseif meta.hostname ~= my_host then
     esession("la sesión está bloqueada por otra máquina (" .. tostring(meta.hostname) ..
       "); no se puede verificar si sigue viva", { reason = "foreign", lock = meta })
-  elseif meta.pid ~= nil and nu.proc.alive(meta.pid) then
+  elseif meta.pid ~= nil and enu.proc.alive(meta.pid) then
     esession("la sesión ya tiene un escritor vivo (pid " .. tostring(meta.pid) .. ")",
       { reason = "busy", lock = meta })
   else
     -- Mismo hostname, pid muerto (o sin pid): huérfano de un crash. Se limpia en
     -- silencio (§6) y se reintenta.
-    nu.fs.remove(lock_path)
+    enu.fs.remove(lock_path)
   end
 
   -- Reintento único tras reclamar el huérfano/basura.
@@ -197,7 +209,7 @@ Session.__index = Session
 
 -- Session:append(entry) anexa UNA entrada al transcript (§3-§4). La entrada se
 -- completa con `ts` (epoch ms) si la lleva el tipo y no se dio; se serializa con
--- `nu.json.encode` y se escribe con `nu.fs.append` —UNA línea, una operación
+-- `enu.json.encode` y se escribe con `enu.fs.append` —UNA línea, una operación
 -- atómica de append (§4: nunca medio mensaje)—. Solo el escritor (con lock)
 -- puede anexar; una sesión en solo-lectura lanza.
 function Session:append(entry)
@@ -209,9 +221,9 @@ function Session:append(entry)
   end
   -- Las entradas de actividad llevan `ts` (epoch ms, §3). `meta` no lo lleva.
   if entry.t ~= "meta" and entry.ts == nil then
-    entry.ts = nu.sys.now_ms()
+    entry.ts = enu.sys.now_ms()
   end
-  nu.fs.append(self.path, nu.json.encode(entry) .. "\n")
+  enu.fs.append(self.path, enu.json.encode(entry) .. "\n")
 end
 
 -- Session:append_message(message, opts?) azúcar para la entrada `message` (§3):
@@ -231,7 +243,7 @@ end
 -- y los `message` siguientes, §3) es del agente, no de la persistencia.
 function Session:replay()
   local raw = ""
-  local ok = pcall(function() raw = nu.fs.read(self.path) end)
+  local ok = pcall(function() raw = enu.fs.read(self.path) end)
   if not ok then
     return {}
   end
@@ -246,7 +258,7 @@ function Session:replay()
       last = i + 1
       if #line > 0 then
         local decoded
-        if pcall(function() decoded = nu.json.decode(line) end) and type(decoded) == "table" then
+        if pcall(function() decoded = enu.json.decode(line) end) and type(decoded) == "table" then
           entries[#entries + 1] = decoded
         end
         -- Una línea no-vacía que no decodifica (no debería, salvo corrupción a
@@ -270,7 +282,7 @@ function Session:meta()
 end
 
 -- Session:close() libera el lock (si lo tenía) y marca la sesión cerrada. Es
--- idempotente. Se registra además en `nu.task.cleanup` al abrir, así que el lock
+-- idempotente. Se registra además en `enu.task.cleanup` al abrir, así que el lock
 -- se suelta aunque la task termine por error o aborto (sesiones.md §6: "se libera
 -- al salir").
 function Session:close()
@@ -284,8 +296,8 @@ function Session:close()
     -- (un lock huérfano lo reclama el siguiente que abra).
     pcall(function()
       local meta = read_lock(self.lock_path)
-      if meta and meta.pid == nu.sys.pid() and meta.hostname == nu.sys.hostname() then
-        nu.fs.remove(self.lock_path)
+      if meta and meta.pid == enu.sys.pid() and meta.hostname == enu.sys.hostname() then
+        enu.fs.remove(self.lock_path)
       end
     end)
     self.lock_held = false
@@ -307,7 +319,7 @@ end
 --   - `parent?`  (tabla `{ id, entry }`): enlace de fork/subagente (§5/§7).
 --
 -- Adquiere el lock con `acquire_lock` (reclama huérfanos) salvo en `read_only`.
--- Registra el `close` en `nu.task.cleanup` para soltar el lock pase lo que pase.
+-- Registra el `close` en `enu.task.cleanup` para soltar el lock pase lo que pase.
 function M.open(opts)
   if type(opts) ~= "table" then
     einval("sessions.open espera una tabla de opciones")
@@ -325,13 +337,13 @@ function M.open(opts)
   end
 
   local dir = project_dir(opts.cwd)
-  nu.fs.mkdir(dir) -- mkdir -p (api.md §5): crea data_dir/sessions/<proyecto>
+  enu.fs.mkdir(dir) -- mkdir -p (api.md §5): crea data_dir/sessions/<proyecto>
   local path = dir .. "/" .. id .. ".jsonl"
   local lock_path = path .. ".lock"
 
   if not creating then
     -- Reanudar exige que el fichero exista (replay del transcript, §3/G18).
-    if nu.fs.stat(path) == nil then
+    if enu.fs.stat(path) == nil then
       esession("no existe la sesión a reanudar: " .. id, { reason = "missing", id = id })
     end
   end
@@ -350,17 +362,24 @@ function M.open(opts)
     acquire_lock(lock_path) -- lanza ESESSION en conflicto real / foreign
     self.lock_held = true
     -- Suelta el lock pase lo que pase con la task (éxito, error o aborto), §6.
-    nu.task.cleanup(function() self:close() end)
+    enu.task.cleanup(function() self:close() end)
   end
 
   if creating then
+    -- Crea el transcript VACÍO con 0600 (sesiones.md §2, G57) ANTES del primer
+    -- append: `enu.fs.write{ mode }` hace el chmod explícito no recortado por el
+    -- umask, y los append posteriores preservan ese modo (`enu.fs.append` no
+    -- re-chmod-ea un fichero existente). Creación exclusiva: el id es fresco, así
+    -- que el fichero no debería existir; si existiera (colisión de id), `EEXIST`
+    -- evita pisar un transcript ajeno.
+    enu.fs.write(path, "", { exclusive = true, mode = SESSION_MODE })
     -- Primera línea: la entrada `meta` (§3). Sin `ts` (no es actividad).
     self:append({
       t       = "meta",
       v       = FORMAT_VERSION,
       id      = id,
       cwd     = opts.cwd,
-      created = opts.created or nu.sys.now_ms(),
+      created = opts.created or enu.sys.now_ms(),
       parent  = opts.parent,
     })
   end
@@ -369,36 +388,70 @@ function M.open(opts)
 end
 
 -- M.list(cwd) -> {id, path, meta}[] lista las sesiones de un proyecto (§7):
--- listar el directorio y leer la primera línea (`meta`) de cada `.jsonl`. Sin
--- índice global (§7): si algún día duele, se añade un caché reconstruible. Los
--- `.jsonl.lock` se ignoran (no son sesiones). Orden: el de `nu.fs.list` (los ids
--- ordenan lexicográfico = temporal, §2; el llamante ordena si lo necesita).
+-- enumerar el directorio y adjuntar la primera línea (`meta`) de cada `.jsonl`.
+-- Sin índice global (§7): si algún día duele, se añade un caché reconstruible.
+-- Los `.jsonl.lock` se ignoran (no son sesiones). Orden: el de `enu.fs.list` (los
+-- ids ordenan lexicográfico = temporal, §2; el llamante ordena si lo necesita).
+--
+-- LAS `meta` VÍA `enu.search.grep`, NO leyendo cada fichero entero (A-38b). La
+-- versión previa hacía `enu.fs.read` de CADA transcript solo para quedarse con su
+-- primera línea: con transcripts de MB, listar costaba O(bytes totales) en IO y
+-- en memoria cruzando la frontera wasm. `enu.search.grep` (api.md §11) casa el
+-- patrón en Go, paralelo por dentro, y **solo las líneas que casan cruzan a
+-- Lua**: el escaneo del transcript se queda en Go. Sin API nueva —compone con lo
+-- existente—.
+--
+-- EL PATRÓN. La entrada `meta` lleva las claves ORDENADAS por `enu.json.encode`
+-- (encoding/json ordena alfabéticamente las claves de un objeto), así que `t` no
+-- es la primera clave y NO se puede anclar con `^`; se casa la subcadena
+-- distintiva `"t":"meta"` en cualquier posición (RE2, S26; ninguno de sus
+-- caracteres es metacarácter). Se tolera el espacio opcional de JSON alrededor
+-- de `:` (`"t"\s*:\s*"meta"`) por si el fichero lo escribió una herramienta
+-- externa (el slug es parte del formato, §2). `meta` es SIEMPRE la primera línea
+-- (§3): la coincidencia buena está en `line_no == 1`; nos quedamos con ella e
+-- ignoramos cualquier otra (una subcadena `"t":"meta"` incrustada en el
+-- contenido de un `message` posterior). Además se decodifica y se comprueba
+-- `t == "meta"`, como antes: una línea que casa pero no decodifica a una `meta`
+-- válida se descarta (fichero corrupto → `meta = nil`, igual que la versión
+-- previa, pero el fichero SIGUE en la lista vía el enumerado del directorio).
 function M.list(cwd)
   if type(cwd) ~= "string" or cwd == "" then
     einval("sessions.list requiere `cwd` (string no vacío)")
   end
   local dir = project_dir(cwd)
-  if nu.fs.stat(dir) == nil then
+  if enu.fs.stat(dir) == nil then
     return {} -- proyecto sin sesiones aún
   end
+
+  -- Recolecta las `meta` por NOMBRE DE FICHERO (basename): la clave de fusión es
+  -- el nombre, no la ruta completa, para no depender de cómo `grep` normaliza las
+  -- rutas (`filepath.Join`) frente a la concatenación en Lua. Los `.jsonl` son
+  -- planos en `dir`, así que el basename es único.
+  local metas = {}
+  for r in enu.search.grep([["t"\s*:\s*"meta"]], { root = dir, glob = "*.jsonl" }) do
+    if r.line_no == 1 then
+      local name = r.path:match("[^/]+$") or r.path
+      if metas[name] == nil then
+        local decoded
+        if pcall(function() decoded = enu.json.decode(r.line) end)
+          and type(decoded) == "table" and decoded.t == "meta" then
+          metas[name] = decoded
+        end
+      end
+    end
+  end
+
+  -- El enumerado del directorio define el CONJUNTO y el ORDEN del resultado (como
+  -- antes): toda `.jsonl` aparece, con su `meta` si se encontró o `nil` si el
+  -- fichero está corrupto / sin `meta`. Listar el directorio es O(nº sesiones),
+  -- no O(bytes): el coste que A-38b señalaba estaba en LEER cada fichero, no en
+  -- enumerarlos.
   local out = {}
-  for _, ent in ipairs(nu.fs.list(dir)) do
+  for _, ent in ipairs(enu.fs.list(dir)) do
     if not ent.is_dir and ent.name:sub(-6) == ".jsonl" then
       local id = ent.name:sub(1, -7) -- quita ".jsonl"
       local path = dir .. "/" .. ent.name
-      local meta = nil
-      pcall(function()
-        local raw = nu.fs.read(path)
-        local nl = raw:find("\n", 1, true)
-        local first = nl and raw:sub(1, nl - 1) or raw
-        if #first > 0 then
-          local decoded = nu.json.decode(first)
-          if type(decoded) == "table" and decoded.t == "meta" then
-            meta = decoded
-          end
-        end
-      end)
-      out[#out + 1] = { id = id, path = path, meta = meta }
+      out[#out + 1] = { id = id, path = path, meta = metas[ent.name] }
     end
   end
   return out

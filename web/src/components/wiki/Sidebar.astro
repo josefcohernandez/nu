@@ -1,0 +1,66 @@
+---
+// Índice de la wiki: grupos (`empezar/ espec/ extensiones/`, nombres en
+// dim con `/` final) y ficheros `.md` indentados. El activo va invertido (texto
+// bg sobre fondo key) con prefijo `▸`. Es la MISMA lista que usa el drawer
+// móvil; por eso vive en un componente reutilizable.
+//
+// Props:
+//   activeSlug: slug de la página actual (se pinta invertido).
+import { GRUPOS, urlDoc } from '../../lib/docmap';
+import { i18n, type Lang } from '../../lib/i18n';
+
+interface Props {
+  activeSlug: string;
+  lang?: Lang;
+}
+const { activeSlug, lang = 'es' } = Astro.props;
+const t = i18n[lang]; // etiquetas de grupo en el idioma de la página; el swap es en cliente
+---
+<nav class="wiki-nav" aria-label="índice de la wiki">
+  {GRUPOS.map((g) => (
+    <div class="grupo-bloque">
+      <div class="grupo"><span data-i18n={g.i18nKey}>{t[g.i18nKey]}</span>/</div>
+      <div class="entradas">
+        {g.slugs.map((slug) => (
+          <a
+            href={urlDoc(slug, lang)}
+            class={slug === activeSlug ? 'entrada activa' : 'entrada'}
+          >
+            {slug === activeSlug ? `▸ ${slug}.md` : `${slug}.md`}
+          </a>
+        ))}
+      </div>
+    </div>
+  ))}
+</nav>
+
+<style>
+  .wiki-nav {
+    font-size: var(--fs-5);
+    line-height: 2.1;
+  }
+  .grupo-bloque {
+    margin-bottom: 12px;
+  }
+  .grupo {
+    padding: 0 26px;
+    color: var(--dim);
+    text-transform: lowercase;
+  }
+  .entradas {
+    display: flex;
+    flex-direction: column;
+    padding: 0 14px 0 40px;
+  }
+  .entrada {
+    color: var(--fg);
+    padding: 0 8px;
+    white-space: nowrap;
+  }
+  .entrada.activa {
+    background: var(--key);
+    color: var(--bg);
+    font-weight: 600;
+    margin-left: -12px;
+  }
+</style>

@@ -1,6 +1,6 @@
 -- toolkit.theme — el sistema de themes del toolkit (G22).
 --
--- EL PROBLEMA (G22). El core (`nu.ui`, api.md §9.2) solo entiende colores
+-- EL PROBLEMA (G22). El core (`enu.ui`, api.md §9.2) solo entiende colores
 -- **literales**: un "#rrggbb" o un índice 0-255. Los nombres semánticos
 -- ("accent", "error", "dim"…) **no son del core** —`normalizeColor` los rechaza
 -- a propósito—: son vocabulario del theme del toolkit. Que un plugin escriba
@@ -19,7 +19,7 @@
 --     (un theme incompleto se nota, no se traga en silencio).
 --   * `theme:style(spec) -> Style`    — una tabla de estilo cuyos `fg`/`bg` son
 --     nombres semánticos (o literales) a un `Style` con `fg`/`bg` ya LITERALES,
---     listo para `nu.ui.block`/`Region:fill`. Los atributos (bold/italic/…) se
+--     listo para `enu.ui.block`/`Region:fill`. Los atributos (bold/italic/…) se
 --     copian tal cual.
 --
 -- Así el resto del toolkit (widgets, layout) trabaja siempre con nombres
@@ -92,7 +92,7 @@ end
 
 -- Theme:style(spec) -> Style. Convierte una tabla de estilo con `fg`/`bg`
 -- semánticos (o literales) a un `Style` (api.md §9.2) con los colores ya
--- LITERALES, listo para `nu.ui.block`/`Region:fill`/`nu.text.*`. Copia los
+-- LITERALES, listo para `enu.ui.block`/`Region:fill`/`enu.text.*`. Copia los
 -- atributos booleanos tal cual. `spec` puede ser nil (devuelve nil: "sin
 -- estilo"). El resultado es una tabla NUEVA: no muta `spec` (un mismo spec
 -- semántico se reusa entre themes).
@@ -118,7 +118,7 @@ function Theme:style(spec)
   return out
 end
 
--- Theme:markdown_opts() -> tabla. Construye la tabla `theme` que `nu.text.markdown`
+-- Theme:markdown_opts() -> tabla. Construye la tabla `theme` que `enu.text.markdown`
 -- acepta (api.md §10): un `Style` con colores ya LITERALES por elemento markdown
 -- (`h1`..`h6`, `code`, `emphasis`, `strong`, `link`, `bullet`, `blockquote`,
 -- `rule`). Es el PUENTE que cablea la paleta semántica del theme al render de
@@ -172,7 +172,7 @@ end
 -- toolkit.theme.new{name?, colors} -> Theme. Construye un theme. `colors` es la
 -- paleta: nombres semánticos → literales. Se VALIDA al construir que cada valor
 -- sea un literal que el core aceptará (api.md §9.2): un theme que mapeara
--- "accent" a otro nombre, o a basura, fallaría más tarde dentro de `nu.ui.block`
+-- "accent" a otro nombre, o a basura, fallaría más tarde dentro de `enu.ui.block`
 -- con un error menos claro; validarlo aquí lo ancla al theme.
 function M.new(opts)
   opts = opts or {}

@@ -13,7 +13,7 @@
 --
 -- Código de error de la extensión: `EMESH` (forma de api.md §1.4 / ADR-009),
 -- más los reusados (`EINVAL`). git es dependencia declarada de ESTA extensión
--- (se invoca vía nu.proc, sin shell), nunca del core.
+-- (se invoca vía enu.proc, sin shell), nunca del core.
 
 local agent = require("agent")
 local sessions = require("sessions")
@@ -33,13 +33,13 @@ local function einval(message)
 end
 
 -- ---------------------------------------------------------------------------
--- git vía nu.proc (§3-§5). Sin shell: argv explícito (api.md §6).
+-- git vía enu.proc (§3-§5). Sin shell: argv explícito (api.md §6).
 -- ---------------------------------------------------------------------------
 
 local function git(argv, opts)
   local full = { "git" }
   for _, a in ipairs(argv) do full[#full + 1] = a end
-  return nu.proc.run(full, { cwd = opts and opts.cwd })
+  return enu.proc.run(full, { cwd = opts and opts.cwd })
 end
 
 local function git_ok(argv, opts, what)
@@ -64,12 +64,12 @@ end
 -- ---------------------------------------------------------------------------
 
 local function load_toml(path, what)
-  local ok, raw = pcall(nu.fs.read, path)
+  local ok, raw = pcall(enu.fs.read, path)
   if not ok then
     emesh(string.format("no se pudo leer el %s %q: %s", what, path,
       (type(raw) == "table" and raw.message) or tostring(raw)))
   end
-  local ok2, spec = pcall(nu.toml.decode, raw)
+  local ok2, spec = pcall(enu.toml.decode, raw)
   if not ok2 then
     emesh(string.format("el %s %q no es TOML válido: %s", what, path,
       (type(spec) == "table" and spec.message) or tostring(spec)))
@@ -142,15 +142,15 @@ end
 -- el objeto, no hace falta rama). Relojes no sincronizados: umbrales generosos.
 -- ---------------------------------------------------------------------------
 
-local CLAIM_PREFIX = "refs/nu/mesh/claims/"
+local CLAIM_PREFIX = "refs/enu/mesh/claims/"
 
 -- El sha del árbol vacío es una constante de git; commit-tree sobre él fabrica
 -- el commit-baliza sin tocar el índice ni el working tree.
 local EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 local function claim_commit(opts)
-  local info = nu.json.encode({ hostname = nu.sys.hostname(), ts = nu.sys.now_ms() })
-  local r = git_ok({ "-c", "user.email=mesh@nu", "-c", "user.name=nu-mesh",
+  local info = enu.json.encode({ hostname = enu.sys.hostname(), ts = enu.sys.now_ms() })
+  local r = git_ok({ "-c", "user.email=mesh@enu", "-c", "user.name=enu-mesh",
     "commit-tree", EMPTY_TREE, "-m", info }, opts, "commit-tree del claim")
   return trim(r.stdout)
 end
@@ -206,7 +206,7 @@ function M.claim_info(job_id, opts)
     return nil
   end
   local msg = r.stdout:match("\n\n(.*)$") or ""
-  local ok, info = pcall(nu.json.decode, trim(msg))
+  local ok, info = pcall(enu.json.decode, trim(msg))
   if ok and type(info) == "table" then
     return info
   end
@@ -232,7 +232,7 @@ M.worktree = {}
 function M.worktree.add(base, opts)
   if type(base) ~= "string" or base == "" then einval("mesh.worktree.add espera un sha base") end
   local dir = (opts and opts.dir)
-    or (nu.fs.tmpdir() .. "/mesh-" .. base:sub(1, 12) .. "-" .. tostring(nu.sys.now_ms()))
+    or (enu.fs.tmpdir() .. "/mesh-" .. base:sub(1, 12) .. "-" .. tostring(enu.sys.now_ms()))
   git_ok({ "worktree", "add", "--detach", dir, base }, opts, "worktree add")
   return dir
 end
@@ -251,7 +251,7 @@ end
 local function verify_skills(role, wt)
   local pinned = role.skills or {}
   for _, s in ipairs(pinned) do
-    local path = wt .. "/.nu/skills/" .. s.name .. "/SKILL.md"
+    local path = wt .. "/.enu/skills/" .. s.name .. "/SKILL.md"
     local r = git({ "hash-object", path }, { cwd = wt })
     if r.code ~= 0 then
       emesh(string.format("la skill pineada %q no existe en el worktree (%s)", s.name, path))
@@ -273,16 +273,16 @@ end
 
 local function open_fork_session(job, role, wt, sopts)
   local f = job.fork
-  local traw = nu.fs.read(wt .. "/" .. f.parent_transcript)
+  local traw = enu.fs.read(wt .. "/" .. f.parent_transcript)
   local first_line = traw:match("([^\n]*)")
-  local ok, meta = pcall(nu.json.decode, first_line)
+  local ok, meta = pcall(enu.json.decode, first_line)
   if not ok or type(meta) ~= "table" or type(meta.id) ~= "string" then
     emesh(string.format("el transcript padre %q no empieza por una línea `meta` válida (sesiones.md §3)",
       f.parent_transcript))
   end
   local dest = sessions.dir(wt)
-  nu.fs.mkdir(dest)
-  nu.fs.write(dest .. "/" .. meta.id .. ".jsonl", traw)
+  enu.fs.mkdir(dest)
+  enu.fs.write(dest .. "/" .. meta.id .. ".jsonl", traw)
 
   local popts = {}
   for k, v in pairs(sopts) do popts[k] = v end
@@ -304,17 +304,17 @@ end
 -- para que el controlador remoto lea DATOS, no prosa) van a bordo.
 local function attach_and_push(s, wt, job, result, opts)
   local tpath = sessions.dir(wt) .. "/" .. s.id .. ".jsonl"
-  nu.fs.mkdir(wt .. "/.nu/mesh")
-  if nu.fs.stat(tpath) ~= nil then
-    nu.fs.copy(tpath, wt .. "/.nu/mesh/transcript.jsonl")
+  enu.fs.mkdir(wt .. "/.enu/mesh")
+  if enu.fs.stat(tpath) ~= nil then
+    enu.fs.copy(tpath, wt .. "/.enu/mesh/transcript.jsonl")
   end
-  nu.fs.write(wt .. "/.nu/mesh/result.json", nu.json.encode({
+  enu.fs.write(wt .. "/.enu/mesh/result.json", enu.json.encode({
     job_id  = job.id,
     denials = result.denials,
     usage   = result.usage,
   }))
   git_ok({ "add", "-A" }, { cwd = wt }, "add del resultado")
-  git_ok({ "-c", "user.email=mesh@nu", "-c", "user.name=nu-mesh",
+  git_ok({ "-c", "user.email=mesh@enu", "-c", "user.name=enu-mesh",
     "commit", "--allow-empty", "-m", "mesh: resultado de " .. job.id },
     { cwd = wt }, "commit del resultado")
   git_ok({ "push", "--quiet", remote_of(opts), "HEAD:refs/heads/" .. job.branch },
@@ -333,7 +333,7 @@ function M.run_job(job, role, opts)
     -- 1. El territorio físico, con limpieza garantizada (F1: cleanup).
     local wt = M.worktree.add(job.base, { cwd = opts.cwd, remote = opts.remote })
     if opts.keep_worktree ~= true then
-      nu.task.cleanup(function() M.worktree.remove(wt, { cwd = opts.cwd }) end)
+      enu.task.cleanup(function() M.worktree.remove(wt, { cwd = opts.cwd }) end)
     end
 
     -- 2. Skills pineadas: el hash es la aprobación (§9). Mismatch → muere aquí.
@@ -351,25 +351,25 @@ function M.run_job(job, role, opts)
       s = agent.session(sopts)
       first_message = job.prompt
     end
-    nu.task.cleanup(function() s:close() end)
+    enu.task.cleanup(function() s:close() end)
 
     -- 4. Denegaciones como DATO (G40): vuelven en Result.denials y en el
     -- result.json de la rama — el bucle de escalado (enmienda del Role) las lee.
-    local dsub = nu.events.on("agent:permission.denied", function(p)
+    local dsub = enu.events.on("agent:permission.denied", function(p)
       if p.session == s.id then result.denials[#result.denials + 1] = p end
     end)
-    nu.task.cleanup(function() dsub:cancel() end)
+    enu.task.cleanup(function() dsub:cancel() end)
 
     -- 5. Presupuesto DURO en el driver: max_turns ya viaja en los opts; el tope
     -- de coste corta el turno con cancel (posible desde que cost_usd se acumula).
     local budget = role.budget or {}
     if type(budget.max_cost_usd) == "number" then
-      local bsub = nu.events.on("agent:message", function(p)
+      local bsub = enu.events.on("agent:message", function(p)
         if p.session == s.id and s.usage.cost_usd > budget.max_cost_usd then
           s:cancel()
         end
       end)
-      nu.task.cleanup(function() bsub:cancel() end)
+      enu.task.cleanup(function() bsub:cancel() end)
     end
 
     -- 6. El turno (o turnos: send corre el loop completo, agente.md §2).
@@ -412,7 +412,7 @@ local function semaphore(n)
   return {
     acquire = function()
       if free > 0 then free = free - 1; return end
-      local f = nu.task.future()
+      local f = enu.task.future()
       waiters[#waiters + 1] = f
       f:await()
     end,
@@ -438,7 +438,7 @@ function M.tournament(t)
     fns[i] = function()
       if sem then
         sem.acquire()
-        nu.task.cleanup(sem.release)
+        enu.task.cleanup(sem.release)
       end
       local out = { dir = v.cwd }
       local ok, err = pcall(function()
@@ -449,7 +449,7 @@ function M.tournament(t)
         for k, val in pairs(v.opts or {}) do fopts[k] = val end
         fopts.cwd = v.cwd
         local child = t.session:fork(t.at, fopts)   -- re-aloja (G39)
-        nu.task.cleanup(function() child:close() end)
+        enu.task.cleanup(function() child:close() end)
         out.session_id = child.id
         out.message = child:send(v.nudge)
         if t.verify ~= nil then
@@ -468,7 +468,7 @@ function M.tournament(t)
       return out
     end
   end
-  return nu.task.all(fns) -- alineado con los inputs (G27)
+  return enu.task.all(fns) -- alineado con los inputs (G27)
 end
 
 return M

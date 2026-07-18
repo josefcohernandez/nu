@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.text.diff` (S25, inventario 🔒). La lógica propia a blindar es el
+// Tests de `enu.text.diff` (S25, inventario 🔒). La lógica propia a blindar es el
 // **diff line-based** (LCS + agrupado en hunks) y, sobre todo, su corrección en
 // los BORDES: inserción pura, borrado puro, cambio (del+add), cambio en la
 // primera/última línea, fichero vacío↔no vacío, `a == b` (sin hunks), una sola
@@ -363,14 +363,14 @@ func TestRenderDiffBlockEmpty(t *testing.T) {
 // Vía Lua: la firma desde el lado del autor de extensiones.
 // ───────────────────────────────────────────────────────────────────────────
 
-// TestDiffLua ejercita `nu.text.diff` desde Lua: inspecciona hunks (kind/text,
+// TestDiffLua ejercita `enu.text.diff` desde Lua: inspecciona hunks (kind/text,
 // rangos) y, con render, el Block.
 func TestDiffLua(t *testing.T) {
 	h := newHarness(t)
 
 	// Cambio en medio: 1 hunk con del+add y contexto.
 	h.eval(`
-		local r = nu.text.diff("a\nb\nVIEJA\nc\nd\n", "a\nb\nNUEVA\nc\nd\n")
+		local r = enu.text.diff("a\nb\nVIEJA\nc\nd\n", "a\nb\nNUEVA\nc\nd\n")
 		assert(#r.hunks == 1, "esperaba 1 hunk, hay " .. #r.hunks)
 		local hk = r.hunks[1]
 		assert(hk.old_start == 1, "old_start=" .. hk.old_start)
@@ -387,13 +387,13 @@ func TestDiffLua(t *testing.T) {
 
 	// a == b → sin hunks.
 	h.eval(`
-		local r = nu.text.diff("x\ny\n", "x\ny\n")
+		local r = enu.text.diff("x\ny\n", "x\ny\n")
 		assert(#r.hunks == 0, "a==b debe dar 0 hunks, hay " .. #r.hunks)
 	`)
 
 	// a vacío → todo add.
 	h.eval(`
-		local r = nu.text.diff("", "p\nq\n")
+		local r = enu.text.diff("", "p\nq\n")
 		assert(#r.hunks == 1, "1 hunk")
 		local hk = r.hunks[1]
 		assert(hk.old_start == 0 and hk.old_count == 0, "old vacío")
@@ -403,7 +403,7 @@ func TestDiffLua(t *testing.T) {
 
 	// render → block con .height legible.
 	b := buildBlock(t, h, `
-		local r = nu.text.diff("a\nVIEJA\nc\n", "a\nNUEVA\nc\n", { render = true })
+		local r = enu.text.diff("a\nVIEJA\nc\n", "a\nNUEVA\nc\n", { render = true })
 		return r.block
 	`)
 	// 1 hunk: cabecera + context a + del + add + context c = 5 líneas.
@@ -421,9 +421,9 @@ func TestDiffLuaErrors(t *testing.T) {
 		name string
 		code string
 	}{
-		{"opts no-tabla", `nu.text.diff("a", "b", 7)`},
-		{"theme nombre semántico (G22)", `nu.text.diff("a", "b", { theme = { add = { fg = "accent" } } })`},
-		{"theme no-tabla", `nu.text.diff("a", "b", { theme = 5 })`},
+		{"opts no-tabla", `enu.text.diff("a", "b", 7)`},
+		{"theme nombre semántico (G22)", `enu.text.diff("a", "b", { theme = { add = { fg = "accent" } } })`},
+		{"theme no-tabla", `enu.text.diff("a", "b", { theme = 5 })`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -440,7 +440,7 @@ return true`
 func TestDiffLuaTheme(t *testing.T) {
 	h := newHarness(t)
 	b := buildBlock(t, h, `
-		local r = nu.text.diff("VIEJA\n", "NUEVA\n", {
+		local r = enu.text.diff("VIEJA\n", "NUEVA\n", {
 			render = true,
 			theme = { add = { fg = "#00ff00" }, del = { fg = "#ff0000" } },
 		})

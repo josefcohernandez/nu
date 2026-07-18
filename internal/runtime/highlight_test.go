@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.text.highlight` (S24). La lógica propia a blindar es doble: (1) el
+// Tests de `enu.text.highlight` (S24). La lógica propia a blindar es doble: (1) el
 // **degradado a texto plano** ante un lenguaje desconocido o vacío (un Block sin
 // estilo, SIN error, texto exacto) —la red de seguridad del render de markdown en
 // streaming— y (2) el **mapeo de tokens a spans** (un snippet de un lenguaje
@@ -180,7 +180,7 @@ func TestHighlightViaLua(t *testing.T) {
 
 	// Un snippet de Go: el Block resultante tiene la altura esperada y es opaco
 	// (.width/.height legibles, contenido no).
-	b := buildBlock(t, h, `return nu.text.highlight("func main() {\n  x := 1\n}\n", "go")`)
+	b := buildBlock(t, h, `return enu.text.highlight("func main() {\n  x := 1\n}\n", "go")`)
 	if b.height != 3 {
 		t.Fatalf("highlight Lua (go): height = %d, want 3", b.height)
 	}
@@ -190,7 +190,7 @@ func TestHighlightViaLua(t *testing.T) {
 	}
 
 	// Lenguaje desconocido desde Lua → texto plano, SIN lanzar.
-	bp := buildBlock(t, h, `return nu.text.highlight("texto cualquiera\notra", "no-existe-lang")`)
+	bp := buildBlock(t, h, `return enu.text.highlight("texto cualquiera\notra", "no-existe-lang")`)
 	if s, _ := countStyledSpans(bp); s != 0 {
 		t.Fatalf("highlight Lua (desconocido): spans con estilo = %d, want 0", s)
 	}
@@ -199,14 +199,14 @@ func TestHighlightViaLua(t *testing.T) {
 	}
 
 	// .height legible desde Lua (el Block es opaco pero expone dimensiones).
-	got := h.eval(`local blk = nu.text.highlight("a := 1\nb := 2\n", "go"); return tostring(blk.height)`)
+	got := h.eval(`local blk = enu.text.highlight("a := 1\nb := 2\n", "go"); return tostring(blk.height)`)
 	if len(got) != 1 || got[0] != "2" {
 		t.Fatalf("blk.height desde Lua = %v, want [2]", got)
 	}
 
 	// Sin opts y con opts.theme por nombre: ambos válidos, no lanzan.
-	h.eval(`assert(nu.text.highlight("local x = 1", "lua")); return true`)
-	h.eval(`assert(nu.text.highlight("local x = 1", "lua", { theme = "monokai" })); return true`)
+	h.eval(`assert(enu.text.highlight("local x = 1", "lua")); return true`)
+	h.eval(`assert(enu.text.highlight("local x = 1", "lua", { theme = "monokai" })); return true`)
 }
 
 // TestHighlightViaLuaErrors: los usos malos de la firma → EINVAL (lang no-string,
@@ -215,9 +215,9 @@ func TestHighlightViaLua(t *testing.T) {
 func TestHighlightViaLuaErrors(t *testing.T) {
 	h := newHarness(t)
 	bad := []string{
-		`nu.text.highlight("code", 42)`,                   // lang no-string
-		`nu.text.highlight("code", "go", 7)`,              // opts no-tabla
-		`nu.text.highlight("code", "go", { theme = 99 })`, // theme no-string
+		`enu.text.highlight("code", 42)`,                   // lang no-string
+		`enu.text.highlight("code", "go", 7)`,              // opts no-tabla
+		`enu.text.highlight("code", "go", { theme = 99 })`, // theme no-string
 	}
 	for _, code := range bad {
 		full := `local ok, err = pcall(function() ` + code + ` end)
@@ -228,5 +228,5 @@ return true`
 	}
 
 	// lang ausente (nil) NO es error: degrada a texto plano (como "" ).
-	h.eval(`assert(nu.text.highlight("texto suelto")); return true`)
+	h.eval(`assert(enu.text.highlight("texto suelto")); return true`)
 }

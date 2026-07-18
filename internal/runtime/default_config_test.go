@@ -59,19 +59,19 @@ func TestOfficialProductSetExcludeExample(t *testing.T) {
 }
 
 // TestWithEnabledPluginsEphemeral blinda el modo EFÍMERO: `WithEnabledPlugins` fija la
-// activación EN MEMORIA sin escribir `nu.toml`, ganando sobre el fichero (o su ausencia).
+// activación EN MEMORIA sin escribir `enu.toml`, ganando sobre el fichero (o su ausencia).
 func TestWithEnabledPluginsEphemeral(t *testing.T) {
 	cfg := t.TempDir()
 	rt := New(WithDataDir(t.TempDir()), WithConfigDir(cfg),
 		WithEnabledPlugins([]string{"example"}))
 	t.Cleanup(rt.Close)
 
-	// No hay `nu.toml` previo y el override NO debe crear uno (es en memoria).
+	// No hay `enu.toml` previo y el override NO debe crear uno (es en memoria).
 	if err := rt.Boot(); err != nil {
 		t.Fatalf("Boot con override falló: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(cfg, nuTomlName)); !os.IsNotExist(err) {
-		t.Fatalf("el modo efímero NO debe escribir nu.toml; err=%v", err)
+		t.Fatalf("el modo efímero NO debe escribir enu.toml; err=%v", err)
 	}
 
 	// La extensión inyectada en memoria se cargó (source=builtin).
@@ -82,10 +82,10 @@ func TestWithEnabledPluginsEphemeral(t *testing.T) {
 }
 
 // TestWithEnabledPluginsOverridesToml blinda que el override (efímero) GANA sobre un
-// `nu.toml` existente: el fichero queda intacto, pero la activación es la del override.
+// `enu.toml` existente: el fichero queda intacto, pero la activación es la del override.
 func TestWithEnabledPluginsOverridesToml(t *testing.T) {
 	cfg := t.TempDir()
-	// Un `nu.toml` que NO activa example, con una clave ajena que debe sobrevivir.
+	// Un `enu.toml` que NO activa example, con una clave ajena que debe sobrevivir.
 	if err := os.WriteFile(filepath.Join(cfg, nuTomlName),
 		[]byte("[watchdog]\nslice_budget_ms = 250\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestWithEnabledPluginsOverridesToml(t *testing.T) {
 	// El fichero en disco NO cambió (override es solo memoria).
 	data, _ := os.ReadFile(filepath.Join(cfg, nuTomlName))
 	if string(data) != "[watchdog]\nslice_budget_ms = 250\n" {
-		t.Fatalf("el override no debe tocar nu.toml; quedó:\n%s", data)
+		t.Fatalf("el override no debe tocar enu.toml; quedó:\n%s", data)
 	}
 	// Pero example está activo pese a no estar en el fichero.
 	h := &harness{t: t, rt: rt}
@@ -110,7 +110,7 @@ func TestWithEnabledPluginsOverridesToml(t *testing.T) {
 }
 
 // TestWriteDefaultConfigPersistent blinda el modo PERSISTENTE: `WriteDefaultConfig`
-// escribe el conjunto de producto en `nu.toml`, devuelve qué escribió y dónde, y es
+// escribe el conjunto de producto en `enu.toml`, devuelve qué escribió y dónde, y es
 // idempotente.
 func TestWriteDefaultConfigPersistent(t *testing.T) {
 	rt, cfg := newBareRuntime(t)
@@ -134,7 +134,7 @@ func TestWriteDefaultConfigPersistent(t *testing.T) {
 	// Lo escrito coincide con `plugins.enabled` del fichero.
 	cfgData, err := loadNuTomlForTest(cfg)
 	if err != nil {
-		t.Fatalf("releer nu.toml: %v", err)
+		t.Fatalf("releer enu.toml: %v", err)
 	}
 	got := append([]string(nil), cfgData.Plugins.Enabled...)
 	want := append([]string(nil), names...)
@@ -171,7 +171,7 @@ func TestWriteDefaultConfigPersistent(t *testing.T) {
 }
 
 // TestWriteDefaultConfigPreservesAndRejectsMalformed blinda dos garantías heredadas de
-// `writeEnabledPlugins`: (a) preserva claves ajenas del `nu.toml`; (b) un `nu.toml` mal
+// `writeEnabledPlugins`: (a) preserva claves ajenas del `enu.toml`; (b) un `enu.toml` mal
 // formado NO se sobrescribe (error accionable).
 func TestWriteDefaultConfigPreservesAndRejectsMalformed(t *testing.T) {
 	t.Run("preserva config existente", func(t *testing.T) {
@@ -197,7 +197,7 @@ func TestWriteDefaultConfigPreservesAndRejectsMalformed(t *testing.T) {
 		}
 	})
 
-	t.Run("nu.toml mal formado no se sobrescribe", func(t *testing.T) {
+	t.Run("enu.toml mal formado no se sobrescribe", func(t *testing.T) {
 		cfg := t.TempDir()
 		bad := "esto no es toml = = [[[\n"
 		if err := os.WriteFile(filepath.Join(cfg, nuTomlName), []byte(bad), 0o644); err != nil {
@@ -207,12 +207,12 @@ func TestWriteDefaultConfigPreservesAndRejectsMalformed(t *testing.T) {
 		t.Cleanup(rt.Close)
 		_, _, _, err := rt.WriteDefaultConfig()
 		if err == nil {
-			t.Fatal("WriteDefaultConfig debería fallar ante un nu.toml mal formado")
+			t.Fatal("WriteDefaultConfig debería fallar ante un enu.toml mal formado")
 		}
 		// El fichero roto sigue intacto (no se pisó la config del usuario).
 		data, _ := os.ReadFile(filepath.Join(cfg, nuTomlName))
 		if string(data) != bad {
-			t.Fatalf("el nu.toml mal formado NO debe sobrescribirse; quedó:\n%s", data)
+			t.Fatalf("el enu.toml mal formado NO debe sobrescribirse; quedó:\n%s", data)
 		}
 	})
 }

@@ -1,12 +1,16 @@
-# Publicación de releases de `nu`. Se dispara al pushear un tag `vX.Y.Z` y produce
+# Publicación de releases de `enu`. Se dispara al pushear un tag `vX.Y.Z` y produce
 # una GitHub Release con el binario estático cross-compilado a las plataformas
 # objetivo v1, más sus checksums. Es DevOps del operador (ADR-013); el operador
 # decide cuándo `main` está listo y crea el tag a mano:
 #
 #     git tag v0.1.0 && git push origin v0.1.0
 #
+# El PROCEDIMIENTO completo (bump de versión, merge develop→main, y la reintegración
+# main→develop posterior que evita el aviso "main had recent pushes" de GitHub) está
+# en el runbook docs/ops/release.md. Este workflow es solo el tramo de tag → release.
+#
 # Versionado (estrategia A de ADR-013): la fuente de verdad de la versión son las
-# constantes de internal/runtime/nu.go (expuestas como `nu.version`). Este workflow
+# constantes de internal/runtime/enu.go (expuestas como `enu.version`). Este workflow
 # NO inyecta la versión por -ldflags; la VERIFICA contra el tag (job verificar-version)
 # y aborta si divergen. Así lo publicado es bit-a-bit lo que está en el repo.
 #
@@ -55,10 +59,10 @@ jobs:
       - name: Comparar con las constantes del runtime
         # Leemos la versión EJECUTANDO el propio runtime (go run . -e), no con grep:
         # usa la misma lógica de composición que el binario real (registerNu
-        # construye nu.version), así que validamos exactamente lo que verá el usuario,
+        # construye enu.version), así que validamos exactamente lo que verá el usuario,
         # sin fragilidad ante el orden de las constantes en nu.go.
         run: |
-          constantes=$(go run . -e 'return string.format("%d.%d.%d", nu.version.major, nu.version.minor, nu.version.patch)')
+          constantes=$(go run . -e 'return string.format("%d.%d.%d", enu.version.major, enu.version.minor, enu.version.patch)')
           # De la versión del tag tomamos solo X.Y.Z (descartando un posible -rcN),
           # porque las constantes son siempre X.Y.Z.
           tag_xyz="${{ steps.tag.outputs.version }}"
@@ -66,7 +70,7 @@ jobs:
           echo "Constantes (nu.go): $constantes"
           echo "Tag (X.Y.Z):        $tag_xyz"
           if [ "$constantes" != "$tag_xyz" ]; then
-            echo "::error::El tag v$tag_xyz no coincide con nu.version=$constantes en internal/runtime/nu.go. Ajusta las constantes (VersionMajor/Minor/Patch) o el tag antes de publicar." >&2
+            echo "::error::El tag v$tag_xyz no coincide con enu.version=$constantes en internal/runtime/nu.go. Ajusta las constantes (VersionMajor/Minor/Patch) o el tag antes de publicar." >&2
             exit 1
           fi
 
@@ -105,19 +109,19 @@ jobs:
         # Binario estático (CGO_ENABLED=0, ADR-001), reproducible (-trimpath),
         # pequeño (-ldflags "-s -w"). Se empaqueta en tar.gz para preservar el bit
         # de ejecución en la descarga y seguir la convención de los instaladores
-        # (eget, asdf, Homebrew...). Nombre: nu-vX.Y.Z-<goos>-<goarch>.tar.gz.
+        # (eget, asdf, Homebrew...). Nombre: enu-vX.Y.Z-<goos>-<goarch>.tar.gz.
         run: |
           mkdir -p dist
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/nu .
-          nombre="nu-v${VERSION}-${GOOS}-${GOARCH}"
-          tar -C dist -czf "dist/${nombre}.tar.gz" nu
-          rm dist/nu
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/enu .
+          nombre="enu-v${VERSION}-${GOOS}-${GOARCH}"
+          tar -C dist -czf "dist/${nombre}.tar.gz" enu
+          rm dist/enu
           echo "Empaquetado: ${nombre}.tar.gz"
 
       - name: Subir artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: nu-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: enu-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*.tar.gz
           if-no-files-found: error
 

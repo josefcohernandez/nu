@@ -1,6 +1,8 @@
-module github.com/dbareagimeno/nu
+module github.com/dbareagimeno/enu
 
-go 1.25.0
+go 1.26.3
+
+toolchain go1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -11,11 +13,9 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/yuin/goldmark v1.7.8
+	golang.org/x/sys v0.44.0
 	golang.org/x/term v0.13.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require (
-	github.com/dlclark/regexp2 v1.11.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
-)
+require github.com/dlclark/regexp2 v1.11.0 // indirect

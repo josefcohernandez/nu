@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b: nu.http.request y nu.http.stream sobre wasm (§8). Petición/stream
+// Tests de M13b: enu.http.request y enu.http.stream sobre wasm (§8). Petición/stream
 // reales contra servidores httptest LOCALES (herméticos, sin red externa);
 // status/headers/body y los trozos/eventos del stream cruzan a Lua. Las primitivas ⏸
 // corren en una task y el driver (RunTasks) las lleva a término. El streaming
@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
-// wasmHTTPRun registra nu.http sobre una Instance, evalúa `setup` (que crea tasks) y
+// wasmHTTPRun registra enu.http sobre una Instance, evalúa `setup` (que crea tasks) y
 // conduce el bucle; devuelve la global `out`. El plazo acota un cuelgue accidental
 // (un `next` de stream que nunca vuelve) a un fallo claro, no a un test colgado.
 func wasmHTTPRun(t *testing.T, rt *Runtime, setup string) string {
@@ -59,8 +59,8 @@ func TestHTTPWasmRequest(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local res = nu.http.request({ url = "`+srv.URL+`", method = "POST" })
+		enu.task.spawn(function()
+			local res = enu.http.request({ url = "`+srv.URL+`", method = "POST" })
 			out = tostring(res.status) .. ":" .. res.body .. ":" .. tostring(res.headers["X-Test"])
 		end)`)
 	if out != "201:cuerpo:POST:hola" {
@@ -80,8 +80,8 @@ func TestHTTPWasmRequestBody(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local res = nu.http.request({
+		enu.task.spawn(function()
+			local res = enu.http.request({
 				url = "`+srv.URL+`",
 				method = "PUT",
 				body = "datos",
@@ -99,8 +99,8 @@ func TestHTTPWasmRequestSinURL(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local ok, e = pcall(function() return nu.http.request({ method = "GET" }) end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() return enu.http.request({ method = "GET" }) end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
 		end)`)
 	if out != "false:EINVAL" {
@@ -108,7 +108,7 @@ func TestHTTPWasmRequestSinURL(t *testing.T) {
 	}
 }
 
-// --- nu.http.stream (el handle Stream) ----------------------------------------
+// --- enu.http.stream (el handle Stream) ----------------------------------------
 
 // M13b.http.stream.1: chunks() — los trozos crudos del body llegan según se emiten
 // (flush) y se acumulan hasta el fin (nil). El equivalente wasm de TestStreamChunksRaw:
@@ -125,8 +125,8 @@ func TestHTTPWasmStreamChunks(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`" })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`" })
 			local acc, n = "", 0
 			for c in st:chunks() do acc = acc .. c; n = n + 1 end
 			st:close()
@@ -152,8 +152,8 @@ func TestHTTPWasmStreamEvents(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`" })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`" })
 			local status = st.status
 			local n, e1ev, e1data, e1id, e2data = 0, nil, nil, nil, nil
 			for ev in st:events() do
@@ -186,8 +186,8 @@ func TestHTTPWasmStreamEventsSplit(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`" })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`" })
 			local n, ev_event, ev_data = 0, nil, nil
 			for ev in st:events() do
 				n = n + 1
@@ -214,8 +214,8 @@ func TestHTTPWasmStreamStatus404(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local ok, st = pcall(function() return nu.http.stream({ url = "`+srv.URL+`" }) end)
+		enu.task.spawn(function()
+			local ok, st = pcall(function() return enu.http.stream({ url = "`+srv.URL+`" }) end)
 			local status = nil
 			if ok then status = st.status; st:close() end
 			out = tostring(ok) .. ":" .. tostring(status)
@@ -239,8 +239,8 @@ func TestHTTPWasmStreamCloseIdempotent(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`" })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`" })
 			st:close()
 			st:close()
 			st:close()
@@ -274,9 +274,9 @@ func TestHTTPWasmStreamBackpressureEIO(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`" })
-			nu.task.sleep(300)   -- deja que el servidor desborde el buffer antes de leer
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`" })
+			enu.task.sleep(300)   -- deja que el servidor desborde el buffer antes de leer
 			local code = nil
 			local ok, e = pcall(function()
 				for c in st:chunks() do end
@@ -310,8 +310,8 @@ func TestHTTPWasmStreamIdleTimeoutETIMEOUT(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = "`+srv.URL+`", idle_timeout_ms = 80 })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = "`+srv.URL+`", idle_timeout_ms = 80 })
 			local it = st:events()
 			local ev = it()                       -- llega el primero
 			local first = ev and ev.data or nil
@@ -333,9 +333,9 @@ func TestHTTPWasmStreamBadIdleTimeoutEINVAL(t *testing.T) {
 	rt := &Runtime{http: newHTTPState("", "")}
 	t.Cleanup(func() { rt.http.close() })
 	out := wasmHTTPRun(t, rt, `
-		nu.task.spawn(function()
-			local _, e1 = pcall(function() nu.http.stream({ url = "http://x", idle_timeout_ms = -1 }) end)
-			local _, e2 = pcall(function() nu.http.stream({ url = "http://x", idle_timeout_ms = "diez" }) end)
+		enu.task.spawn(function()
+			local _, e1 = pcall(function() enu.http.stream({ url = "http://x", idle_timeout_ms = -1 }) end)
+			local _, e2 = pcall(function() enu.http.stream({ url = "http://x", idle_timeout_ms = "diez" }) end)
 			out = e1.code .. ":" .. e2.code
 		end)`)
 	if out != "EINVAL:EINVAL" {

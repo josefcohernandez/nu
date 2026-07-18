@@ -1,0 +1,254 @@
+---
+// 404 (pantalla 14a). Astro genera dist/404.html desde esta página; GitHub
+// Pages la sirve para cualquier ruta bajo /enu/ que no exista.
+//
+// La ruta pedida y la sugerencia "¿querías decir?" (distancia de Levenshtein)
+// se resuelven en CLIENTE: en build-time no se sabe qué URL disparó el 404.
+// Lo que sí sale de build-time es el MANIFIESTO de rutas reales del sitio
+// (docmap + apimap + /plugins + portada), embebido como JSON — no se escribe
+// a mano (ver handoff §14a).
+//
+// El chrome (header + statusline + mensaje de error) SÍ es bilingüe (a
+// diferencia de /plugins, que es contenido): son claves nuevas en i18n.ts
+// (fase D: e404Msg, e404Sug, e404Index) más `kBack` reutilizada para "[q]
+// portada".
+import Base from '../layouts/Base.astro';
+import HeaderInternal from '../components/HeaderInternal.astro';
+import Statusline from '../components/Statusline.astro';
+import { DOCS, TOTAL } from '../lib/docmap';
+import { API_ORDER } from '../lib/apimap';
+import { i18n } from '../lib/i18n';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const es = i18n.es;
+
+// Manifiesto de rutas reales, relativas (sin base, sin barra inicial): docs
+// ×18, api ×16, /plugins y la portada (''). El slug del primer doc del
+// docmap alimenta también el link [d].
+const manifest: string[] = [
+  ...DOCS.map((d) => `docs/${d.slug}`),
+  ...API_ORDER.map((s) => `api/${s}`),
+  'plugins',
+  '',
+];
+const primerDoc = DOCS[0].slug;
+
+// La cabecera del mock (14a) no marca ninguna pestaña activa (ninguna de
+// docs/api/plugins es "donde estamos": el 404 no pertenece a ninguna
+// sección). HeaderInternal exige un active de esos tres; se le pasa un valor
+// que no calza con ningún tab a propósito, así ninguno se pinta invertido.
+const sinActiva = '' as unknown as 'docs' | 'api' | 'plugins';
+
+// Statusline: "404 · 0/18" (18 = TOTAL real de la wiki; el mock usaba 15 de
+// mentira con menos docs). Teclas del mock: solo [:] y [/] (no hay j/k/n/p:
+// el 404 no es un documento paginable).
+const keys = [
+  { k: ':', label: es.kCmd, i18n: 'kCmd' },
+  { k: '/', label: es.kSearch, i18n: 'kSearch' },
+];
+---
+<Base title="404 · enu" description="E404: no es un documento del editor.">
+  <div class="e404">
+    <HeaderInternal active={sinActiva} />
+
+    <main class="e404-body">
+      <div class="e404-line">
+        <span class="dim">$ enu </span><span id="enu-404-path" class="path"></span>
+      </div>
+      <div class="e404-gap"></div>
+      <div class="e404-msg">
+        <span class="c4">E404: <span data-i18n="e404Msg">{es.e404Msg}</span>: </span><span id="enu-404-path2" class="path c4"></span>
+      </div>
+      <div class="e404-gap"></div>
+      <div class="e404-line">
+        <span data-i18n="e404Sug">{es.e404Sug}</span>{' '}<a id="enu-404-suggestion" class="sugerencia" href={`${base}/`}></a>
+      </div>
+      <div class="e404-gap-lg"></div>
+      <div class="e404-key">
+        <a class="enu-key-link" href={`${base}/docs/${primerDoc}`}
+          ><span class="dim">[</span><b class="key">d</b><span class="dim">]</span></a
+        > <span data-i18n="e404Index">{es.e404Index}</span>
+      </div>
+      <div class="e404-key">
+        <a class="enu-key-link" href={`${base}/`}
+          ><span class="dim">[</span><b class="key">q</b><span class="dim">]</span></a
+        > <span data-i18n="kBack">{es.kBack}</span>
+      </div>
+      <div class="e404-gap"></div>
+      <div class="prompt">
+        <span id="enu-prompt" class="dim">&gt;</span>
+        <span id="enu-typed" class="bright"></span><span class="enu-cursor"></span>
+      </div>
+      <div id="enu-feedback" class="feedback"></div>
+    </main>
+
+    <Statusline left={`404 · 0/${TOTAL}`} keys={keys} />
+  </div>
+
+  <script define:vars={{ manifest, base }}>
+    // Config de build para el script de cliente de abajo (evita interpolar
+    // literales sueltos en el módulo: mismo patrón que api/[slug].astro).
+    window.__enu404 = { manifest, base };
+  </script>
+  <script>
+    import { initKeyboard } from '../scripts/keyboard';
+    import { i18n } from '../lib/i18n';
+
+    interface Enu404Cfg {
+      manifest: string[];
+      base: string;
+    }
+    const cfg = (window as unknown as { __enu404: Enu404Cfg }).__enu404;
+
+    // Distancia de Levenshtein (DP clásica), implementada aquí — no hay
+    // dependencia externa para esto (handoff §14a: "distancia de edición").
+    function levenshtein(a: string, b: string): number {
+      const m = a.length;
+      const n = b.length;
+      const d: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) d[i][0] = i;
+      for (let j = 0; j <= n; j++) d[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const coste = a[i - 1] === b[j - 1] ? 0 : 1;
+          d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + coste);
+        }
+      }
+      return d[m][n];
+    }
+
+    // Ruta pedida: pathname sin el prefijo /enu/ (base) ni barras sueltas.
+    // Caso irreal en producción: si coincidiera exactamente con una ruta del
+    // manifiesto (solo posible en el fallback de dev de Astro), no pasa nada
+    // especial — la sugerencia sale igual, aunque sea la misma ruta.
+    let rutaPedida = window.location.pathname;
+    if (cfg.base && rutaPedida.startsWith(cfg.base)) rutaPedida = rutaPedida.slice(cfg.base.length);
+    rutaPedida = rutaPedida.replace(/^\/+/, '').replace(/\/+$/, '');
+
+    document.querySelectorAll<HTMLElement>('#enu-404-path, #enu-404-path2').forEach((el) => {
+      el.textContent = rutaPedida;
+    });
+
+    // Sugerencia por distancia de edición contra el manifiesto build-time.
+    let mejor = cfg.manifest[0] ?? '';
+    let mejorDist = Infinity;
+    for (const ruta of cfg.manifest) {
+      const dist = levenshtein(rutaPedida, ruta);
+      if (dist < mejorDist) {
+        mejorDist = dist;
+        mejor = ruta;
+      }
+    }
+    const sug = document.getElementById('enu-404-suggestion');
+    if (sug) {
+      sug.textContent = mejor === '' ? '/' : mejor;
+      sug.setAttribute('href', mejor === '' ? `${cfg.base}/` : `${cfg.base}/${mejor}`);
+    }
+
+    // Reetiqueta el "$ enu" y demás textos según el idioma activo al cargar y
+    // en cada cambio (initKeyboard/applyLang ya cubre los [data-i18n], pero
+    // el propio bloque no necesita más: se deja aquí solo por si el lang
+    // cambia después de pintar la sugerencia, que no lleva data-i18n propio).
+    void i18n; // referenciado para dejar constancia de la fuente del copy
+
+    // Tecla suelta 'q' con buffer vacío → portada. keyboard.ts en modo 'home'
+    // solo reserva i/d/a/g; [q] es propio de esta pantalla (como en el resto
+    // de páginas internas) y se envuelve aquí SIN tocar keyboard.ts. Se
+    // registra ANTES de initKeyboard para leer el buffer (reflejado en
+    // #enu-typed) antes de que el handler de home lo mute.
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'q') return;
+      const activo = document.activeElement;
+      if (
+        activo &&
+        (activo.tagName === 'INPUT' ||
+          activo.tagName === 'TEXTAREA' ||
+          (activo as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+      const typed = document.getElementById('enu-typed');
+      if (typed && typed.textContent !== '') return; // hay buffer: lo gestiona el modo home
+      window.location.href = `${cfg.base}/`;
+    });
+
+    initKeyboard({ mode: 'home' });
+  </script>
+</Base>
+
+<style>
+  .e404 {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .e404-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 56px;
+    font-size: var(--fs-6);
+    line-height: 2.1;
+    max-width: 640px;
+  }
+  .e404-line {
+    color: var(--fg);
+  }
+  .e404-line .dim {
+    color: var(--dim);
+  }
+  .e404-msg {
+    font-weight: 600;
+  }
+  .e404-msg .c4 {
+    color: var(--c4);
+  }
+  .path {
+    color: var(--fg);
+  }
+  .path.c4 {
+    color: var(--c4);
+  }
+  .sugerencia {
+    color: var(--key);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .e404-gap {
+    height: 14px;
+  }
+  .e404-gap-lg {
+    height: 22px;
+  }
+  .e404-key {
+    color: var(--fg);
+  }
+  .enu-key-link .dim {
+    color: var(--dim);
+  }
+  .enu-key-link .key {
+    color: var(--key);
+    font-weight: 600;
+  }
+  .prompt {
+    margin-top: 18px;
+  }
+  .feedback {
+    color: var(--dim);
+    font-size: var(--fs-4);
+    min-height: 20px;
+    white-space: pre-wrap;
+  }
+  .bright {
+    color: var(--bright);
+  }
+
+  @media (max-width: 767px) {
+    .e404-body {
+      padding: 32px 24px;
+      font-size: var(--fs-5);
+    }
+  }
+</style>

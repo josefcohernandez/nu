@@ -1,0 +1,121 @@
+/* Overlay de búsqueda — pantalla 14c. Gramática visual del terminal: todo
+ * rectangular, sin border-radius, sin sombras, colores solo vía var(--*).
+ * El panel se superpone al contenido de la página actual (entre el header y la
+ * statusline); su top/bottom los fija search.ts midiendo esos elementos. */
+
+.nu-search {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  display: none;
+  flex-direction: column;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-5);
+  line-height: 2;
+}
+.nu-search.abierto {
+  display: flex;
+}
+
+.nu-search-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 48px;
+}
+
+/* Input real: solo en móvil (invoca el teclado virtual). En desktop el término
+ * se teclea con captura de teclado y se refleja en la statusline. */
+.nu-search-input {
+  display: none;
+  width: 100%;
+  background: var(--border);
+  color: var(--bright);
+  border: 1px solid var(--border);
+  font: inherit;
+  font-size: var(--fs-6);
+  padding: 9px 12px;
+  margin-bottom: 20px;
+  outline: none;
+}
+.nu-search-input::placeholder {
+  color: var(--dim);
+}
+
+/* Cabecera: «N coincidencias en M documentos para <término>». */
+.nu-search-head {
+  color: var(--dim);
+  margin-bottom: 16px;
+}
+.nu-search-head:empty {
+  margin-bottom: 0;
+}
+.nu-search-term {
+  background: var(--key);
+  color: var(--bg);
+  padding: 0 5px;
+  font-weight: 600;
+}
+
+/* Grupo por documento. */
+.nu-doc {
+  color: var(--bright);
+  font-weight: 600;
+}
+.nu-doc-lines {
+  padding-left: 24px;
+  margin-bottom: 14px;
+}
+
+/* Línea de resultado (una por sección/§). */
+.nu-line {
+  /* El fondo del activo se extiende hasta el borde izquierdo del grupo. */
+}
+.nu-sec {
+  color: var(--dim);
+}
+.nu-line .nu-caret {
+  display: none;
+  color: var(--key);
+}
+
+/* Término resaltado (pagefind envuelve las coincidencias en <mark>). */
+.nu-line mark {
+  background: var(--border);
+  color: var(--bright);
+  padding: 0 3px;
+}
+
+/* Resultado activo: fila con fondo border, término invertido key-sobre-bg y
+ * marcador ◂ al final. */
+.nu-line.activo {
+  background: var(--border);
+  margin-left: -12px;
+  padding: 0 12px;
+}
+.nu-line.activo mark {
+  background: var(--key);
+  color: var(--bg);
+  padding: 0 3px;
+}
+.nu-line.activo .nu-caret {
+  display: inline;
+}
+
+/* Mensaje (p. ej. índice no disponible en dev). */
+.nu-search-msg {
+  color: var(--dim);
+}
+
+@media (max-width: 767px) {
+  .nu-search {
+    /* Ancho completo (ya lo es); padding reducido. */
+  }
+  .nu-search-scroll {
+    padding: 20px 22px;
+  }
+  .nu-search-input {
+    display: block;
+  }
+}

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -132,6 +133,90 @@ func TestLuaErrorStringIsNotStructured(t *testing.T) {
 	}
 	if _, ok := err.(*StructuredError); ok {
 		t.Fatalf("una tabla sin code no debe verse como estructurada: %v", err)
+	}
+}
+
+// TestA40ChunkStructuredErrorSurvives (A-40): un chunk de `EvalString` (estado
+// PRINCIPAL, no task) que lanza un error ESTRUCTURADO `{code, message}` llega a Go
+// como *StructuredError con el code y el message FIELES. Es la contraparte de
+// `EvalTaskString` para el camino de chunk: el protocolo de separadores 0x01
+// transporta la tabla de error, no su texto rendido. Antes el code se reconstruía
+// parseando "CODE: mensaje"; ahora cruza por su tabla.
+func TestA40ChunkStructuredErrorSurvives(t *testing.T) {
+	h := newHarness(t)
+	se := h.evalErr(`error({ code = "ENOENT", message = "no encontré el fichero" })`)
+	if se.Code != "ENOENT" {
+		t.Fatalf("code: got %q, want ENOENT", se.Code)
+	}
+	if se.Message != "no encontré el fichero" {
+		t.Fatalf("message: got %q, want %q", se.Message, "no encontré el fichero")
+	}
+	// Un mensaje que a su vez contiene ": " no confunde el transporte (el 0x01 delimita,
+	// no el ": "): message íntegro.
+	se = h.evalErr(`error({ code = "EINVAL", message = "clave: valor: raro" })`)
+	if se.Code != "EINVAL" || se.Message != "clave: valor: raro" {
+		t.Fatalf("code/message alterados: code=%q message=%q", se.Code, se.Message)
+	}
+}
+
+// TestA40UserStringNotReclassified (A-40): un `error("ENOENT: ...")` de código de
+// USUARIO —un string cuyo prefijo coincide con un code reservado— NO se reclasifica
+// como error estructurado del core. El apaño anterior parseaba "CODE: mensaje" del
+// texto rendido (`strings.Cut` + `IsReservedCode`), y un `error("ENOENT: x", 0)`
+// (nivel 0, sin prefijo de posición) cruzaba como *StructuredError{ENOENT}; los
+// llamantes decidían códigos de salida por ese `code` inventado. Se cubre el nivel 0
+// (el caso que disparaba el falso positivo) y el nivel por defecto.
+func TestA40UserStringNotReclassified(t *testing.T) {
+	h := newHarness(t)
+	cases := []struct {
+		code       string
+		wantSubstr string
+	}{
+		{`error("ENOENT: no encontré X", 0)`, "ENOENT: no encontré X"},
+		{`error("EINVAL: dato raro")`, "EINVAL: dato raro"},
+	}
+	for _, c := range cases {
+		_, err := h.rt.EvalString(c.code)
+		if err == nil {
+			t.Fatalf("%s: esperaba un error", c.code)
+		}
+		if se, ok := err.(*StructuredError); ok {
+			t.Fatalf("%s: string de usuario reclasificado como estructurado code=%q (falso positivo A-40)", c.code, se.Code)
+		}
+		if !strings.Contains(err.Error(), c.wantSubstr) {
+			t.Fatalf("%s: el texto del usuario se perdió: %q", c.code, err.Error())
+		}
+	}
+}
+
+// TestA40NonStructuredErrorsReadable (A-40): los errores NO estructurados normales
+// —un `error("string")` cualquiera y un fallo de SINTAXIS— siguen llegando como error
+// simple y legible (nunca *StructuredError). El transporte por 0x01 no debe tragarse
+// ni disfrazar el texto.
+func TestA40NonStructuredErrorsReadable(t *testing.T) {
+	h := newHarness(t)
+
+	_, err := h.rt.EvalString(`error("algo explotó")`)
+	if err == nil {
+		t.Fatal("esperaba un error")
+	}
+	if _, ok := err.(*StructuredError); ok {
+		t.Fatalf("un error de string no debe verse como estructurado: %v", err)
+	}
+	if !strings.Contains(err.Error(), "algo explotó") {
+		t.Fatalf("mensaje ilegible: %q", err.Error())
+	}
+
+	// Error de sintaxis en el propio chunk: sólo hay texto, nunca estructurado.
+	_, err = h.rt.EvalString(`return 1 +`)
+	if err == nil {
+		t.Fatal("esperaba un error de sintaxis")
+	}
+	if _, ok := err.(*StructuredError); ok {
+		t.Fatalf("un error de sintaxis no debe verse como estructurado: %v", err)
+	}
+	if strings.TrimSpace(err.Error()) == "" {
+		t.Fatal("el error de sintaxis llegó sin texto")
 	}
 }
 

@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// Tests 🔒 de S15 (`nu.fs.watch`, api.md §5, §16). Lógica clave a blindar
+// Tests 🔒 de S15 (`enu.fs.watch`, api.md §5, §16). Lógica clave a blindar
 // (inventario 🔒, G7):
 //
 //   - ENTREGA EN LOTES (G7): una ráfaga de N cambios (un `git checkout` simulado)
@@ -26,7 +27,7 @@ import (
 // MODELO DE LOS TESTS. El handler de `watch` es síncrono: corre en el estado
 // principal bajo el token, entregado por la goroutine de fondo del watcher (como un
 // disparo de `every`). Para observarlo desde un `eval` síncrono se usa una task
-// "ancla" que mantiene el runtime vivo (con `nu.task.sleep`) mientras los cambios
+// "ancla" que mantiene el runtime vivo (con `enu.task.sleep`) mientras los cambios
 // del FS ocurren y se entregan; el handler acumula en globals Lua que el test lee
 // al final. Los tiempos son holgados (debounce corto, esperas largas) para no ser
 // flaky bajo `-race -count=4`; la sincronización fuerte (no solo timing) se logra
@@ -55,7 +56,7 @@ func TestWatchBatchesBurst(t *testing.T) {
 		batches = 0
 		total = 0
 		seen = {}
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 60 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 60 }, function(events)
 			batches = batches + 1
 			for _, e in ipairs(events) do
 				total = total + 1
@@ -105,7 +106,7 @@ func TestWatchGitignoreFilters(t *testing.T) {
 	h.eval(`
 		seen = {}
 		hits = 0
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 40 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 40 }, function(events)
 			for _, e in ipairs(events) do
 				hits = hits + 1
 				seen[e.path] = true
@@ -144,7 +145,7 @@ func TestWatchDebounceSeparatesBatches(t *testing.T) {
 
 	h.eval(`
 		batches = 0
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
 			batches = batches + 1
 		end)
 	`)
@@ -173,7 +174,7 @@ func TestWatchStopNoMoreBatches(t *testing.T) {
 
 	h.eval(`
 		batches = 0
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
 			batches = batches + 1
 		end)
 	`)
@@ -207,7 +208,7 @@ func TestWatchStopNoGoroutineLeak(t *testing.T) {
 	before := runtime.NumGoroutine()
 
 	h.eval(`
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 20 }, function(events) end)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 20 }, function(events) end)
 	`)
 	touch(t, filepath.Join(dir, "a.txt"), "1")
 	time.Sleep(60 * time.Millisecond)
@@ -239,7 +240,7 @@ func TestWatchKinds(t *testing.T) {
 	// vez para este path?"—.
 	h.eval(`
 		kinds = {}  -- kinds[path] = { create=true, modify=true, ... }
-		_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 25 }, function(events)
 			for _, e in ipairs(events) do
 				kinds[e.path] = kinds[e.path] or {}
 				kinds[e.path][e.kind] = true
@@ -281,7 +282,7 @@ func TestWatchRecursive(t *testing.T) {
 
 	h.eval(`
 		seen = {}
-		_w = nu.fs.watch(` + luaStr(dir) + `, { recursive = true, debounce_ms = 30 }, function(events)
+		_w = enu.fs.watch(` + luaStr(dir) + `, { recursive = true, debounce_ms = 30 }, function(events)
 			for _, e in ipairs(events) do seen[e.path] = true end
 		end)
 	`)
@@ -308,7 +309,7 @@ func TestWatchRecursive(t *testing.T) {
 
 // TestWatchFromTaskWorks: `watch` es "solo estado principal" (§16) en el sentido de
 // "no en workers" (donde ni se registra, S34), NO "no en tasks". Las tasks corren
-// en el event loop del estado principal y comparten el `nu` global, así que `watch`
+// en el event loop del estado principal y comparten el `enu` global, así que `watch`
 // —como `every`/`on`, que tampoco distinguen host de task— es invocable DESDE una
 // task: registra el `Watcher` síncronamente (no suspende) y los cambios llegan
 // luego como lotes. Se arranca el watch dentro de una task ancla que mantiene el
@@ -320,13 +321,13 @@ func TestWatchFromTaskWorks(t *testing.T) {
 	// suspender en el `watch` mismo, a que el handler reciba al menos un lote.
 	h.eval(`
 		batches = 0
-		nu.task.spawn(function()
-			_w = nu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 30 }, function(events)
+		enu.task.spawn(function()
+			_w = enu.fs.watch(` + luaStr(dir) + `, { debounce_ms = 30 }, function(events)
 				batches = batches + 1
 			end)
 			local intentos = 0
 			while batches < 1 and intentos < 200 do
-				nu.task.sleep(10)
+				enu.task.sleep(10)
 				intentos = intentos + 1
 			end
 		end)
@@ -347,7 +348,7 @@ func TestWatchFromTaskWorks(t *testing.T) {
 // existir para observarlo).
 func TestWatchNonexistentPath(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`nu.fs.watch("/no/existe/jamas/nunca", function() end)`)
+	se := h.evalErr(`enu.fs.watch("/no/existe/jamas/nunca", function() end)`)
 	if se.Code != CodeENOENT {
 		t.Fatalf("watch de inexistente: code=%q, want %q", se.Code, CodeENOENT)
 	}
@@ -359,7 +360,7 @@ func TestWatchStopIdempotent(t *testing.T) {
 	h := newHarness(t)
 	dir := t.TempDir()
 	h.eval(`
-		_w = nu.fs.watch(` + luaStr(dir) + `, function(events) end)
+		_w = enu.fs.watch(` + luaStr(dir) + `, function(events) end)
 		_w:stop()
 		_w:stop()
 		ok = true
@@ -368,7 +369,7 @@ func TestWatchStopIdempotent(t *testing.T) {
 }
 
 // TestWatchReloadReleasesHandle (G2 + S15): un `Watcher` se etiqueta por dueño y
-// `nu.plugin.reload` lo suelta —"reload no deja handlers huérfanos"—. Se comprueba
+// `enu.plugin.reload` lo suelta —"reload no deja handlers huérfanos"—. Se comprueba
 // a nivel Go: un plugin que arranca un `watch` en su `init.lua` registra un handle
 // bajo su nombre; tras `reload`, el handle viejo se soltó (su goroutine paró) y el
 // init re-creó otro: el conteo del registro queda en 1, no en 2 (sin fuga).
@@ -381,7 +382,7 @@ func TestWatchReloadReleasesHandle(t *testing.T) {
 	touch(t, filepath.Join(pdir, "plugin.toml"), "name = \"P\"\n")
 	// El init del plugin arranca un watcher sobre su propio directorio.
 	touch(t, filepath.Join(pdir, "init.lua"),
-		`_pw = nu.fs.watch(`+luaStr(pdir)+`, function(events) end)`)
+		`_pw = enu.fs.watch(`+luaStr(pdir)+`, function(events) end)`)
 
 	rt := New(WithDataDir(t.TempDir()), WithConfigDir(t.TempDir()), WithPluginDir(dir))
 	t.Cleanup(rt.Close)
@@ -400,7 +401,7 @@ func TestWatchReloadReleasesHandle(t *testing.T) {
 
 	// Recarga P dentro de una task (reload es ⏸): el watcher viejo se suelta y el
 	// init re-creado arranca otro. Sin etiquetado/untrack correcto, quedarían 2.
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
 	if got := countOwnerHandles(h, "P"); got != 1 {
 		t.Fatalf("G2: tras reload, P debe tener 1 handle (sin huérfanos); hay %d", got)
 	}
@@ -410,6 +411,63 @@ func TestWatchReloadReleasesHandle(t *testing.T) {
 	h.eval(`_pw:stop()`)
 	if got := countOwnerHandles(h, "P"); got != 0 {
 		t.Fatalf("tras stop del watcher, P debe quedar en 0 handles (untrack); hay %d", got)
+	}
+}
+
+// TestWatchConcurrentDeliveries (auditoría post-M17): varios watchers vivos
+// entregando lotes desde GOROUTINES DE FONDO DISTINTAS mientras el estado principal
+// también trabaja (la task ancla de waitFor entra a la VM desde el driver). El mutex
+// de la Instance (`mu`, con `slotMu` para el par ranura+Eval de EmitEvent) es la
+// única barrera que serializa esas entradas concurrentes a la VM: este test, corrido
+// bajo `-race` como el resto de la suite, delata cualquier "optimización" que lo
+// debilite. No afirma orden ni conteo exacto de lotes (eso ya lo cubren los otros
+// tests de S15): solo que TODOS los watchers entregan y ninguna entrada corre una
+// carrera.
+func TestWatchConcurrentDeliveries(t *testing.T) {
+	h := newHarness(t)
+	const nw = 4
+	dirs := make([]string, nw)
+	for i := range dirs {
+		dirs[i] = t.TempDir()
+	}
+
+	// nw watchers con debounce corto, cada uno con su contador propio: lotes
+	// pequeños y frecuentes maximizan el solape de las entregas.
+	for i, d := range dirs {
+		h.eval(`
+			c` + itoa(i) + ` = 0
+			_w` + itoa(i) + ` = enu.fs.watch(` + luaStr(d) + `, { debounce_ms = 15 }, function(events)
+				c` + itoa(i) + ` = c` + itoa(i) + ` + 1
+			end)
+		`)
+	}
+
+	// Ráfagas concurrentes: una goroutine Go por directorio, varias rondas separadas
+	// por más que el debounce para que cada watcher cierre y entregue VARIOS lotes,
+	// con las goroutines de deliver de los nw watchers compitiendo por mu/slotMu.
+	// Las escrituras son best-effort (no se puede t.Fatalf fuera de la goroutine del
+	// test); un fallo real lo delataría el waitFor de abajo.
+	var wg sync.WaitGroup
+	for _, d := range dirs {
+		wg.Add(1)
+		go func(d string) {
+			defer wg.Done()
+			for round := 0; round < 5; round++ {
+				for f := 0; f < 3; f++ {
+					_ = os.WriteFile(filepath.Join(d, "r"+itoa(round)+"f"+itoa(f)+".txt"), []byte("x"), 0o644)
+				}
+				time.Sleep(40 * time.Millisecond)
+			}
+		}(d)
+	}
+	wg.Wait()
+
+	// Todos los watchers deben haber entregado al menos un lote (la condición corre
+	// dentro del estado principal, intercalada con las entregas pendientes).
+	waitFor(h, `return c0 >= 1 and c1 >= 1 and c2 >= 1 and c3 >= 1`)
+
+	for i := 0; i < nw; i++ {
+		h.eval(`_w` + itoa(i) + `:stop()`)
 	}
 }
 
@@ -459,10 +517,10 @@ func atoiStr(t *testing.T, s string) int {
 func waitFor(h *harness, cond string) {
 	h.t.Helper()
 	h.eval(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local intentos = 0
 			while not (function() ` + cond + ` end)() and intentos < 200 do
-				nu.task.sleep(10)
+				enu.task.sleep(10)
 				intentos = intentos + 1
 			end
 			_waitfor_ok = (function() ` + cond + ` end)()

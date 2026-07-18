@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Tests de `nu.http.request` (S19, api.md §8). Toda la lógica propia de S19
+// Tests de `enu.http.request` (S19, api.md §8). Toda la lógica propia de S19
 // —**no lanzar por status** (el status es dato), mapeo de fallos de transporte a
 // `ENET`/`ETIMEOUT`, validación de `opts` a `EINVAL`, y TLS por petición (G12)—
 // se blinda aquí contra servidores **locales** (`net/http/httptest`): los tests
@@ -47,8 +47,8 @@ func TestHTTPRequest200(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		status, body, reply = nil, nil, nil
-		nu.task.spawn(function()
-			local res = nu.http.request({
+		enu.task.spawn(function()
+			local res = enu.http.request({
 				url = URL(),
 				headers = { ["X-Custom"] = "abc" },
 			})
@@ -81,8 +81,8 @@ func TestHTTPRequest404NoThrow(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		threw, status, body = false, nil, nil
-		nu.task.spawn(function()
-			local ok, res = pcall(function() return nu.http.request({ url = URL() }) end)
+		enu.task.spawn(function()
+			local ok, res = pcall(function() return enu.http.request({ url = URL() }) end)
 			threw = not ok
 			if ok then status, body = res.status, res.body end
 		end)
@@ -103,8 +103,8 @@ func TestHTTPRequest500NoThrow(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		threw, status = false, nil
-		nu.task.spawn(function()
-			local ok, res = pcall(function() return nu.http.request({ url = URL() }) end)
+		enu.task.spawn(function()
+			local ok, res = pcall(function() return enu.http.request({ url = URL() }) end)
 			threw = not ok
 			if ok then status = res.status end
 		end)
@@ -128,8 +128,8 @@ func TestHTTPRequestPOSTBody(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		status = nil
-		nu.task.spawn(function()
-			local res = nu.http.request({ url = URL(), method = "POST", body = "payload-123" })
+		enu.task.spawn(function()
+			local res = enu.http.request({ url = URL(), method = "POST", body = "payload-123" })
 			status = res.status
 		end)
 	`)
@@ -154,8 +154,8 @@ func TestHTTPRequestTransportENET(t *testing.T) {
 	withURL(h, url)
 	h.eval(`
 		code = nil
-		nu.task.spawn(function()
-			local ok, e = pcall(function() nu.http.request({ url = URL(), timeout_ms = 2000 }) end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() enu.http.request({ url = URL(), timeout_ms = 2000 }) end)
 			assert(ok == false, "un puerto cerrado debe lanzar")
 			code = e.code
 		end)
@@ -182,8 +182,8 @@ func TestHTTPRequestTimeoutETIMEOUT(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		code = nil
-		nu.task.spawn(function()
-			local ok, e = pcall(function() nu.http.request({ url = URL(), timeout_ms = 50 }) end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() enu.http.request({ url = URL(), timeout_ms = 50 }) end)
 			assert(ok == false, "un server lento debe lanzar por timeout")
 			code = e.code
 		end)
@@ -198,12 +198,12 @@ func TestHTTPRequestMissingURLEINVAL(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		codes = {}
-		nu.task.spawn(function()
-			local _, e1 = pcall(function() nu.http.request({}) end)
+		enu.task.spawn(function()
+			local _, e1 = pcall(function() enu.http.request({}) end)
 			codes[1] = e1.code
-			local _, e2 = pcall(function() nu.http.request({ url = "" }) end)
+			local _, e2 = pcall(function() enu.http.request({ url = "" }) end)
 			codes[2] = e2.code
-			local _, e3 = pcall(function() nu.http.request("no-soy-tabla") end)
+			local _, e3 = pcall(function() enu.http.request("no-soy-tabla") end)
 			codes[3] = e3.code
 		end)
 	`)
@@ -218,10 +218,10 @@ func TestHTTPRequestBadTimeoutEINVAL(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		c1, c2 = nil, nil
-		nu.task.spawn(function()
-			local _, e1 = pcall(function() nu.http.request({ url = "http://x", timeout_ms = -1 }) end)
+		enu.task.spawn(function()
+			local _, e1 = pcall(function() enu.http.request({ url = "http://x", timeout_ms = -1 }) end)
 			c1 = e1.code
-			local _, e2 = pcall(function() nu.http.request({ url = "http://x", timeout_ms = "diez" }) end)
+			local _, e2 = pcall(function() enu.http.request({ url = "http://x", timeout_ms = "diez" }) end)
 			c2 = e2.code
 		end)
 	`)
@@ -234,7 +234,7 @@ func TestHTTPRequestBadTimeoutEINVAL(t *testing.T) {
 // suspender sin una task (§1.3)—.
 func TestHTTPRequestOutsideTaskEINVAL(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`nu.http.request({ url = "http://x" })`)
+	se := h.evalErr(`enu.http.request({ url = "http://x" })`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("request fuera de task: got %q, want EINVAL", se.Code)
 	}
@@ -254,13 +254,13 @@ func TestHTTPRequestTLSInsecure(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		failedDefault, okInsecure, body = nil, nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- sin insecure: el cert autofirmado no lo confía nadie -> falla (transporte)
-			local ok = pcall(function() nu.http.request({ url = URL(), timeout_ms = 3000 }) end)
+			local ok = pcall(function() enu.http.request({ url = URL(), timeout_ms = 3000 }) end)
 			failedDefault = not ok
 			-- con insecure: pasa
 			local ok2, res = pcall(function()
-				return nu.http.request({ url = URL(), timeout_ms = 3000, tls = { insecure = true } })
+				return enu.http.request({ url = URL(), timeout_ms = 3000, tls = { insecure = true } })
 			end)
 			okInsecure = ok2
 			if ok2 then body = res.body end
@@ -295,9 +295,9 @@ func TestHTTPRequestTLSCAFile(t *testing.T) {
 	h.defWasmGlobal("function CA() return __ca_val end")
 	h.eval(`
 		ok, body = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local o, res = pcall(function()
-				return nu.http.request({ url = URL(), timeout_ms = 3000, tls = { ca_file = CA() } })
+				return enu.http.request({ url = URL(), timeout_ms = 3000, tls = { ca_file = CA() } })
 			end)
 			ok = o
 			if o then body = res.body end
@@ -308,7 +308,7 @@ func TestHTTPRequestTLSCAFile(t *testing.T) {
 }
 
 // TestHTTPRequestMultiValueHeaders blinda la decisión sobre headers de respuesta
-// con valores múltiples (claude_decisions.md S19): se **unen por ", "**.
+// con valores múltiples (docs/worklog/README.md S19): se **unen por ", "**.
 func TestHTTPRequestMultiValueHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-Multi", "a")
@@ -321,8 +321,8 @@ func TestHTTPRequestMultiValueHeaders(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		multi = nil
-		nu.task.spawn(function()
-			local res = nu.http.request({ url = URL() })
+		enu.task.spawn(function()
+			local res = enu.http.request({ url = URL() })
 			multi = res.headers["X-Multi"]
 		end)
 	`)
@@ -346,8 +346,8 @@ func TestHTTPRequestConcurrent(t *testing.T) {
 	h.eval(`
 		done = 0
 		for i = 1, 5 do
-			nu.task.spawn(function()
-				local res = nu.http.request({ url = URL() })
+			enu.task.spawn(function()
+				local res = enu.http.request({ url = URL() })
 				assert(res.status == 200, "status 200")
 				assert(res.body == "ok", "body ok")
 				done = done + 1

@@ -1,25 +1,25 @@
 #!/bin/sh
-# Instalador de nu (ADR-015, G33): el camino "curl | sh y a trabajar" que promete
+# Instalador de enu (ADR-015, G33): el camino "curl | sh y a trabajar" que promete
 # filosofia.md §2. Descarga el binario estático de la última release ESTABLE, verifica
 # su checksum sha256 y lo coloca en el PATH. Sin dependencias raras: POSIX sh + curl (o
 # wget) + tar + sha256sum (o shasum). Sin red más allá de GitHub; no compila nada.
 #
-# No instala las extensiones oficiales: nu queda como runtime desnudo (ADR-010). Para
-# activarlas, tras instalar: `nu --default-config` (sin TTY) o la pantalla de arranque
+# No instala las extensiones oficiales: enu queda como runtime desnudo (ADR-010). Para
+# activarlas, tras instalar: `enu --default-config` (sin TTY) o la pantalla de arranque
 # con TTY. El instalador lo recuerda al terminar.
 #
 # Variables de entorno:
-#   NU_INSTALL_DIR   Directorio de instalación (default: ~/.local/bin, o /usr/local/bin
+#   ENU_INSTALL_DIR   Directorio de instalación (default: ~/.local/bin, o /usr/local/bin
 #                    si tienes permiso de escritura ahí y ~/.local/bin no existe).
-#   NU_VERSION       Versión a instalar, p. ej. "v0.1.0" (default: la última estable).
+#   ENU_VERSION       Versión a instalar, p. ej. "v0.1.0" (default: la última estable).
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/dbareagimeno/nu/main/install.sh | sh
-#   curl -fsSL .../install.sh | NU_INSTALL_DIR=/usr/local/bin sh
+#   curl -fsSL https://raw.githubusercontent.com/dbareagimeno/enu/main/install.sh | sh
+#   curl -fsSL .../install.sh | ENU_INSTALL_DIR=/usr/local/bin sh
 
 set -eu
 
-REPO="dbareagimeno/nu"
+REPO="dbareagimeno/enu"
 RELEASES_API="https://api.github.com/repos/${REPO}/releases"
 
 # --- utilidades ------------------------------------------------------------------
@@ -60,7 +60,7 @@ detect_os() {
 	case "$os" in
 		Linux)  echo linux ;;
 		Darwin) echo darwin ;;
-		*) err "sistema no soportado: $os (nu v1 es Linux y macOS; en Windows usa WSL2, P18)" ;;
+		*) err "sistema no soportado: $os (enu v1 es Linux y macOS; en Windows usa WSL2, P18)" ;;
 	esac
 }
 
@@ -69,7 +69,7 @@ detect_arch() {
 	case "$arch" in
 		x86_64|amd64)      echo amd64 ;;
 		aarch64|arm64)     echo arm64 ;;
-		*) err "arquitectura no soportada: $arch (nu v1 es amd64 y arm64)" ;;
+		*) err "arquitectura no soportada: $arch (enu v1 es amd64 y arm64)" ;;
 	esac
 }
 
@@ -103,8 +103,8 @@ latest_stable_tag() {
 # --- instalación -----------------------------------------------------------------
 
 choose_install_dir() {
-	if [ -n "${NU_INSTALL_DIR:-}" ]; then
-		echo "$NU_INSTALL_DIR"
+	if [ -n "${ENU_INSTALL_DIR:-}" ]; then
+		echo "$ENU_INSTALL_DIR"
 		return
 	fi
 	# Preferencia: ~/.local/bin (no requiere sudo). Si no existe pero /usr/local/bin es
@@ -141,21 +141,21 @@ main() {
 	OS="$(detect_os)"
 	ARCH="$(detect_arch)"
 
-	VERSION="${NU_VERSION:-}"
+	VERSION="${ENU_VERSION:-}"
 	if [ -z "$VERSION" ]; then
 		info "resolviendo la última release estable…"
 		VERSION="$(latest_stable_tag)"
-		[ -n "$VERSION" ] || err "no encontré ninguna release estable de ${REPO} (¿solo hay prereleases? fija NU_VERSION=vX.Y.Z)"
+		[ -n "$VERSION" ] || err "no encontré ninguna release estable de ${REPO} (¿solo hay prereleases? fija ENU_VERSION=vX.Y.Z)"
 	fi
 	# Normaliza: el nombre del artefacto usa la versión sin la 'v' inicial.
 	VER_NOV="${VERSION#v}"
 
-	NAME="nu-v${VER_NOV}-${OS}-${ARCH}"
+	NAME="enu-v${VER_NOV}-${OS}-${ARCH}"
 	BASE="https://github.com/${REPO}/releases/download/${VERSION}"
 	TARBALL_URL="${BASE}/${NAME}.tar.gz"
 	SUMS_URL="${BASE}/checksums.txt"
 
-	info "instalando nu ${VERSION} (${OS}/${ARCH})"
+	info "instalando enu ${VERSION} (${OS}/${ARCH})"
 
 	# Directorio temporal autolimpiado.
 	tmp="$(mktemp -d)"
@@ -170,23 +170,23 @@ main() {
 
 	info "descomprimiendo…"
 	tar -C "$tmp" -xzf "${tmp}/${NAME}.tar.gz" || err "no pude descomprimir el tar.gz"
-	[ -f "${tmp}/nu" ] || err "el tar.gz no contiene el binario 'nu'"
-	chmod +x "${tmp}/nu"
+	[ -f "${tmp}/enu" ] || err "el tar.gz no contiene el binario 'enu'"
+	chmod +x "${tmp}/enu"
 
 	DIR="$(choose_install_dir)"
 	mkdir -p "$DIR" || err "no pude crear el directorio de instalación ${DIR}"
 
 	# Instala con mv; si el destino no es escribible y hay sudo, reintenta con sudo.
-	if mv "${tmp}/nu" "${DIR}/nu" 2>/dev/null; then
+	if mv "${tmp}/enu" "${DIR}/enu" 2>/dev/null; then
 		:
 	elif have sudo; then
 		info "necesito permisos para escribir en ${DIR}; usando sudo…"
-		sudo mv "${tmp}/nu" "${DIR}/nu" || err "no pude instalar en ${DIR} ni con sudo"
+		sudo mv "${tmp}/enu" "${DIR}/enu" || err "no pude instalar en ${DIR} ni con sudo"
 	else
-		err "no puedo escribir en ${DIR} y no hay sudo; fija NU_INSTALL_DIR a un directorio escribible"
+		err "no puedo escribir en ${DIR} y no hay sudo; fija ENU_INSTALL_DIR a un directorio escribible"
 	fi
 
-	info "instalado: ${DIR}/nu"
+	info "instalado: ${DIR}/enu"
 
 	# Aviso de PATH si el directorio elegido no está en él.
 	case ":${PATH}:" in
@@ -196,9 +196,9 @@ main() {
 
 	# Mensaje final: comprobar + activar (a stdout, es el resultado útil del comando).
 	printf '\n'
-	printf 'nu %s instalado en %s/nu\n' "$VERSION" "$DIR"
-	printf 'comprueba:  nu -e '"'"'return nu.version'"'"'\n'
-	printf 'activa el agente y demás extensiones oficiales:  nu --default-config\n'
+	printf 'enu %s instalado en %s/enu\n' "$VERSION" "$DIR"
+	printf 'comprueba:  enu -e '"'"'return enu.version'"'"'\n'
+	printf 'activa el agente y demás extensiones oficiales:  enu --default-config\n'
 }
 
 main "$@"

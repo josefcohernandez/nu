@@ -1,8 +1,8 @@
 #!/bin/sh
-# Build hermético y reproducible de nu.wasm (migracion-vm.md M02 + fix
+# Build hermético y reproducible de enu.wasm (migracion-vm.md M02 + fix
 # post-M17): PUC-Lua OFICIAL (5.4.7, sin un solo parche) + el shim del kernel
-# (shim/nu_shim.c), compilados a WebAssembly con el trampolín de desenrollado
-# (shim/nu_unwind.h) en vez de setjmp/longjmp.
+# (shim/enu_shim.c), compilados a WebAssembly con el trampolín de desenrollado
+# (shim/enu_unwind.h) en vez de setjmp/longjmp.
 #
 # Toolchain HERMÉTICA: el script descarga el wasi-sdk oficial (versión y
 # sha256 pineados abajo) y compila con SU clang y SU sysroot — nada de la
@@ -12,7 +12,7 @@
 # dejaba de coincidir con el blob comiteado (visto dos veces en la PR de la
 # migración; diagnóstico en la bitácora post-M17 de migracion-vm.md).
 #
-# El blob nu.wasm SE COMITEA (DM1): CI y contribuidores no necesitan la
+# El blob enu.wasm SE COMITEA (DM1): CI y contribuidores no necesitan la
 # toolchain. Un job de CI (ci.yml, vmblob) reconstruye y compara el hash para
 # que blob y fuentes no deriven. Las fuentes de Lua NO se versionan (MIT de
 # terceros, CLAUDE.md): se clonan aquí pineadas por tag Y por commit.
@@ -95,11 +95,11 @@ LUA_SRC=$(ls "$LUA_DIR"/*.c \
 "$CC" --target=wasm32-wasip1 \
   -O2 -mexec-model=reactor \
   -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS \
-  -include shim/nu_unwind.h -Ishim -I"$LUA_DIR" \
-  $LUA_SRC shim/nu_shim.c -o nu.wasm \
+  -include shim/enu_unwind.h -Ishim -I"$LUA_DIR" \
+  $LUA_SRC shim/enu_shim.c -o enu.wasm \
   -lwasi-emulated-signal -lwasi-emulated-process-clocks \
   -Wl,--export=__stack_pointer -Wl,--export=malloc \
   -Wl,--strip-debug
 
-echo "nu.wasm: $(wc -c < nu.wasm) bytes"
-echo "sha256:  $(sha256 nu.wasm)"
+echo "enu.wasm: $(wc -c < enu.wasm) bytes"
+echo "sha256:  $(sha256 enu.wasm)"

@@ -4,15 +4,15 @@ package runtime
 // backend wasm por el Runtime real. A diferencia de vmwasm_runtime_test.go (que
 // prueba el catálogo de primitivas por un Runtime desnudo), aquí se arranca el
 // Runtime con las 7 extensiones de producto (ADR-015: las embebidas menos el
-// andamiaje `example`/`mesh`) activas —igual que `nu --default-config`— y se
+// andamiaje `example`/`mesh`) activas —igual que `enu --default-config`— y se
 // comprueba que:
-//   - `Boot()` NO devuelve error y las 7 aparecen en `nu.plugin.list()` (builtin);
+//   - `Boot()` NO devuelve error y las 7 aparecen en `enu.plugin.list()` (builtin);
 //   - cada módulo público es require-able y expone su API (prueba de que el
 //     `init.lua` de cada extensión corrió sobre la Instance wasm);
 //   - un e2e hermético (sessions: crear/append/replay por disco) ejercita una
 //     extensión de punta a punta sobre el scheduler wasm (EvalTaskString);
 //   - el `ownerStack` está bien cableado: el `init.lua` de un plugin de disco se
-//     anota en `nu.log` con SU nombre, no con "user" (la decisión del owner,
+//     anota en `enu.log` con SU nombre, no con "user" (la decisión del owner,
 //     vmwasm_plugin.go / vmwasm_loader.go).
 
 import (
@@ -24,7 +24,7 @@ import (
 
 // newWasmExtRuntime construye un Runtime headless sobre wasm con el CONJUNTO
 // OFICIAL DE PRODUCTO activo en memoria (WithEnabledPlugins, el modo efímero de
-// `nu --default-config`, ADR-015/G33) y lo arranca (Boot). Devuelve el Runtime y la
+// `enu --default-config`, ADR-015/G33) y lo arranca (Boot). Devuelve el Runtime y la
 // lista del conjunto oficial. Verifica de paso que el backend se resolvió a wasm y
 // que el arranque no falló.
 func newWasmExtRuntime(t *testing.T) (*Runtime, []string) {
@@ -53,15 +53,15 @@ func newWasmExtRuntime(t *testing.T) (*Runtime, []string) {
 }
 
 // TestExtWasmCargaConjuntoOficial: el conjunto oficial arranca sobre wasm y todas
-// sus extensiones aparecen en nu.plugin.list() como "builtin" (source de una
+// sus extensiones aparecen en enu.plugin.list() como "builtin" (source de una
 // embebida activada, §14). Es la prueba de que el loader corrió sobre la Instance.
 func TestExtWasmCargaConjuntoOficial(t *testing.T) {
 	rt, product := newWasmExtRuntime(t)
 
-	// nu.plugin.list() sobre wasm: recoge {name -> source}.
+	// enu.plugin.list() sobre wasm: recoge {name -> source}.
 	got := evalStringOne(t, rt, `
 		local t = {}
-		for _, p in ipairs(nu.plugin.list()) do
+		for _, p in ipairs(enu.plugin.list()) do
 			t[#t+1] = p.name .. "=" .. tostring(p.source)
 		end
 		table.sort(t)
@@ -75,7 +75,7 @@ func TestExtWasmCargaConjuntoOficial(t *testing.T) {
 		}
 	}
 	if len(byName) != len(product) {
-		t.Fatalf("nu.plugin.list() = %q (%d), esperado el conjunto oficial (%d): %v",
+		t.Fatalf("enu.plugin.list() = %q (%d), esperado el conjunto oficial (%d): %v",
 			got, len(byName), len(product), product)
 	}
 	for _, name := range product {
@@ -132,7 +132,7 @@ func TestExtWasmProvidersApproxTokens(t *testing.T) {
 // TestExtWasmSessionsRoundTrip: e2e hermético de la extensión `sessions` sobre wasm
 // —crea una sesión (JSONL append-only, sesiones.md), le añade un evento, la cierra,
 // la reabre por `resume` y la reproduce— por EvalTaskString (las ops de sessions son
-// ⏸ sobre nu.fs). Prueba una extensión oficial de punta a punta sobre el scheduler
+// ⏸ sobre enu.fs). Prueba una extensión oficial de punta a punta sobre el scheduler
 // wasm, sin red ni API key.
 func TestExtWasmSessionsRoundTrip(t *testing.T) {
 	rt, _ := newWasmExtRuntime(t)
@@ -154,7 +154,7 @@ func TestExtWasmSessionsRoundTrip(t *testing.T) {
 }
 
 // TestExtWasmOwnerDuranteInit: el `ownerStack` está bien cableado sobre wasm — el
-// `init.lua` de un plugin de disco que hace `nu.log.info` se anota en el log con SU
+// `init.lua` de un plugin de disco que hace `enu.log.info` se anota en el log con SU
 // nombre, no con "user". Valida la decisión del owner (vmwasm_loader.go empuja el
 // contexto del plugin alrededor de su init; vmwasm_log.go lee rt.currentOwner()).
 func TestExtWasmOwnerDuranteInit(t *testing.T) {
@@ -169,7 +169,7 @@ func TestExtWasmOwnerDuranteInit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(pdir, pluginInitName),
-		[]byte(`nu.log.info("MARCA_OWNER_WASM")`), 0o644); err != nil {
+		[]byte(`enu.log.info("MARCA_OWNER_WASM")`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

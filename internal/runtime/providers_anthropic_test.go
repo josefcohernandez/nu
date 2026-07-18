@@ -3,8 +3,8 @@ package runtime
 // Tests del adaptador `anthropic` (S37, embebido en
 // internal/runtime/embedded/providers/lua/providers/adapter_anthropic.lua). Es
 // el PRIMER dialecto real: Lua sobre la API pública congelada (ADR-003) que
-// habla la Messages API de Anthropic vía `nu.http.stream` (S20) y traduce su SSE
-// al stream de Eventos CANÓNICO de [providers.md](../../docs/providers.md) §2.3.
+// habla la Messages API de Anthropic vía `enu.http.stream` (S20) y traduce su SSE
+// al stream de Eventos CANÓNICO de [providers.md](../../docs/contracts/providers.md) §2.3.
 //
 // Como NO hay red, se GRABA un SSE de Anthropic realista (la secuencia de
 // eventos `message_start`, `content_block_*` de tipos text/tool_use/thinking,
@@ -99,7 +99,7 @@ aliases    = ["opus"]
 		t.Fatalf("write providers.toml: %v", err)
 	}
 	// Forzamos la UI (G20, S32): el entorno de test es headless, así que sin
-	// WithForceUI(true) `nu.ui` no existiría y el camino caliente de CP-9 (blit
+	// WithForceUI(true) `enu.ui` no existiría y el camino caliente de CP-9 (blit
 	// del markdown a una región) no podría ejercitarse. El gating REAL (por TTY)
 	// sigue aplicando al binario; aquí solo habilitamos la superficie para la prueba.
 	return bootWithToml(t, "", cfg, WithForceUI(true))
@@ -182,7 +182,7 @@ func TestAnthropicStreamCanonico(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("anthropic/opus")
 			local req = {
@@ -283,7 +283,7 @@ data: {"type":"error","error":{"type":"overloaded_error","message":"saturado"}}
 
 	h.eval(`
 		err_code, err_retryable = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("anthropic/opus")
 			local req = { model = r.config.model.id,
@@ -323,7 +323,7 @@ func TestAnthropicHTTPError(t *testing.T) {
 
 	h.eval(`
 		err_code, err_status, err_provider_code, err_retryable = nil, nil, nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("anthropic/opus")
 			local req = { model = r.config.model.id,
@@ -355,7 +355,7 @@ func TestAnthropicCountTokens(t *testing.T) {
 
 	h.eval(`
 		count = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("anthropic/opus")
 			local req = {
@@ -371,8 +371,8 @@ func TestAnthropicCountTokens(t *testing.T) {
 
 // TestCP9CaminoCaliente es el checkpoint CP-9 (hito de veto de perf): el camino
 // caliente completo de extremo a extremo. Una vuelta de conversación → el
-// adaptador `anthropic` consume el SSE grabado vía `nu.http.stream` → emite el
-// stream canónico → se renderiza con `nu.text.markdown` en STREAMING (token a
+// adaptador `anthropic` consume el SSE grabado vía `enu.http.stream` → emite el
+// stream canónico → se renderiza con `enu.text.markdown` en STREAMING (token a
 // token, recomponiendo el markdown acumulado en cada delta) → se blittea a una
 // región. Verifica:
 //   - el Message canónico final es correcto (texto markdown ensamblado, tool
@@ -391,7 +391,7 @@ func TestCP9CaminoCaliente(t *testing.T) {
 
 	h.eval(`
 		cp9 = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("anthropic/opus")
 			local req = {
@@ -401,7 +401,7 @@ func TestCP9CaminoCaliente(t *testing.T) {
 			}
 
 			-- Región donde se blittea el markdown en vivo (camino caliente UI).
-			local region = nu.ui.region({ x = 0, y = 0, w = 40, h = 20 })
+			local region = enu.ui.region({ x = 0, y = 0, w = 40, h = 20 })
 
 			-- Bucle del camino caliente: por cada delta de texto, recomponemos el
 			-- markdown acumulado, lo renderizamos con la primitiva Go (streaming-safe,
@@ -417,7 +417,7 @@ func TestCP9CaminoCaliente(t *testing.T) {
 			for ev in r.adapter.stream(req, r.config) do
 				if ev.type == "text" then
 					acc = acc .. ev.text
-					local blk = nu.text.markdown(acc, { width = 40 })
+					local blk = enu.text.markdown(acc, { width = 40 })
 					region:blit(0, 0, blk)
 					renders = renders + 1
 					if blk.height < 1 then all_valid = false end
@@ -437,7 +437,7 @@ func TestCP9CaminoCaliente(t *testing.T) {
 			-- Para confirmar que el render final corresponde al markdown COMPLETO
 			-- acumulado, comparamos su altura con un render fresco del texto entero:
 			-- si el streaming acumuló bien, ambas alturas coinciden (mismo doc).
-			local fresh = nu.text.markdown(acc, { width = 40 })
+			local fresh = enu.text.markdown(acc, { width = 40 })
 			cp9.final_matches_fresh = final_block ~= nil and final_block.height == fresh.height
 			-- Un encabezado markdown "# Hola" produce un Block de varias líneas
 			-- (heading + cuerpo): altura > 1 confirma que el markdown se renderizó

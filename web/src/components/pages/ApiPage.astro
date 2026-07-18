@@ -1,0 +1,142 @@
+---
+// Plantilla compartida de una página de la referencia /api/<slug> (pantalla
+// 13a), parametrizada por idioma (W-04). La consumen los wrappers finos
+// pages/api/[slug].astro (ES) y pages/en/api/[slug].astro (EN): cada uno resuelve
+// getStaticPaths contra su colección (referencia / referencia_en) y delega aquí.
+//
+// Tres columnas: sidebar 210px + contenido (cards de función vía
+// rehype-api-cards) + carril 200px. El pager (j/k, n/p entre módulos, ':'
+// comandos, '/' buscar) y el drawer móvil los cablea initPager.
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import HeaderInternal from '../HeaderInternal.astro';
+import Statusline from '../Statusline.astro';
+import ApiSidebar from '../api/ApiSidebar.astro';
+import ApiRail from '../api/ApiRail.astro';
+import { apiPos, apiVecinos, urlApi, API_TOTAL } from '../../lib/apimap';
+import { i18n, type Lang } from '../../lib/i18n';
+import '../../styles/api.css';
+
+interface Props {
+  entry: any;
+  lang?: Lang;
+}
+const { entry, lang = 'es' } = Astro.props;
+const t = i18n[lang];
+const { Content, headings } = await render(entry);
+const slug = entry.id;
+
+// Título corto: la parte antes del "—" del frontmatter (enu.fs, enu.http / enu.ws…).
+// Los títulos salen de la colección del idioma que toca.
+const todas = await getCollection(lang === 'en' ? 'referencia_en' : 'referencia');
+const tituloCorto = (s: string): string => {
+  const e = todas.find((x) => x.id === s);
+  return (e?.data.title ?? s).split('—')[0].trim();
+};
+const titulo = tituloCorto(slug);
+const rule = '═'.repeat(Math.max(4, titulo.length));
+
+const { prev, next } = apiVecinos(slug);
+const pos = `${apiPos(slug)}/${API_TOTAL}`;
+const prevUrl = prev ? urlApi(prev, lang) : null;
+const nextUrl = next ? urlApi(next, lang) : null;
+const contexto = `api/${slug}`;
+
+// Homólogas para el picker de idioma: misma página en el otro idioma (W-04).
+const langHome = { es: urlApi(slug, 'es'), en: urlApi(slug, 'en') };
+
+const keys = [
+  { k: 'j/k', label: t.kScroll, i18n: 'kScroll' },
+  { k: 'n/p', label: t.kMod, i18n: 'kMod' },
+  { k: ':', label: t.kCmd, i18n: 'kCmd' },
+  { k: '/', label: t.kSearch, i18n: 'kSearch' },
+  { k: '?', label: t.kHelp, i18n: 'kHelp' },
+  { k: 'q', label: t.kBack, i18n: 'kBack' },
+];
+---
+<Base
+  title={`${titulo} — enu`}
+  description={entry.data.description}
+  lang={lang}
+  langMode="fixed"
+  langHome={langHome}
+>
+  <HeaderInternal active="api" routePath={`api/${slug}`} lang={lang} />
+  <div class="api-subbar">
+    <span>api v1 · <span class="key" data-i18n="apiStable">{t.apiStable}</span></span>
+  </div>
+
+  <div class="api-shell">
+    <ApiSidebar active={slug} lang={lang} />
+
+    <main class="api-main">
+      <div class="api-mobilebar">
+        <button type="button" class="mb-toggle" data-drawer-toggle>[≡] <span data-i18n="mIndex">{t.mIndex}</span></button>
+      </div>
+
+      <article class="api-prose">
+        <h1 class="api-title">{titulo}</h1>
+        <div class="api-rule" aria-hidden="true">{rule}</div>
+
+        <Content />
+
+        <footer class="api-foot">
+          {prev ? (
+            <a class="foot-prev" href={prevUrl}>← {tituloCorto(prev)}</a>
+          ) : (
+            <span class="foot-prev empty" data-i18n="firstMod">{t.firstMod}</span>
+          )}
+          {next ? (
+            <a class="foot-next" href={nextUrl}>
+              <span data-i18n="next">{t.next}</span> {tituloCorto(next)} →
+            </a>
+          ) : (
+            <span class="foot-next empty" data-i18n="lastMod">{t.lastMod}</span>
+          )}
+        </footer>
+      </article>
+    </main>
+
+    <ApiRail headings={headings} lang={lang} />
+  </div>
+
+  <Statusline left={contexto} keys={keys} lang={lang} />
+
+  <script define:vars={{ contexto, pos, nextUrl, prevUrl }}>
+    // Config del pager serializada desde el frontmatter (script inline). El
+    // script module de abajo la lee para llamar a initPager.
+    window.__enuApiCfg = { context: contexto, pos, withPercent: true, nextUrl, prevUrl };
+  </script>
+  <script>
+    import { initPager } from '../../scripts/pager';
+
+    initPager((window as any).__enuApiCfg);
+
+    // Scrollspy del § del carril: marca la sección visible como activa (bright).
+    const secs = Array.from(document.querySelectorAll<HTMLElement>('[data-sec]'));
+    const ids = secs.map((s) => s.getAttribute('data-sec') || '');
+    function spy(): void {
+      let cur = ids[0];
+      for (const id of ids) {
+        const h = document.getElementById(id);
+        if (h && h.getBoundingClientRect().top <= 130) cur = id;
+      }
+      secs.forEach((s) => s.classList.toggle('active', s.getAttribute('data-sec') === cur));
+    }
+    if (secs.length) {
+      spy();
+      window.addEventListener('scroll', spy, { passive: true });
+    }
+
+    // Statusline táctil (móvil): [≡] abre el drawer; [/] emite el evento de
+    // búsqueda (el overlay lo monta otra fase).
+    document.querySelectorAll('[data-touch="index"]').forEach((b) =>
+      b.addEventListener('click', () =>
+        document.querySelector('[data-drawer]')?.classList.toggle('abierto')
+      )
+    );
+    document.querySelectorAll('[data-touch="search"]').forEach((b) =>
+      b.addEventListener('click', () => window.dispatchEvent(new CustomEvent('enu:search-open')))
+    );
+  </script>
+</Base>

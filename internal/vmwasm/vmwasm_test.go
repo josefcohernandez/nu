@@ -1,6 +1,6 @@
 package vmwasm
 
-// Tests de M02: el blob productivo nu.wasm carga, evalúa y suspende sobre
+// Tests de M02: el blob productivo enu.wasm carga, evalúa y suspende sobre
 // wazero, con multi-instancia aislada. Heredan y endurecen la validación del
 // spike (spike/lua-wasm/go); M03 añade los 🔒 del trampolín.
 

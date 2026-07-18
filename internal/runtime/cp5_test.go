@@ -13,11 +13,11 @@ import (
 // de test (herméticos, sin red externa), que ejercita las cuatro capacidades de la
 // fase juntas (plan, §"CP-5"):
 //
-//	(a) `nu.http.request` (S19) trata un 404 como **dato**, no lo lanza.
+//	(a) `enu.http.request` (S19) trata un 404 como **dato**, no lo lanza.
 //	(b) un SSE consumido con `Stream:events()` (S20) **mientras otra task
 //	    progresa** —el event loop NO se bloquea: una task contadora avanza a la par
 //	    que otra consume el stream, demostrando que el puente ⏸ libera el token—.
-//	(c) un `nu.ws` (S21) de **eco** hace round-trip.
+//	(c) un `enu.ws` (S21) de **eco** hace round-trip.
 //	(d) un consumidor lento que desborda el buffer del stream recibe `EIO`
 //	    (backpressure real, reusa el modelo acotado de S20).
 //
@@ -58,8 +58,8 @@ func TestCP5CaminoDeRed(t *testing.T) {
 	h.eval(`
 		-- (a) 404 como dato: no lanza.
 		status404, threw404 = nil, false
-		nu.task.spawn(function()
-			local ok, res = pcall(function() return nu.http.request({ url = URL404() }) end)
+		enu.task.spawn(function()
+			local ok, res = pcall(function() return enu.http.request({ url = URL404() }) end)
 			threw404 = not ok
 			if ok then status404 = res.status end
 		end)
@@ -68,14 +68,14 @@ func TestCP5CaminoDeRed(t *testing.T) {
 		sse_count, ticks, sse_done = 0, 0, false
 		-- task contadora: corre mientras el SSE se consume; si el loop se bloqueara
 		-- esperando el stream, 'ticks' se quedaría en 0.
-		local counter = nu.task.spawn(function()
+		local counter = enu.task.spawn(function()
 			while not sse_done do
 				ticks = ticks + 1
-				nu.task.sleep(5)
+				enu.task.sleep(5)
 			end
 		end)
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = URLSSE() })
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = URLSSE() })
 			for ev in st:events() do
 				sse_count = sse_count + 1
 			end
@@ -85,8 +85,8 @@ func TestCP5CaminoDeRed(t *testing.T) {
 
 		-- (c) ws de eco: round-trip.
 		ws_reply = nil
-		nu.task.spawn(function()
-			local w = nu.ws.connect(URLWS())
+		enu.task.spawn(function()
+			local w = enu.ws.connect(URLWS())
 			w:send("eco!")
 			ws_reply = w:recv()
 			w:close()
@@ -127,9 +127,9 @@ func TestCP5BackpressureEIO(t *testing.T) {
 	withURL(h, srv.URL)
 	h.eval(`
 		code = nil
-		nu.task.spawn(function()
-			local st = nu.http.stream({ url = URL() })
-			nu.task.sleep(300) -- deja que el servidor desborde el buffer antes de leer
+		enu.task.spawn(function()
+			local st = enu.http.stream({ url = URL() })
+			enu.task.sleep(300) -- deja que el servidor desborde el buffer antes de leer
 			local ok, e = pcall(function()
 				for c in st:chunks() do end
 			end)

@@ -1,0 +1,453 @@
+/* Estilos de la sección /api (pantalla 13a). Solo aquí; la prosa se estiliza
+ * localmente (no dependemos de markdown.css de la fase B). Gramática visual del
+ * terminal: rectangular, sin border-radius/sombras/gradientes/transitions. */
+
+/* ── Subbar: "api v1 · estable" (el header es contrato fijo, va debajo). ── */
+.api-subbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 24px;
+  font-size: var(--fs-2);
+  color: var(--dim);
+  text-transform: lowercase;
+}
+.api-subbar .key {
+  color: var(--key);
+}
+
+/* ── Rejilla de 3 columnas. Sidebar 210 · contenido · carril 200. ── */
+.api-shell {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 200px;
+  align-items: start;
+}
+
+/* ── Sidebar (y drawer móvil). ── */
+.api-sidebar {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 22px 0;
+  font-size: var(--fs-5);
+  line-height: 2.1;
+}
+.api-group {
+  margin-bottom: 4px;
+}
+.group-label {
+  padding: 12px 24px 0;
+  color: var(--dim);
+}
+.api-group:first-child .group-label {
+  padding-top: 0;
+}
+.group-items {
+  display: flex;
+  flex-direction: column;
+}
+.api-sidebar .item {
+  padding: 0 24px 0 36px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.api-sidebar .item.ext {
+  color: var(--fg);
+}
+.api-sidebar .item.active {
+  background: var(--key);
+  color: var(--bg);
+  font-weight: 600;
+  padding-left: 22px;
+  margin-left: 14px;
+  margin-right: 12px;
+}
+.api-sidebar .item.active .mark {
+  margin-left: -8px;
+  white-space: pre; /* conserva el espacio tras ▸ también en el drawer (flex) */
+}
+
+/* Cabecera del drawer: solo visible en móvil. */
+.drawer-head {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-4);
+  text-transform: lowercase;
+}
+.drawer-head .dh-title {
+  color: var(--dim);
+}
+.drawer-close {
+  background: none;
+  border: none;
+  color: var(--key);
+  font: inherit;
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+/* ── Contenido. ── */
+.api-main {
+  min-width: 0;
+}
+.api-prose {
+  padding: 30px 44px;
+  max-width: 660px;
+  font-size: var(--fs-6);
+  line-height: 1.9;
+}
+.api-mobilebar {
+  display: none;
+}
+
+.api-title {
+  margin: 0;
+  font-size: var(--fs-10);
+  font-weight: 600;
+  color: var(--bright);
+}
+.api-rule {
+  color: var(--dim);
+  letter-spacing: -1px;
+  margin: 0 0 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Prosa: párrafos, código inline, enlaces, listas, tablas, citas.
+ * EXCEPCIÓN AL "TODO MONO" (W-03), gemela de markdown.css: el cuerpo de la prosa
+ * de la referencia (párrafos, ítems, citas) pasa a IBM Plex Sans a ~15px/1.7,
+ * que se lee mejor que el mono en textos largos. El chrome, las cards de firma,
+ * los títulos y el código siguen en mono. El `code` inline dentro de la prosa
+ * vuelve a mono explícitamente (identidad TTY). */
+.api-prose p,
+.api-prose li,
+.api-prose blockquote {
+  font-family: var(--font-prose);
+  font-size: var(--fs-9);
+  line-height: 1.7;
+}
+.api-prose p {
+  color: var(--fg);
+  margin: 0 0 18px;
+}
+.api-prose a {
+  color: var(--key);
+  text-decoration: underline;
+}
+.api-prose code {
+  color: var(--c3);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+.api-prose strong {
+  color: var(--bright);
+  font-weight: 600;
+}
+.api-prose ul,
+.api-prose ol {
+  margin: 0 0 18px;
+  padding-left: 20px;
+  color: var(--fg);
+}
+.api-prose li {
+  margin: 2px 0;
+}
+.api-prose blockquote {
+  margin: 0 0 18px;
+  color: var(--dim);
+  font-style: italic;
+}
+.api-prose blockquote::before {
+  content: '│ ';
+  font-style: normal;
+}
+.api-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 18px;
+  font-size: var(--fs-5);
+}
+.api-prose th,
+.api-prose td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.api-prose th {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+/* Heading que nombra funciones: colapsado a ancla invisible (la card ya muestra
+ * el identificador). Conserva su id para #enlaces y el scrollspy del §. */
+.api-fn-heading {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  scroll-margin-top: 20px;
+}
+/* Subtítulos de sección visibles (Manipulación, TLS y proxy…): línea de ─. */
+.api-prose h2:not(.api-fn-heading),
+.api-prose h3:not(.api-fn-heading) {
+  font-size: var(--fs-8);
+  font-weight: 600;
+  color: var(--bright);
+  margin: 26px 0 12px;
+  scroll-margin-top: 20px;
+}
+.api-prose h2:not(.api-fn-heading)::after,
+.api-prose h3:not(.api-fn-heading)::after {
+  content: '';
+  display: block;
+  border-bottom: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+/* ── Cards de función. ── */
+.api-card {
+  border: 1px solid var(--border);
+  margin: 0 0 14px;
+}
+.api-card-sig {
+  padding: 10px 16px;
+  font-size: var(--fs-6);
+  line-height: 1.85;
+}
+.api-card-sig:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.sig-row {
+  white-space: pre-wrap;
+}
+.sig-row.sig-indent {
+  padding-left: 1.6em;
+}
+.sig-name {
+  color: var(--key);
+  font-weight: 600;
+}
+.sig-args {
+  color: var(--fg);
+}
+.sig-ret,
+.sig-mark,
+.sig-comment {
+  color: var(--dim);
+}
+.sig-plain {
+  color: var(--fg);
+}
+.api-card-desc {
+  padding: 10px 16px;
+  font-size: var(--fs-4);
+  color: var(--fg);
+  line-height: 1.8;
+}
+.api-card-desc p {
+  margin: 0 0 8px;
+}
+.api-card-desc p:last-child {
+  margin-bottom: 0;
+}
+.api-card-desc code {
+  color: var(--c3);
+}
+.api-card-desc a {
+  color: var(--key);
+  text-decoration: underline;
+}
+.api-card-desc strong {
+  color: var(--bright);
+}
+.api-card-desc ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+/* ── Ejemplos (```lua / ```sh) con etiqueta. ── */
+.api-ejemplo {
+  margin: 0 0 20px;
+}
+.api-ejemplo-label {
+  color: var(--dim);
+  font-size: var(--fs-2);
+  margin-bottom: 6px;
+}
+/* Bloques de código (ejemplos y salidas): fondo border, padding, colores Shiki. */
+.api-prose pre.astro-code {
+  margin: 0 0 20px;
+  padding: 14px 18px;
+  font-size: var(--fs-5);
+  line-height: 1.8;
+  overflow-x: auto;
+}
+.api-ejemplo pre.astro-code {
+  margin: 0;
+}
+
+/* ── Pie prev/next. ── */
+.api-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 8px;
+  font-size: var(--fs-5);
+}
+.foot-prev {
+  color: var(--dim);
+}
+.foot-next {
+  color: var(--key);
+}
+.foot-prev.empty,
+.foot-next.empty {
+  color: var(--dim);
+}
+
+/* ── Carril derecho. ── */
+.api-rail {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 30px 24px 30px 0;
+  font-size: var(--fs-3);
+  line-height: 1.9;
+}
+.cta {
+  display: block;
+  border: 1px solid var(--key);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.cta-title {
+  color: var(--key);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.cta-body {
+  color: var(--fg);
+  font-size: var(--fs-2);
+}
+.cta-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--key);
+}
+.rail-h {
+  color: var(--dim);
+  margin-bottom: 2px;
+}
+.rail-secs {
+  display: flex;
+  flex-direction: column;
+}
+.rail-secs .sec {
+  color: var(--dim);
+}
+.rail-secs .sec.active {
+  color: var(--bright);
+}
+.rail-meta {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--dim);
+  font-size: var(--fs-1);
+  line-height: 1.8;
+}
+.rail-meta .key {
+  color: var(--key);
+}
+.meta-adr {
+  margin-top: 8px;
+}
+.meta-adr a {
+  text-decoration: none;
+}
+
+/* ── Móvil (<768px): patrón wiki. Sidebar tras [≡] (drawer), carril fuera,
+ *    prev/next como filas táctiles. ── */
+@media (max-width: 767px) {
+  .api-subbar {
+    display: none;
+  }
+  .api-shell {
+    display: block;
+  }
+  .api-rail {
+    display: none;
+  }
+  .api-prose {
+    padding: 22px 20px;
+    max-width: none;
+  }
+  .api-mobilebar {
+    display: block;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mb-toggle {
+    background: none;
+    border: none;
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+    text-transform: lowercase;
+    min-height: 44px;
+  }
+
+  /* Drawer: overlay a pantalla completa, oculto salvo .abierto. */
+  .api-sidebar {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    max-height: none;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--bg);
+    border-right: none;
+    display: none;
+  }
+  .api-sidebar.abierto {
+    display: block;
+  }
+  .drawer-head {
+    display: flex;
+  }
+  .api-sidebar .item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* prev/next como filas táctiles grandes. */
+  .api-foot {
+    flex-direction: column;
+    gap: 0;
+    border-top: none;
+    padding-top: 0;
+  }
+  .foot-prev,
+  .foot-next {
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+  }
+  .foot-next {
+    border-top: none;
+  }
+}

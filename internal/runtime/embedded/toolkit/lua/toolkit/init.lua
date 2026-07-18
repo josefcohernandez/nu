@@ -10,13 +10,13 @@
 -- aparte de la API sagrada (no es API del core).
 --
 -- ADR-003 / ADR-012: Lua puro sobre la API pública congelada
--- ([api.md](../../../../../docs/api.md) §9 `nu.ui` + §10 `nu.text`), sin
+-- ([api.md](../../../../../docs/api.md) §9 `enu.ui` + §10 `enu.text`), sin
 -- privilegio de kernel; el spike de S28 (ADR-012) descartó el veto de ADR-007 (el
 -- toolkit en Lua es fluido porque el trabajo pesado es primitiva Go), así que aquí
--- vive. Reusa SOLO: `nu.ui.region`/`blit`/`fill`/`clear`/`cursor`/`size` (§9.1),
--- `nu.ui.block`/`Style` (§9.2), `nu.ui.on_input` (§9.3), `nu.text.markdown`/
--- `wrap`/`truncate`/`width` (§10), `nu.events.emit` (§4 — emite su propio
--- `toolkit:focus`, en el namespace del plugin; `ui:` es del core, §4), `nu.has`
+-- vive. Reusa SOLO: `enu.ui.region`/`blit`/`fill`/`clear`/`cursor`/`size` (§9.1),
+-- `enu.ui.block`/`Style` (§9.2), `enu.ui.on_input` (§9.3), `enu.text.markdown`/
+-- `wrap`/`truncate`/`width` (§10), `enu.events.emit` (§4 — emite su propio
+-- `toolkit:focus`, en el namespace del plugin; `ui:` es del core, §4), `enu.has`
 -- (§2). NO amplía api.md (corolario de completitud satisfecho: la API §9/§10 basta
 -- exacta para un toolkit con árbol/dirty/slots/focus/themes; ni una función de
 -- más).
@@ -69,7 +69,7 @@ M.label    = widgets.label
 M.text     = widgets.text
 M.input    = widgets.input
 M.box      = widgets.box      -- marco (borde + título + padding) alrededor de un hijo
-M.spinner  = widgets.spinner  -- indicador de actividad animado (nu.task.every)
+M.spinner  = widgets.spinner  -- indicador de actividad animado (enu.task.every)
 M.richtext = widgets.richtext -- una línea de varios spans estilizados (line builder)
 
 -- La raíz.

@@ -2,7 +2,7 @@
 --
 -- QUÉ ES. El transcript es la conversación visible: mensajes del usuario y del
 -- asistente, bloques de tools y de thinking (chat.md §1). chat.md §2 manda
--- pintarlos con MARKDOWN vía `nu.text.markdown` («streaming-safe»). El widget que
+-- pintarlos con MARKDOWN vía `enu.text.markdown` («streaming-safe»). El widget que
 -- los pinta es un `toolkit.text{markdown=true}` (S42): un bloque multilínea de
 -- markdown con scroll por viewport. Este módulo es el MODELO detrás de ese widget:
 -- mantiene la lista de "items" (mensajes/tools) y produce el TEXTO MARKDOWN
@@ -17,15 +17,15 @@
 -- (sustituye los deltas por el render final del Message del `done`, chat.md §2).
 --
 -- POR QUÉ UN ÚNICO `text` y no un widget por mensaje. El toolkit `text` ya pinta
--- markdown multilínea con scroll por viewport (S42) y `nu.text.markdown` es
+-- markdown multilínea con scroll por viewport (S42) y `enu.text.markdown` es
 -- streaming-safe (S23): un único bloque markdown con TODA la conversación es lo
 -- más simple que cumple el criterio de hecho (conversación con streaming markdown)
 -- y reusa el viewport/scroll del toolkit tal cual. Un widget-por-mensaje (para
 -- renderers enchufables de tools, chat.md §2) es una mejora natural posterior
 -- sobre este mismo modelo (los items ya están separados); v1 los serializa a
--- markdown. DESVIACIÓN documentada en claude_decisions.md (S43).
+-- markdown. DESVIACIÓN documentada en docs/decisiones-implementacion.md (S43).
 --
--- THEME (G22, chat.md §7): el render final lo hace `nu.text.markdown`, que es
+-- THEME (G22, chat.md §7): el render final lo hace `enu.text.markdown`, que es
 -- themable (api.md §10); los marcadores de rol (un encabezado por mensaje) usan
 -- markdown estándar, así el theme del markdown los colorea. chat NO hardcodea
 -- colores: el `toolkit.text` resuelve el estilo contra el theme de la app.
@@ -175,7 +175,7 @@ end
 
 -- render_item(item) -> string. Un item a su fragmento MARKDOWN. Los marcadores de
 -- rol son markdown estándar (encabezados/citas) para que el render de
--- `nu.text.markdown` (themable, api.md §10) los pinte; chat NO mete colores
+-- `enu.text.markdown` (themable, api.md §10) los pinte; chat NO mete colores
 -- literales (G22, chat.md §7). El texto del usuario/asistente va tal cual (el del
 -- asistente YA es markdown — lo genera el modelo). El thinking y los errores van
 -- como cita (atenuada por el theme del markdown).

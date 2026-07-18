@@ -1,86 +1,95 @@
 ---
-title: nu.fs — filesystem
+title: enu.fs — filesystem
 description: Lectura, escritura atómica, stat, listado, manipulación de ficheros y vigilancia del filesystem.
 ---
 
-`nu.fs` es el acceso al filesystem. Casi todo es **⏸** (suspende: va dentro de
-una task) y **[W]** (disponible en workers), salvo `nu.fs.watch`, que es solo del
+`enu.fs` es el acceso al filesystem. Casi todo es **⏸** (suspende: va dentro de
+una task) y **[W]** (disponible en workers), salvo `enu.fs.watch`, que es solo del
 estado principal.
 
-## `nu.fs.read` ⏸ [W]
+## `enu.fs.read` ⏸ [W]
 
 ```
-nu.fs.read(path) -> string
+enu.fs.read(path) -> string
 ```
 
 Lee el fichero entero como string. Lanza `ENOENT` si no existe.
 
 ```sh
-nu -e '
-nu.task.spawn(function()
-  local txt = nu.fs.read("README.md")
-  nu.fs.write(nu.fs.tmpdir().."/n.txt", tostring(#txt))  -- nº de bytes
+enu -e '
+enu.task.spawn(function()
+  local txt = enu.fs.read("README.md")
+  enu.fs.write(enu.fs.tmpdir().."/n.txt", tostring(#txt))  -- nº de bytes
 end)
 return "ok"
 '
 ```
 
-## `nu.fs.write` / `nu.fs.append` ⏸ [W]
+## `enu.fs.write` / `enu.fs.append` ⏸ [W]
 
 ```
-nu.fs.write(path, data, opts?)
-nu.fs.append(path, data)
+enu.fs.write(path, data, opts?)
+enu.fs.append(path, data)
 ```
 
 Escritura **atómica** (vía fichero temporal + rename: nunca dejas un fichero a
 medias). `opts.exclusive = true` crea **solo si no existe**, en una operación
 indivisible (`O_EXCL`); si ya existe lanza `EEXIST`. Es la pieza para lockfiles.
+`opts.mode` (entero de permisos, p. ej. `0600`) fija el modo de creación con un
+chmod **no recortado por el umask** —para credenciales o un transcript que no
+deben quedar legibles por otros—; es componible con `exclusive`. Sin `opts.mode`,
+un fichero nuevo nace con el modo estándar recortado por el umask. `append` no
+lleva opts y **preserva el modo del fichero existente**: para permisos fijos, crea
+el fichero vacío con `write{ mode }` y luego haz `append`.
 
 ```lua
-nu.task.spawn(function()
-  nu.fs.write("salida.txt", "contenido\n")
-  nu.fs.append("salida.txt", "otra línea\n")
+enu.task.spawn(function()
+  enu.fs.write("salida.txt", "contenido\n")
+  enu.fs.append("salida.txt", "otra línea\n")
+
+  -- Fichero de credenciales: 0600, no legible por otros usuarios.
+  enu.fs.write("token", secreto, { mode = tonumber("600", 8) })
 
   -- Lockfile: solo uno gana la creación.
   local ok = pcall(function()
-    nu.fs.write("app.lock", nu.sys.pid()..":"..nu.sys.hostname(), { exclusive = true })
+    enu.fs.write("app.lock", enu.sys.pid()..":"..enu.sys.hostname(), { exclusive = true })
   end)
   if not ok then error({ code = "EEXIST", message = "ya hay un proceso" }) end
 end)
 ```
 
-## `nu.fs.stat` ⏸ [W]
+## `enu.fs.stat` ⏸ [W]
 
 ```
-nu.fs.stat(path) -> { size, mtime_ms, is_dir, mode }?
+enu.fs.stat(path) -> { size, mtime_ms, is_dir, mode }?
 ```
 
 Metadatos del fichero, o **`nil` si no existe** (no lanza `ENOENT`: es la forma
 idiomática de comprobar existencia).
 
 ```lua
-nu.task.spawn(function()
-  local st = nu.fs.stat("config.json")
+enu.task.spawn(function()
+  local st = enu.fs.stat("config.json")
   if st and not st.is_dir then
     -- existe y es un fichero
   end
 end)
 ```
 
-## `nu.fs.list` ⏸ [W]
+## `enu.fs.list` ⏸ [W]
 
 ```
-nu.fs.list(dir) -> { name, is_dir }[]
+enu.fs.list(dir) -> { name, is_dir }[]
 ```
 
 Lista el directorio **sin recursión**. Para recursivo respetando `.gitignore`,
-usa [`nu.search.files`](/nu/referencia/search/).
+usa [`enu.search.files`](/enu/api/search/).
 
 ```sh
-nu -e '
-nu.task.spawn(function()
-  local entradas = nu.fs.list("docs")
-  nu.fs.write(nu.fs.tmpdir().."/c.txt", tostring(#entradas))
+enu -e '
+enu.task.spawn(function()
+  local entradas = enu.fs.list("docs")
+  enu.fs.write(enu.fs.tmpdir().."/c.txt", tostring(#entradas))
 end)
 return "ok"
 '
@@ -89,50 +98,51 @@ return "ok"
 ## Manipulación ⏸ [W]
 
 ```
-nu.fs.mkdir(path)
-nu.fs.remove(path, opts?)        -- opts.recursive=true para dirs no vacíos
-nu.fs.rename(from, to)
-nu.fs.copy(from, to)
+enu.fs.mkdir(path) ⏸ [W]
+enu.fs.remove(path, opts?) ⏸ [W]  -- opts.recursive=true para dirs no vacíos
+enu.fs.rename(from, to) ⏸ [W]
+enu.fs.copy(from, to) ⏸ [W]
 ```
 
 ```lua
-nu.task.spawn(function()
-  nu.fs.mkdir("build")
-  nu.fs.copy("plantilla.txt", "build/copia.txt")
-  nu.fs.rename("build/copia.txt", "build/final.txt")
-  nu.fs.remove("build", { recursive = true })
+enu.task.spawn(function()
+  enu.fs.mkdir("build")
+  enu.fs.copy("plantilla.txt", "build/copia.txt")
+  enu.fs.rename("build/copia.txt", "build/final.txt")
+  enu.fs.remove("build", { recursive = true })
 end)
 ```
 
-## `nu.fs.tmpdir` ⏸
+## `enu.fs.tmpdir` ⏸ [W]
 
 ```
-nu.fs.tmpdir() -> string
+enu.fs.tmpdir() -> string
 ```
 
 Directorio temporal **propio de la sesión** (se limpia con ella).
 
-## `nu.fs.cwd` [W]
+## `enu.fs.cwd` [W]
 
 ```
-nu.fs.cwd() -> string
+enu.fs.cwd() -> string
 ```
 
 Directorio de trabajo, **inmutable** durante la sesión (los subprocesos pueden
 recibir otro vía `opts.cwd`). Nota: no es ⏸, se puede llamar sin task.
 
 ```sh
-nu -e 'return nu.fs.cwd() ~= nil'
+enu -e 'return enu.fs.cwd() ~= nil'
 ```
 
 ```
 true
 ```
 
-## `nu.fs.watch`
+## `enu.fs.watch`
 
 ```
-nu.fs.watch(path, opts?, fn) -> Watcher
+enu.fs.watch(path, opts?, fn) -> Watcher
+  Watcher:stop()
 ```
 
 Vigila cambios en el filesystem. Solo **estado principal**. `opts`:
@@ -147,9 +157,9 @@ Entrega **en lotes**: `fn(events[])` con `{ path, kind }` donde `kind` es
 llega como **un solo lote**. El handler es síncrono. `Watcher:stop()` para.
 
 ```lua
-local w = nu.fs.watch("src", { recursive = true, gitignore = true }, function(events)
+local w = enu.fs.watch("src", { recursive = true, gitignore = true }, function(events)
   for _, e in ipairs(events) do
-    nu.log.info("%s: %s", e.kind, e.path)
+    enu.log.info("%s: %s", e.kind, e.path)
   end
 end)
 -- ...

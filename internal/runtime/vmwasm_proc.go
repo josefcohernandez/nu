@@ -1,9 +1,9 @@
 package runtime
 
-// Catálogo de nu.proc sobre el backend wasm (M13b, §6). Contraparte de proc.go: la
-// conveniencia con buffers nu.proc.run(argv, opts?) -> {code, stdout, stderr} (⏸),
-// el control fino nu.proc.spawn(argv, opts?) -> Proc (síncrono: arrancar no
-// bloquea) y la consulta nu.proc.alive(pid) -> boolean (síncrona). El handle Proc
+// Catálogo de enu.proc sobre el backend wasm (M13b, §6). Contraparte de proc.go: la
+// conveniencia con buffers enu.proc.run(argv, opts?) -> {code, stdout, stderr} (⏸),
+// el control fino enu.proc.spawn(argv, opts?) -> Proc (síncrono: arrancar no
+// bloquea) y la consulta enu.proc.alive(pid) -> boolean (síncrona). El handle Proc
 // lleva write/read_line/read/wait (⏸, IO bloqueante → __hcall_s) y close_stdin/kill
 // (síncronos → __hcall). Reusa TODO el núcleo VM-agnóstico de proc.go —el parseo
 // (parseProcArgsWasm es el gemelo de parseProcArgs), spawnProc (pipes + reaper +
@@ -11,11 +11,11 @@ package runtime
 // readFrom/wait/closeStdin/killSignal)—; sólo cambia el marshaling de la frontera y
 // el despacho de los métodos.
 //
-// SPAWN NO BLOQUEA, PERO CREA UN HANDLE. A diferencia de nu.ws.connect (⏸ + handle,
+// SPAWN NO BLOQUEA, PERO CREA UN HANDLE. A diferencia de enu.ws.connect (⏸ + handle,
 // porque el handshake bloquea), spawn arranca con cmd.Start() —fork/exec, no espera
 // al proceso— y devuelve el handle en el acto. Por eso proc._spawn es una primitiva
 // SÍNCRONA (p.Register): corre en el hilo principal, donde AllocHandle es seguro. El
-// wrapper Lua nu.proc.spawn (AddPreludio) envuelve el handle y le cuelga los seis
+// wrapper Lua enu.proc.spawn (AddPreludio) envuelve el handle y le cuelga los seis
 // métodos apuntando al despacho correcto —los cuatro de IO por __hcall_s (ceden al
 // scheduler; su lectura/escritura/espera bloqueante corre en la goroutine de fondo),
 // close_stdin/kill por __hcall (inmediatos)—.
@@ -39,11 +39,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
-	// nu.proc.run(argv, opts?) -> {code, stdout, stderr} ⏸ — la conveniencia con
+	// enu.proc.run(argv, opts?) -> {code, stdout, stderr} ⏸ — la conveniencia con
 	// buffers. Todo el ciclo (start + IO + wait) corre en la goroutine de fondo
 	// (runBuffered, el mismo núcleo que gopher). Un code != 0 NO lanza (es dato); lo
 	// que lanza: arranque fallido (ENOENT/EACCES/EIO) o timeout_ms excedido (ETIMEOUT,
@@ -53,7 +53,7 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		if err != nil {
 			return nil, err
 		}
-		// Foto del overlay de nu.sys.setenv (§7): los subprocesos futuros ven los setenv
+		// Foto del overlay de enu.sys.setenv (§7): los subprocesos futuros ven los setenv
 		// previos. En el rt mínimo de los tests puede no haber sys (hereda os.Environ).
 		if rt.sys != nil {
 			opts.envOver = rt.sys.envOverlay()
@@ -61,7 +61,7 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		code, stdout, stderr, rerr := runBuffered(argv, opts)
 		if rerr != nil {
 			if errors.Is(rerr, errProcTimeout) {
-				return nil, &vmwasm.StructuredError{Code: CodeETIMEOUT, Message: "nu.proc.run: el proceso excedió timeout_ms y fue terminado"}
+				return nil, &vmwasm.StructuredError{Code: CodeETIMEOUT, Message: "enu.proc.run: el proceso excedió timeout_ms y fue terminado"}
 			}
 			return nil, mapProcStartErrorWasm(rerr)
 		}
@@ -72,7 +72,7 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		}}, nil
 	})
 
-	// nu.proc._spawn(argv, opts?) -> Proc (handle) — el wrapper nu.proc.spawn lo
+	// enu.proc._spawn(argv, opts?) -> Proc (handle) — el wrapper enu.proc.spawn lo
 	// envuelve. SÍNCRONA: arranca el proceso y devuelve el handle en el acto. Un fallo
 	// de arranque → ENOENT/EACCES/EIO (no se devuelve un handle a medias); argv malo →
 	// EINVAL. `opts.stdin` no aplica a spawn (el streaming es Proc:write): se ignora.
@@ -81,14 +81,19 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		if err != nil {
 			return nil, err
 		}
-		pr, serr := rt.spawnProc(argv, opts)
+		// Dueño de supervisión del proceso (G56, ADR-024): el vigente desde el estado
+		// principal, o la FOTO CRUDA del spawn si el proc nace dentro de un worker (así
+		// `plugin.reload` del plugin dueño lo alcanza). Se descarta `fromWorker`: el
+		// proceso se registra bajo el plugin, sin el sufijo `(worker)` de los logs.
+		owner, _ := rt.ownerForInst(inst)
+		pr, serr := rt.spawnProc(argv, opts, owner)
 		if serr != nil {
 			return nil, mapProcStartErrorWasm(serr)
 		}
 		return []any{inst.AllocHandle("Proc", pr)}, nil
 	})
 
-	// nu.proc.alive(pid) -> boolean — consulta inmediata (G17: existencia, no
+	// enu.proc.alive(pid) -> boolean — consulta inmediata (G17: existencia, no
 	// identidad), SÍNCRONA (sin IO que esperar). Reusa pidAlive del núcleo.
 	p.Register("proc.alive", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		return []any{pidAlive(argInt(args, 0))}, nil
@@ -111,13 +116,17 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// nil en EOF (fin del stream). which inválido → EINVAL; fallo de lectura → EIO.
 	p.RegisterHandleMethod("Proc", "read_line", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		pr := val.(*luaProc)
-		r, mu, err := pr.reader(argString(args, 0))
+		which := argString(args, 0)
+		r, mu, err := pr.reader(which)
 		if err != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: err.Error()}
 		}
 		line, eof, rerr := readLineFrom(mu, r)
 		if rerr != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEIO, Message: "Proc:read_line: " + rerr.Error()}
+		}
+		if eof {
+			pr.noteEOF(which) // stream agotado: candidato a reap temprano (proc.go)
 		}
 		if eof && line == "" {
 			return []any{nil}, nil // EOF sin datos: nil (§6)
@@ -131,7 +140,8 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// y el wire descarta ese nil final, así que aquí `arg(args, 1)` es nil → lee todo.
 	p.RegisterHandleMethod("Proc", "read", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		pr := val.(*luaProc)
-		r, mu, err := pr.reader(argString(args, 0))
+		which := argString(args, 0)
+		r, mu, err := pr.reader(which)
 		if err != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: err.Error()}
 		}
@@ -145,6 +155,9 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 		data, eof, rerr := readFrom(mu, r, n)
 		if rerr != nil {
 			return nil, &vmwasm.StructuredError{Code: CodeEIO, Message: "Proc:read: " + rerr.Error()}
+		}
+		if eof {
+			pr.noteEOF(which) // stream agotado: candidato a reap temprano (proc.go)
 		}
 		if eof && len(data) == 0 {
 			return []any{nil}, nil // EOF sin datos: nil (§6)
@@ -171,20 +184,36 @@ func registerProcWasm(p *vmwasm.Pool, rt *Runtime) {
 	// inmediato; esperar la muerte es wait). Idempotente y best-effort (killed).
 	p.RegisterHandleMethod("Proc", "kill", func(inst *vmwasm.Instance, val any, args []any) ([]any, error) {
 		sig := syscall.SIGTERM // por defecto TERM (§6)
-		if arg(args, 0) != nil {
-			sig = syscall.Signal(argInt(args, 0))
+		// Si se da una señal, DEBE ser numérica. No usamos argInt aquí: degradaría
+		// cualquier tipo no numérico (un string "KILL" incluido) a 0, y syscall.Signal(0)
+		// es la sonda de existencia —no mata—, de modo que un kill con señal mal tipada
+		// no mataría y tampoco daría error. Type-switch explícito: int64 o float64 con
+		// valor entero; cualquier otra cosa → EINVAL accionable.
+		if a := arg(args, 0); a != nil {
+			switch v := a.(type) {
+			case int64:
+				sig = syscall.Signal(v)
+			case float64:
+				if iv := int64(v); float64(iv) == v {
+					sig = syscall.Signal(iv)
+				} else {
+					return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "Proc:kill: la señal debe ser un entero (p. ej. 9 para KILL o 15 para TERM); el default sin argumento es TERM"}
+				}
+			default:
+				return nil, &vmwasm.StructuredError{Code: CodeEINVAL, Message: "Proc:kill: la señal debe ser numérica (p. ej. 9 para KILL o 15 para TERM); el default sin argumento es TERM"}
+			}
 		}
 		val.(*luaProc).killSignal(sig)
 		return nil, nil
 	})
 
-	// Wrapper Lua: nu.proc.spawn envuelve el handle de proc._spawn y le cuelga los
+	// Wrapper Lua: enu.proc.spawn envuelve el handle de proc._spawn y le cuelga los
 	// seis métodos de §6 —los de IO por __hcall_s (⏸), close_stdin/kill por __hcall
-	// (síncronos)—. Mismo patrón que nu.ws.connect (vmwasm_ws.go).
-	p.AddPreludio(`
-nu.proc = nu.proc or {}
-function nu.proc.spawn(argv, opts)
-  local p = nu.proc._spawn(argv, opts)   -- handle {__id}
+	// (síncronos)—. Mismo patrón que enu.ws.connect (vmwasm_ws.go).
+	p.AddPreludioW(`
+enu.proc = enu.proc or {}
+function enu.proc.spawn(argv, opts)
+  local p = enu.proc._spawn(argv, opts)   -- handle {__id}
   p.write       = function(self, data)     return __hcall_s(self.__id, "write", data) end
   p.read_line   = function(self, which)    return __hcall_s(self.__id, "read_line", which) end
   p.read        = function(self, which, n) return __hcall_s(self.__id, "read", which, n) end
@@ -192,10 +221,10 @@ function nu.proc.spawn(argv, opts)
   p.close_stdin = function(self)           return __hcall(self.__id, "close_stdin") end
   p.kill        = function(self, sig)      return __hcall(self.__id, "kill", sig) end
   return p
-end`)
+end`, "proc._spawn")
 }
 
-// parseProcArgsWasm valida y extrae (argv, opts) del wire de nu.proc.run/spawn (§6).
+// parseProcArgsWasm valida y extrae (argv, opts) del wire de enu.proc.run/spawn (§6).
 // Gemelo VM-agnóstico de parseProcArgs (el backend gopher): argv obligatorio (array
 // no vacío de strings; sin ejecutable no hay proceso → EINVAL), y opts? con cwd/env/
 // stdin/timeout_ms. Reproduce la MISMA permisividad que gopher: un opts no-tabla, un
@@ -248,7 +277,7 @@ func parseProcArgsWasm(argvArg, optsArg any) ([]string, procOpts, error) {
 }
 
 func einvalProc(msg string) error {
-	return &vmwasm.StructuredError{Code: CodeEINVAL, Message: "nu.proc: " + msg}
+	return &vmwasm.StructuredError{Code: CodeEINVAL, Message: "enu.proc: " + msg}
 }
 
 // mapProcStartErrorWasm traduce el error de arrancar un proceso (cmd.Start / los

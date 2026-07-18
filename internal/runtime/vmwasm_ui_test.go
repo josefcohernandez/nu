@@ -3,20 +3,20 @@ package runtime
 // Tests de M13c: el compositor REAL enchufado a la frontera wasm (§9). A diferencia
 // de internal/vmwasm/ui_test.go (que probó el MECANISMO con un backend de grabación),
 // aquí el backend es el `*compositor` de producción (compositor.go): las primitivas
-// nu.ui.* mutan la rejilla real, y los efectos se observan inspeccionando el
+// enu.ui.* mutan la rejilla real, y los efectos se observan inspeccionando el
 // compositor Go (composeRow/paint), como los tests de caja blanca del compositor
-// (compositor_test.go, mismo paquete). También se cubre que un Block de nu.text.*
-// (wrap) se blittea igual que uno de nu.ui.block (round-trip del handle "Block").
+// (compositor_test.go, mismo paquete). También se cubre que un Block de enu.text.*
+// (wrap) se blittea igual que uno de enu.ui.block (round-trip del handle "Block").
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // wasmUIInst crea una Instance wasm con el compositor real `comp` enchufado como
-// backend de UI y el catálogo nu.text registrado (para el blit de un Block envuelto).
+// backend de UI y el catálogo enu.text registrado (para el blit de un Block envuelto).
 // El portapapeles va con io nil (test desnudo, sin TTY): clipboard es no-op / nil.
 func wasmUIInst(t *testing.T, comp *compositor) *vmwasm.Instance {
 	t.Helper()
@@ -35,27 +35,27 @@ func wasmUIInst(t *testing.T, comp *compositor) *vmwasm.Instance {
 	return inst
 }
 
-// M13c.1: nu.ui.size()/nu.ui.caps() reales salen del compositor y de detectColors.
+// M13c.1: enu.ui.size()/enu.ui.caps() reales salen del compositor y de detectColors.
 func TestUIWasmSizeCaps(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	out := evalWasm(t, inst, `
-		local s = nu.ui.size()
-		local c = nu.ui.caps()
+		local s = enu.ui.size()
+		local c = enu.ui.caps()
 		return s.w .. "x" .. s.h .. ":" .. type(c.colors) .. ":" .. tostring(c.mouse)`)
 	if out != "80x24:number:false" {
 		t.Fatalf("size/caps reales: got %q (esperado 80x24:number:false)", out)
 	}
 }
 
-// M13c.2: nu.ui.region + region:blit(nu.ui.block(...)) pinta la celda real; se observa
+// M13c.2: enu.ui.region + region:blit(enu.ui.block(...)) pinta la celda real; se observa
 // componiendo el compositor (la fila 0 lleva el glifo blitteado).
 func TestUIWasmRegionBlit(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	evalWasm(t, inst, `
-		local r = nu.ui.region({ x = 0, y = 0, w = 10, h = 3 })
-		r:blit(0, 0, nu.ui.block({ "hola" }))
+		local r = enu.ui.region({ x = 0, y = 0, w = 10, h = 3 })
+		r:blit(0, 0, enu.ui.block({ "hola" }))
 		return "ok"`)
 	if len(comp.regions) != 1 {
 		t.Fatalf("se esperaba 1 región en el compositor real, hay %d", len(comp.regions))
@@ -69,14 +69,14 @@ func TestUIWasmRegionBlit(t *testing.T) {
 // panica, muta el compositor real, y destroy la descuelga del compositor. Tras
 // destroy, un método sobre la región muerta da EINVAL "ya destruida" —PARIDAD con el
 // backend gopher (ui.go, checkRegion/regionDestroy), no ECLOSED del handle crudo—: el
-// envoltorio Lua de nu.ui.region (host.go, preludioInput) lleva la aliveness y hace
+// envoltorio Lua de enu.ui.region (host.go, preludioInput) lleva la aliveness y hace
 // destroy idempotente, de modo que la Region muerta sigue siendo un handle válido que
 // responde el error de uso accionable, igual que una región gopher con alive=false.
 func TestUIWasmRegionLifecycle(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	out := evalWasm(t, inst, `
-		local r = nu.ui.region({ x = 1, y = 1, w = 10, h = 5 })
+		local r = enu.ui.region({ x = 1, y = 1, w = 10, h = 5 })
 		r:move(3, 4)
 		r:resize(20, 8)
 		r:raise()
@@ -95,14 +95,14 @@ func TestUIWasmRegionLifecycle(t *testing.T) {
 	}
 }
 
-// M13c.4: nu.ui.region:cursor coloca el cursor real del compositor (último gana, §9.1)
+// M13c.4: enu.ui.region:cursor coloca el cursor real del compositor (último gana, §9.1)
 // y produce la secuencia de posicionado esperada en el frame.
 func TestUIWasmCursor(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	evalWasm(t, inst, `
-		local a = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
-		local b = nu.ui.region({ x = 10, y = 2, w = 5, h = 5 })
+		local a = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local b = enu.ui.region({ x = 10, y = 2, w = 5, h = 5 })
 		a:cursor(1, 1)
 		b:cursor(2, 3)   -- gana esta: cursor a pantalla (10+2, 2+3) = col 13, fila 6 (1-based: 12;13H)
 		return "ok"`)
@@ -113,15 +113,15 @@ func TestUIWasmCursor(t *testing.T) {
 	}
 }
 
-// M13c.5: un Block de nu.text.wrap se blittea en una región igual que uno de
-// nu.ui.block (round-trip del handle "Block", C5): la fila compuesta lleva el texto
+// M13c.5: un Block de enu.text.wrap se blittea en una región igual que uno de
+// enu.ui.block (round-trip del handle "Block", C5): la fila compuesta lleva el texto
 // envuelto y el Block tiene .width<=5 y .height>1.
 func TestUIWasmBlitWrap(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	out := evalWasm(t, inst, `
-		local blk = nu.text.wrap("hola mundo", 5)
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local blk = enu.text.wrap("hola mundo", 5)
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
 		r:blit(0, 0, blk)
 		return tostring(blk.width <= 5) .. ":" .. tostring(blk.height > 1)`)
 	if out != "true:true" {
@@ -141,8 +141,8 @@ func TestUIWasmBlitOffsetNegativoG28(t *testing.T) {
 	comp := newCompositor(80, 24)
 	inst := wasmUIInst(t, comp)
 	evalWasm(t, inst, `
-		local b = nu.ui.block({ "L0", "L1", "L2" })
-		local r = nu.ui.region({ x = 0, y = 0, w = 10, h = 3 })
+		local b = enu.ui.block({ "L0", "L1", "L2" })
+		local r = enu.ui.region({ x = 0, y = 0, w = 10, h = 3 })
 		r:blit(0, -1, b)   -- oy negativo: la fila 0 muestra la 2ª línea del Block (G28)
 		return "ok"`)
 	if got := composeRow(comp, 0); got != "L1" {
@@ -159,8 +159,8 @@ func TestUIWasmPaintANSI(t *testing.T) {
 	comp := newCompositor(20, 3)
 	inst := wasmUIInst(t, comp)
 	evalWasm(t, inst, `
-		local r = nu.ui.region({ x = 0, y = 0, w = 10, h = 1 })
-		r:blit(0, 0, nu.ui.block({ "hi" }))
+		local r = enu.ui.region({ x = 0, y = 0, w = 10, h = 1 })
+		r:blit(0, 0, enu.ui.block({ "hi" }))
 		return "ok"`)
 	if n := comp.paint(); n == 0 {
 		t.Fatal("paint no emitió celdas cambiadas tras el blit")
@@ -170,13 +170,13 @@ func TestUIWasmPaintANSI(t *testing.T) {
 	}
 }
 
-// M13c.8: nu.ui.region:fill con un estilo real tiñe el lienzo (el compositor pinta el
+// M13c.8: enu.ui.region:fill con un estilo real tiñe el lienzo (el compositor pinta el
 // SGR del color); un fg literal cruza y llega al frame.
 func TestUIWasmFillStyle(t *testing.T) {
 	comp := newCompositor(4, 1)
 	inst := wasmUIInst(t, comp)
 	evalWasm(t, inst, `
-		local r = nu.ui.region({ x = 0, y = 0, w = 4, h = 1 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 4, h = 1 })
 		r:fill({ fg = "#ff0000" })
 		return "ok"`)
 	comp.paint()

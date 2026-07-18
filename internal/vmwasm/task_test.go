@@ -1,6 +1,6 @@
 package vmwasm
 
-// Tests de M07: la superficie completa de nu.task sobre el bucle de M06 —
+// Tests de M07: la superficie completa de enu.task sobre el bucle de M06 —
 // future, all (G27), race, cleanup (LIFO) y cancelación cooperativa (§1.3).
 
 import "testing"
@@ -9,12 +9,12 @@ import "testing"
 func TestTaskFuture(t *testing.T) {
 	out := runScript(t, `
 		out = "no"
-		local f = nu.task.future()
-		nu.task.spawn(function()
+		local f = enu.task.future()
+		enu.task.spawn(function()
 			out = f:await()
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(5)
+		enu.task.spawn(function()
+			enu.task.sleep(5)
 			f:set("valor")
 		end)`)
 	if out != "valor" {
@@ -27,10 +27,10 @@ func TestTaskFuture(t *testing.T) {
 func TestTaskAllAlineado(t *testing.T) {
 	out := runScript(t, `
 		out = ""
-		nu.task.spawn(function()
-			local r = nu.task.all({
-				function() nu.task.sleep(20); return "lento" end,
-				function() nu.task.sleep(2);  return "rapido" end,
+		enu.task.spawn(function()
+			local r = enu.task.all({
+				function() enu.task.sleep(20); return "lento" end,
+				function() enu.task.sleep(2);  return "rapido" end,
 			})
 			out = r[1] .. "," .. r[2]
 		end)`)
@@ -43,10 +43,10 @@ func TestTaskAllAlineado(t *testing.T) {
 func TestTaskRace(t *testing.T) {
 	out := runScript(t, `
 		out = ""
-		nu.task.spawn(function()
-			local idx, r = nu.task.race({
-				function() nu.task.sleep(20); return "A" end,
-				function() nu.task.sleep(2);  return "B" end,
+		enu.task.spawn(function()
+			local idx, r = enu.task.race({
+				function() enu.task.sleep(20); return "A" end,
+				function() enu.task.sleep(2);  return "B" end,
 			})
 			out = tostring(idx) .. ":" .. r
 		end)`)
@@ -60,13 +60,13 @@ func TestTaskCleanupLIFO(t *testing.T) {
 	out := runScript(t, `
 		local traza = {}
 		out = ""
-		local w = nu.task.spawn(function()
-			nu.task.cleanup(function() traza[#traza+1] = "primero-registrado" end)
-			nu.task.cleanup(function() traza[#traza+1] = "segundo-registrado" end)
-			nu.task.sleep(1)
+		local w = enu.task.spawn(function()
+			enu.task.cleanup(function() traza[#traza+1] = "primero-registrado" end)
+			enu.task.cleanup(function() traza[#traza+1] = "segundo-registrado" end)
+			enu.task.sleep(1)
 		end)
-		nu.task.spawn(function()
-			nu.task.await(w)
+		enu.task.spawn(function()
+			enu.task.await(w)
 			out = table.concat(traza, ",")
 		end)`)
 	// LIFO: el segundo registrado corre primero.
@@ -80,14 +80,14 @@ func TestTaskCancelCorreCleanup(t *testing.T) {
 	out := runScript(t, `
 		out = "no"
 		local limpio = false
-		local w = nu.task.spawn(function()
-			nu.task.cleanup(function() limpio = true end)
-			nu.task.sleep(1000)  -- se cancelará antes
+		local w = enu.task.spawn(function()
+			enu.task.cleanup(function() limpio = true end)
+			enu.task.sleep(1000)  -- se cancelará antes
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(5)
-			nu.task.cancel(w)
-			nu.task.sleep(5)
+		enu.task.spawn(function()
+			enu.task.sleep(5)
+			enu.task.cancel(w)
+			enu.task.sleep(5)
 			out = tostring(limpio)
 		end)`)
 	if out != "true" {
@@ -100,14 +100,14 @@ func TestTaskCancelCorreCleanup(t *testing.T) {
 func TestTaskCancelObservable(t *testing.T) {
 	out := runScript(t, `
 		out = "no"
-		local w = nu.task.spawn(function()
-			nu.task.sleep(1000)
+		local w = enu.task.spawn(function()
+			enu.task.sleep(1000)
 			return "no-deberia"
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(5)
-			nu.task.cancel(w)
-			local ok, e = pcall(function() return nu.task.await(w) end)
+		enu.task.spawn(function()
+			enu.task.sleep(5)
+			enu.task.cancel(w)
+			local ok, e = pcall(function() return enu.task.await(w) end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
 		end)`)
 	if out != "false:ECANCELED" {

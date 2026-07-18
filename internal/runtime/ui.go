@@ -10,17 +10,17 @@ import (
 	"golang.org/x/term"
 )
 
-// `nu.ui` — Blocks, estilos, capacidades, compositor, input y portapapeles (api.md
-// §9). El catálogo `nu.ui` (block/caps/size/region + métodos, on_input/keymap,
+// `enu.ui` — Blocks, estilos, capacidades, compositor, input y portapapeles (api.md
+// §9). El catálogo `enu.ui` (block/caps/size/region + métodos, on_input/keymap,
 // clipboard) lo monta el backend wasm sobre el compositor real (vmwasm_ui.go);
 // aquí sobreviven las piezas Go compartidas: el estado de sesión (`uiState`), el
 // **pintor** del compositor (armPainter/paintLocked/flushFrame) que el timer de
 // coalescing y el driver de TTY usan, la detección de TTY/tamaño/colores y la
 // validación de color literal (isHexColor), que el binding wasm reutiliza.
 //
-// GATING HEADLESS (G20, §9). Sin TTY interactivo (`nu -e`, CI, salida redirigida)
-// el módulo `nu.ui` directamente NO EXISTE —el mismo modelo que las caps de los
-// workers: "la superficie no concedida no está"; la detección es `nu.has("ui")`—.
+// GATING HEADLESS (G20, §9). Sin TTY interactivo (`enu -e`, CI, salida redirigida)
+// el módulo `enu.ui` directamente NO EXISTE —el mismo modelo que las caps de los
+// workers: "la superficie no concedida no está"; la detección es `enu.has("ui")`—.
 // En headless `rt.ui` es nil y el pintor es no-op.
 
 // coalesceInterval es el periodo de pintado del compositor (§9.1, ADR-007): se
@@ -29,7 +29,7 @@ import (
 // la fluidez percibida que el spike de ADR-012 usó como presupuesto.
 const coalesceInterval = 30 * time.Millisecond
 
-// uiState es el estado de sesión de `nu.ui` (§9.1, S29): el compositor y el timer
+// uiState es el estado de sesión de `enu.ui` (§9.1, S29): el compositor y el timer
 // de coalescing que lo pinta. Vive en el estado principal bajo el token (ADR-008);
 // el timer (una goroutine armada en `Boot`) toma el token para pintar, de modo que
 // el pintado nunca pisa una mutación de Lua. En headless (S29) el "pintado" solo
@@ -55,13 +55,13 @@ type uiState struct {
 	// construye el buffer ANSI del diff en `comp.enc`; `out` es el `os.Stdout` del
 	// proceso interactivo, que el driver fija con `attachOutput` al entrar en raw mode.
 	// Tras cada `paint`, el painter vuelca el diff a `out` bajo el token. En headless
-	// (tests del compositor, `nu -e`) es **nil** y no se vuelca nada.
+	// (tests del compositor, `enu -e`) es **nil** y no se vuelca nada.
 	out io.Writer
 }
 
 // maybeUIState construye el estado de UI **solo si hay superficie de UI concedida**
 // (`active`, el gating G20 de §9 que `New` resuelve). En headless devuelve nil: sin
-// `nu.ui` no hay compositor que mantener ni timer que armar, y `armPainter`/
+// `enu.ui` no hay compositor que mantener ni timer que armar, y `armPainter`/
 // `stopPainter`/`Close` ya toleran `rt.ui == nil`. Con UI activa delega en
 // `newUIState`.
 func maybeUIState(active bool, w, h int) *uiState {
@@ -84,11 +84,11 @@ func newUIState(w, h int) *uiState {
 	return &uiState{comp: newCompositor(w, h), stopCh: make(chan struct{}), clipWriter: os.Stdout}
 }
 
-// detectTTY decide si hay un TTY interactivo del que colgar `nu.ui` (el GATING
+// detectTTY decide si hay un TTY interactivo del que colgar `enu.ui` (el GATING
 // HEADLESS de G20, §9, S32). Exige que **tanto la salida estándar como la entrada
 // estándar** sean terminales: la UI a pantalla completa necesita escribir el render
-// (stdout) y leer las teclas (stdin), así que si CUALQUIERA está redirigida (`nu -e`,
-// un pipe, CI, salida a fichero) no hay superficie viable y `nu.ui` no existe. Usa
+// (stdout) y leer las teclas (stdin), así que si CUALQUIERA está redirigida (`enu -e`,
+// un pipe, CI, salida a fichero) no hay superficie viable y `enu.ui` no existe. Usa
 // `golang.org/x/term.IsTerminal` (puro-Go, sin CGO, coherente con ADR-001).
 func detectTTY() bool {
 	return term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))
@@ -137,7 +137,7 @@ func (rt *Runtime) armPainter() {
 // paintLocked pinta bajo AMBOS candados relevantes: el token del scheduler —que
 // serializa con el código que lee el compositor bajo el token (los tests de UI, el
 // driver)— y, dentro de flushFrame, el mutex de la Instance wasm —que serializa con
-// las host functions de `nu.ui` que mutan el compositor durante un Call—. Sin doble
+// las host functions de `enu.ui` que mutan el compositor durante un Call—. Sin doble
 // bloqueo problemático: las host functions wasm no toman el token, así que no hay
 // ciclo token↔inst.mu. Lo usan el timer de coalescing y el driver de TTY (tras
 // alimentar input).
@@ -147,16 +147,28 @@ func (rt *Runtime) paintLocked() {
 	rt.sched.release()
 }
 
+// withUILock ejecuta `fn` bajo el candado que serializa el compositor frente a
+// la VM (el mutex de la Instance wasm). Desde G44 el bombeo continuo del
+// scheduler puede estar mutando la UI en cualquier momento (un hostcall de
+// `enu.ui` durante un paso), así que TODO acceso al compositor fuera de un Call
+// —el driver, el resize, la pantalla desnuda, los lectores de test— debe pasar
+// por aquí; el token del scheduler ya no basta (el bombeo no lo toma). Sin
+// backend wasm corre `fn` directamente. `fn` no debe re-entrar la VM (Eval):
+// el mutex no es reentrante.
+func (rt *Runtime) withUILock(fn func()) {
+	if rt.wasm != nil {
+		rt.wasm.WithLock(fn)
+		return
+	}
+	fn()
+}
+
 // flushFrame es el punto ÚNICO de pintado: toma el mutex de la Instance wasm (el
-// candado que serializa las mutaciones de `nu.ui` durante un Call) para leer el
+// candado que serializa las mutaciones de `enu.ui` durante un Call) para leer el
 // compositor de forma excluyente con ellas (M15, veto de corrección). Todos los
 // llamantes (el timer de coalescing y el driver de TTY) pasan por aquí.
 func (rt *Runtime) flushFrame() {
-	if rt.wasm != nil {
-		rt.wasm.WithLock(rt.flushFrameUnlocked)
-		return
-	}
-	rt.flushFrameUnlocked()
+	rt.withUILock(rt.flushFrameUnlocked)
 }
 
 // flushFrameUnlocked hace el pintado en sí; presupone tomado el candado que serializa
@@ -205,7 +217,7 @@ func isHexColor(s string) bool {
 // 16M (1<<24); un `TERM` con "256color" → 256; un `TERM` no vacío → 16; sin TERM
 // (headless/CI/redirigido) → 256 como default razonable. No es un sniffing frágil:
 // es una pista, y el compositor (S29) degrada con seguridad. Lo consulta el binding
-// `nu.ui.caps` del backend wasm (compositorBackend.Caps).
+// `enu.ui.caps` del backend wasm (compositorBackend.Caps).
 func detectColors() int {
 	if ct := strings.ToLower(os.Getenv("COLORTERM")); ct == "truecolor" || ct == "24bit" {
 		return 1 << 24

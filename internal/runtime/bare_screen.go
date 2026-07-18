@@ -1,39 +1,39 @@
 package runtime
 
-// Pantalla de runtime desnudo (api.md §14, G21, S33). Cuando nu arranca con un
+// Pantalla de runtime desnudo (api.md §14, G21, S33). Cuando enu arranca con un
 // TTY interactivo y NINGÚN plugin activo (ni de usuario ni embebido activado por
-// `nu.toml`), el kernel pinta —ANTES de correr Lua de producto— una pantalla FIJA
+// `enu.toml`), el kernel pinta —ANTES de correr Lua de producto— una pantalla FIJA
 // hecha SOLO de sus propias capacidades: la versión y el nivel de API
-// (`nu.version`), las rutas de config y de plugins (`nu.config.dir` y los
+// (`enu.version`), las rutas de config y de plugins (`enu.config.dir` y los
 // directorios de plugins), el catálogo de extensiones embebidas DISPONIBLES
 // (`embeddedNames`, embed.go) y las ACCIONES que ofrece. No es la UI de un
 // producto sino la del propio runtime: las extensiones embebidas y su activación
 // son capacidad del loader, así que el kernel habla de lo suyo (filosofia.md §2).
 // Render FIJO (celdas/Block sobre el compositor de S29), pre-Lua, sin widgets ni
-// lógica de producto. Es lo que se ve SIEMPRE que nu arranca sin nada activo, no
+// lógica de producto. Es lo que se ve SIEMPRE que enu arranca sin nada activo, no
 // un diálogo de primera vez.
 //
 // CONDICIÓN (§14): se muestra SSI hay superficie de UI (`rt.uiActive`: un TTY
 // interactivo, o `WithForceUI` en test) Y no hay plugins activos. Sin TTY NO se
 // pinta nada: el runtime arranca "desnudo" (Boot normal) y los errores por
-// extensión inactiva siguen siendo accionables (nombran la línea de `nu.toml`,
+// extensión inactiva siguen siendo accionables (nombran la línea de `enu.toml`,
 // S12). Con cualquier plugin activo tampoco se pinta: el arranque sigue su curso.
 //
 // ACCIONES (§14): (1) activar el CONJUNTO oficial de producto → escribe `plugins.enabled`
-// en `config.dir()/nu.toml` con las extensiones embebidas del conjunto de producto (todas
+// en `config.dir()/enu.toml` con las extensiones embebidas del conjunto de producto (todas
 // menos el andamiaje `example`, ADR-015) y CONTINÚA el arranque canónico (`Boot`), SIN red
 // (la activación de una embebida sale del binario, ADR-010); (2) activar extensiones SUELTAS
 // (p. ej. solo `repl`) → escribe solo esas; (3) salir. La elección real con el TECLADO usa el input de S31 + el
 // driver de TTY; en este entorno HEADLESS no hay TTY, así que la lógica
-// "activar → escribir nu.toml → continuar Boot" se expone por una vía interna
+// "activar → escribir enu.toml → continuar Boot" se expone por una vía interna
 // (`activateAndBoot`) testeable, y el render se inspecciona componiendo a un buffer
 // (la rejilla del compositor / su salida ANSI).
 //
 // FRONTERA. La pantalla NO añade superficie Lua nueva (es del kernel, pre-Lua, §14
-// ya describe G21): no toca `api.md` ni `nu.version.api`. La interacción de teclado
+// ya describe G21): no toca `api.md` ni `enu.version.api`. La interacción de teclado
 // visible, el streaming visible y el resize/paste visibles son el CP-7 MANUAL con
 // TTY (no ejecutable en CI headless): aquí se cubre lo automatizable (el render a
-// buffer, la condición TTY+sin-plugins, y activar→nu.toml→Boot).
+// buffer, la condición TTY+sin-plugins, y activar→enu.toml→Boot).
 
 import (
 	"bytes"
@@ -65,7 +65,7 @@ func (rt *Runtime) RenderBareScreen() []string {
 // andamiaje `example`, ADR-015) y continúa el arranque (§14): es la primera acción de
 // la pantalla desnuda. Sin red (las embebidas salen del binario, ADR-010). La invoca
 // la elección de teclado "activar el conjunto oficial" (driver de TTY, S33+); el flag
-// `nu --default-config` (sin TTY, G33) activa el MISMO conjunto vía `officialProductSet`,
+// `enu --default-config` (sin TTY, G33) activa el MISMO conjunto vía `officialProductSet`,
 // de modo que pantalla y flag enchufan lo mismo.
 func (rt *Runtime) ActivateOfficial() error {
 	names, err := officialProductSet()
@@ -77,19 +77,19 @@ func (rt *Runtime) ActivateOfficial() error {
 
 // OfficialProductSet expone el conjunto oficial de producto (ADR-015, G33) a `main`
 // (el binario) como FUNCIÓN DE PAQUETE —no método—: el modo EFÍMERO de
-// `nu --default-config` necesita el conjunto ANTES de construir el Runtime (para
+// `enu --default-config` necesita el conjunto ANTES de construir el Runtime (para
 // pasarlo a `WithEnabledPlugins`), cuando aún no hay `rt`. El conjunto es estático
 // (sale del `embed.FS`, sin estado de runtime), así que no requiere un Runtime. Es un
 // wrapper fino de `officialProductSet`.
 func OfficialProductSet() ([]string, error) { return officialProductSet() }
 
-// WriteDefaultConfig respalda el modo PERSISTENTE de `nu --default-config` (ADR-015,
+// WriteDefaultConfig respalda el modo PERSISTENTE de `enu --default-config` (ADR-015,
 // G33): escribe el conjunto oficial de producto en `plugins.enabled` de
-// `config.dir()/nu.toml` —preservando el resto del fichero, atómico, idempotente; un
-// `nu.toml` mal formado NO se sobrescribe (error accionable)— Y deja config de agente
+// `config.dir()/enu.toml` —preservando el resto del fichero, atómico, idempotente; un
+// `enu.toml` mal formado NO se sobrescribe (error accionable)— Y deja config de agente
 // USABLE (ADR-017, G35): plantillas ACTIVAS de `agent.toml` (con un `model` por
 // defecto) y `providers.toml` (provider `anthropic` con `api_key_env`), escritas SOLO
-// si no existen (nunca pisan config del usuario). Sin esas plantillas, el primer `nu`
+// si no existen (nunca pisan config del usuario). Sin esas plantillas, el primer `enu`
 // arrancaría el chat sin modelo y moriría (G35). Devuelve `(configDir, names,
 // createdTemplates, err)` para que `main` informe qué escribió y dónde —incluida la
 // lista de plantillas creadas, para no afirmar que escribió algo que ya existía—. NO
@@ -129,7 +129,7 @@ func (rt *Runtime) bareScreenActive() bool {
 }
 
 // hasActivePlugins informa, ANTES de correr ningún `init.lua`, si el arranque
-// cargaría algún plugin: o bien `plugins.enabled` de `nu.toml` nombra algo (una
+// cargaría algún plugin: o bien `plugins.enabled` de `enu.toml` nombra algo (una
 // embebida activada, ADR-010), o bien algún directorio de plugins contiene un
 // plugin de disco. Es deliberadamente LIGERO —no materializa embebidas ni valida el
 // grafo (eso lo hace `discover`/`topoSort` en el `Boot` real)—: solo decide si la
@@ -171,7 +171,7 @@ func (l *loader) anyDiskPlugin() bool {
 // y lo consume `renderBareScreen` (para pintar) y los tests (para verificar el
 // contenido sin depender del layout exacto).
 type bareScreenModel struct {
-	versionLine string   // "nu 0.1.0 · API 2"
+	versionLine string   // "enu 0.1.0 · API 2"
 	configDir   string   // config.dir()
 	pluginDirs  []string // directorios donde se buscan plugins
 	embedded    []string // catálogo de extensiones embebidas DISPONIBLES
@@ -187,7 +187,7 @@ func (rt *Runtime) buildBareScreenModel() bareScreenModel {
 	embedded, _ := embeddedNames() // del binario (ADR-010); si falla, lista vacía
 
 	m := bareScreenModel{
-		versionLine: fmt.Sprintf("nu %d.%d.%d · API %d",
+		versionLine: fmt.Sprintf("enu %d.%d.%d · API %d",
 			VersionMajor, VersionMinor, VersionPatch, APILevel),
 		configDir:  rt.ldr.configDir,
 		pluginDirs: append([]string(nil), rt.ldr.pluginDirs...),
@@ -207,7 +207,7 @@ func (rt *Runtime) buildBareScreenModel() bareScreenModel {
 // las cadenas esperadas —versión, rutas, embebidas, acciones— están presentes).
 func (m bareScreenModel) lines() []string {
 	var ls []string
-	ls = append(ls, "nu — runtime desnudo")
+	ls = append(ls, "enu — runtime desnudo")
 	ls = append(ls, "")
 	ls = append(ls, m.versionLine)
 	ls = append(ls, "")
@@ -245,7 +245,7 @@ func (m bareScreenModel) lines() []string {
 // a pantalla completa y fuerza un `paint`. Devuelve el modelo pintado (para que el
 // llamante/tests sepan qué se mostró). Corre bajo el token, en el estado principal
 // (lo invoca `Boot`, que lo tiene): toca el compositor como cualquier mutación de
-// `nu.ui`. Requiere `rt.ui != nil` (garantizado por el gate `bareScreenActive`, que
+// `enu.ui`. Requiere `rt.ui != nil` (garantizado por el gate `bareScreenActive`, que
 // exige `uiActive`).
 //
 // El render es FIJO y pre-Lua: no hay widgets ni lógica de producto, solo celdas. El
@@ -264,22 +264,25 @@ func (rt *Runtime) renderBareScreen() bareScreenModel {
 	}
 	b := newBlock(spanLines)
 
-	comp := rt.ui.comp
 	// Una región a pantalla completa, sin dueño de plugin (es del runtime): el
 	// owner "user" la etiqueta como cualquier handle del estado principal. Se
 	// blittea el Block en su origen (0,0) y se compone+pinta de inmediato (no se
-	// espera al timer de coalescing: la pantalla desnuda debe verse ya).
-	r := comp.addRegion(0, 0, comp.w, comp.h, 0, ownerUser)
-	r.content.blitBlock(0, 0, b)
-	comp.markDirty()
-	comp.paint()
+	// espera al timer de coalescing: la pantalla desnuda debe verse ya). Bajo el
+	// candado de la UI (G44): el compositor se comparte con la VM.
+	rt.withUILock(func() {
+		comp := rt.ui.comp
+		r := comp.addRegion(0, 0, comp.w, comp.h, 0, ownerUser)
+		r.content.blitBlock(0, 0, b)
+		comp.markDirty()
+		comp.paint()
+	})
 	return m
 }
 
 // activateAndBoot es la lógica de la ACCIÓN de la pantalla desnuda (§14): escribe
-// `names` en `plugins.enabled` de `config.dir()/nu.toml` (preservando el resto del
+// `names` en `plugins.enabled` de `config.dir()/enu.toml` (preservando el resto del
 // fichero si existía) y CONTINÚA el arranque canónico (`Boot`), SIN red. Es la vía
-// INTERNA y testeable de "activar → escribir nu.toml → continuar Boot": en
+// INTERNA y testeable de "activar → escribir enu.toml → continuar Boot": en
 // producción la dispara la elección de teclado (driver de TTY, S33+); en headless la
 // invocan los tests.
 //
@@ -289,7 +292,7 @@ func (rt *Runtime) renderBareScreen() bareScreenModel {
 //
 // Tras escribir el fichero, recarga la config (`plugins.enabled`/`dirs`/watchdog) en
 // el loader y arranca: así el `Boot` posterior carga las recién activadas con
-// `source="builtin"`, exactamente como si el usuario hubiera editado `nu.toml` a
+// `source="builtin"`, exactamente como si el usuario hubiera editado `enu.toml` a
 // mano y vuelto a arrancar (ADR-010). Devuelve el error de `Boot` (grafo inválido,
 // config rota...), accionable.
 func (rt *Runtime) activateAndBoot(names []string) error {
@@ -310,11 +313,11 @@ func (rt *Runtime) activateAndBoot(names []string) error {
 }
 
 // writeEnabledPlugins escribe (o actualiza) `plugins.enabled` en
-// `config.dir()/nu.toml`, PRESERVANDO el resto del fichero si existe (otras claves
+// `config.dir()/enu.toml`, PRESERVANDO el resto del fichero si existe (otras claves
 // de `[plugins]`, `[watchdog]`, `[net]`, claves desconocidas...). La estrategia: leer
 // el TOML existente a un mapa genérico, fijar `plugins.enabled`, y reescribir todo
 // con la librería TOML pura-Go (BurntSushi, la misma del loader, S11) de forma
-// ATÓMICA (escribir a un temporal y renombrar) para no dejar un `nu.toml` a medias si
+// ATÓMICA (escribir a un temporal y renombrar) para no dejar un `enu.toml` a medias si
 // el proceso muere a mitad. Un fichero ausente se crea con solo esa clave.
 //
 // POR QUÉ un mapa genérico y no `runtimeConfig`: re-serializar `runtimeConfig`
@@ -354,7 +357,7 @@ func writeEnabledPlugins(configDir string, names []string) error {
 	// Serializa y escribe atómicamente (temporal + rename) bajo `config.dir()`. El
 	// directorio de config debe existir; si no, se crea (primer arranque del usuario).
 	// La escritura reusa `writeAtomic` (S14): temporal en el mismo directorio +
-	// `rename`, para no dejar un `nu.toml` a medias si el proceso muere a mitad.
+	// `rename`, para no dejar un `enu.toml` a medias si el proceso muere a mitad.
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return &StructuredError{Code: CodeEIO,
 			Message: fmt.Sprintf("no se pudo crear el directorio de configuración %q: %v", configDir, err)}
@@ -364,7 +367,7 @@ func writeEnabledPlugins(configDir string, names []string) error {
 		return &StructuredError{Code: CodeEIO,
 			Message: fmt.Sprintf("no se pudo serializar %s: %v", nuTomlName, err)}
 	}
-	if err := writeAtomic(path, buf.Bytes()); err != nil {
+	if err := writeAtomic(path, buf.Bytes(), nil); err != nil {
 		return &StructuredError{Code: CodeEIO,
 			Message: fmt.Sprintf("no se pudo escribir %q: %v", path, err)}
 	}
@@ -386,7 +389,7 @@ const (
 // por defecto del proyecto, ADR-016). El usuario la edita; el onramp no la pisa si ya
 // existe.
 const defaultAgentToml = `# agent.toml — configuración del agente (agente.md §10).
-# Generado por 'nu --default-config' (ADR-017). Edítalo a tu gusto.
+# Generado por 'enu --default-config' (ADR-017). Edítalo a tu gusto.
 
 # Modelo por defecto: "proveedor/modelo", resoluble en providers.toml.
 model = "anthropic/opus"
@@ -401,7 +404,7 @@ max_turns = 32
 // variable no está, `providers.resolve` no falla (deja la clave ausente): el chat
 // monta igual y el error sale al primer turno. El onramp no la pisa si ya existe.
 const defaultProvidersToml = `# providers.toml — proveedores y modelos (providers.md).
-# Generado por 'nu --default-config' (ADR-017).
+# Generado por 'enu --default-config' (ADR-017).
 # La API key NUNCA va aquí: se lee de la variable de entorno de api_key_env.
 
 [providers.anthropic]
@@ -434,7 +437,7 @@ func writeTemplateIfAbsent(configDir, name, content string) (created bool, err e
 		return false, &StructuredError{Code: CodeEIO,
 			Message: fmt.Sprintf("no se pudo crear el directorio de configuración %q: %v", configDir, err)}
 	}
-	if err := writeAtomic(path, []byte(content)); err != nil {
+	if err := writeAtomic(path, []byte(content), nil); err != nil {
 		return false, &StructuredError{Code: CodeEIO,
 			Message: fmt.Sprintf("no se pudo escribir %q: %v", path, err)}
 	}

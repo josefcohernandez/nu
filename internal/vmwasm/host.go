@@ -1,9 +1,9 @@
 package vmwasm
 
 // Registro de host functions y el preludio Lua (migracion-vm.md M05, categoría
-// C2 del censo). Es el equivalente wasm de `registerNu`: cada primitiva `nu.*`
+// C2 del censo). Es el equivalente wasm de `registerNu`: cada primitiva `enu.*`
 // del kernel se registra aquí como un HostFn Go asociado a un id; el preludio
-// Lua construye la tabla `nu` cuyas entradas son thunks que serializan sus args
+// Lua construye la tabla `enu` cuyas entradas son thunks que serializan sus args
 // al wire (wire.go), llaman a `__nu_host(id, ...)`, y deserializan el resultado
 // —o lanzan un error estructurado si la primitiva falló—.
 //
@@ -125,7 +125,7 @@ func encodeError(callErr error) ([]byte, error) {
 	return append([]byte{0x01}, body...), nil
 }
 
-// preludio genera el código Lua que construye la tabla `nu` y su codec de wire
+// preludio genera el código Lua que construye la tabla `enu` y su codec de wire
 // (el espejo de wire.go). Se ejecuta al arrancar cada instancia (tras nu_new),
 // una vez el catálogo de primitivas está completo. El catálogo (nombre→id) se
 // inyecta como una tabla al principio.
@@ -157,9 +157,9 @@ func (p *Pool) preludio() string {
 	b.WriteString(preludioLoader)
 	b.WriteString(preludioWorkerCommon)
 	if p.isWorker {
-		// Un worker (M12) es un mini-runtime: su propio scheduler (nu.task) y su
-		// canal con el padre (nu.worker.parent), pero SIN nu.ui, SIN nu.events (bus
-		// principal) y SIN nu.worker.spawn (no hay workers anidados) — api.md §13.
+		// Un worker (M12) es un mini-runtime: su propio scheduler (enu.task) y su
+		// canal con el padre (enu.worker.parent), pero SIN enu.ui, SIN enu.events (bus
+		// principal) y SIN enu.worker.spawn (no hay workers anidados) — api.md §13.
 		b.WriteString(preludioWorkerParent)
 	} else {
 		b.WriteString(preludioReload)
@@ -167,10 +167,10 @@ func (p *Pool) preludio() string {
 		b.WriteString(preludioInput)
 		b.WriteString(preludioWorkerHost)
 	}
-	// Snippets del catálogo (M13b): wrappers finos en Lua, con `nu` ya montado.
+	// Snippets del catálogo (M13b): wrappers finos en Lua, con `enu` ya montado.
 	for _, s := range p.extraPreludio {
 		b.WriteString("\n")
-		b.WriteString(s)
+		b.WriteString(s.src)
 	}
 	return b.String()
 }
@@ -183,7 +183,7 @@ const preludioBase = `
 local W_NIL, W_FALSE, W_TRUE, W_INT, W_FLOAT = 0, 1, 2, 3, 4
 local W_STR, W_ARRAY, W_MAP, W_HANDLE, W_NULL = 5, 6, 7, 8, 9
 
--- NULL: sentinel único (nu.json.NULL, G11). Una tabla vacía por identidad.
+-- NULL: sentinel único (enu.json.NULL, G11). Una tabla vacía por identidad.
 local NULL = setmetatable({}, { __tostring = function() return "null" end })
 
 -- Metatable de los handles opacos (C5, M10). h:metodo(...) despacha a la host
@@ -240,7 +240,7 @@ local function __enc(v, out)
       end
     end
   else
-    error({ code = "EINVAL", message = "nu: valor no serializable a la frontera VM: " .. t })
+    error({ code = "EINVAL", message = "enu: valor no serializable a la frontera VM: " .. t })
   end
 end
 
@@ -276,7 +276,7 @@ local function __dec(s, pos)
     end
     return t, pos
   else
-    error("nu: tag de wire desconocido: " .. tostring(tag))
+    error("enu: tag de wire desconocido: " .. tostring(tag))
   end
 end
 
@@ -299,8 +299,8 @@ local function __dec_list(s)
 end
 `
 
-// preludioMonta: usa el catálogo para montar la tabla `nu` con thunks, y expone
-// nu.json.NULL. Cada thunk serializa args, llama __nu_host(id, wire), y según el
+// preludioMonta: usa el catálogo para montar la tabla `enu` con thunks, y expone
+// enu.json.NULL. Cada thunk serializa args, llama __nu_host(id, wire), y según el
 // primer byte del resultado retorna los valores o lanza el error estructurado.
 const preludioMonta = `
 -- __call_host(id, ...): el thunk genérico. __nu_host devuelve (ok, resultstr);
@@ -308,7 +308,7 @@ const preludioMonta = `
 -- de estado: 0=éxito, 1=error estructurado.
 local function __call_host(id, ...)
   local ok, res = __nu_host(id, __enc_list(...))
-  if not ok then error("nu: fallo de dispatch en la primitiva id " .. tostring(id)) end
+  if not ok then error("enu: fallo de dispatch en la primitiva id " .. tostring(id)) end
   local status = string.byte(res, 1)
   local body = string.sub(res, 2)
   if status == 1 then
@@ -319,12 +319,12 @@ local function __call_host(id, ...)
   return __dec_list(body)
 end
 
--- monta nu.<ruta> = thunk para cada entrada del catálogo, creando submódulos.
-local nu = {}
+-- monta enu.<ruta> = thunk para cada entrada del catálogo, creando submódulos.
+local enu = {}
 for name, id in pairs(__catalogo) do
   local parts = {}
   for p in string.gmatch(name, "[^.]+") do parts[#parts+1] = p end
-  local t = nu
+  local t = enu
   for i = 1, #parts - 1 do
     t[parts[i]] = t[parts[i]] or {}
     t = t[parts[i]]
@@ -349,29 +349,29 @@ for name, id in pairs(__catalogo) do
   end
 end
 
-nu.json = nu.json or {}
-nu.json.NULL = NULL
+enu.json = enu.json or {}
+enu.json.NULL = NULL
 
--- nu.version (api.md §1): el nivel de API lo inyecta el Runtime (APILevel). Crece
+-- enu.version (api.md §1): el nivel de API lo inyecta el Runtime (APILevel). Crece
 -- solo por adición; romper una firma rompe el mundo. En los tests aislados de
 -- vmwasm queda en 0 (no se fija backend real).
-nu.version = { major = __ver_major, minor = __ver_minor, patch = __ver_patch, api = __api_version }
+enu.version = { major = __ver_major, minor = __ver_minor, patch = __ver_patch, api = __api_version }
 
-_G.nu = nu
+_G.enu = enu
 -- __hcall: el despacho síncrono de métodos de handle (M10). La primitiva
 -- "__handle_call" la registra registerHandleDispatch; aquí se cablea al global
 -- que la metatable de handles usa.
-_G.__hcall = nu.__handle_call
-_G.__hcall_s = nu.__handle_call_s
+_G.__hcall = enu.__handle_call
+_G.__hcall_s = enu.__handle_call_s
 
--- nu.has(cap): detección de capacidades (api.md §1). Presente siempre (también en
+-- enu.has(cap): detección de capacidades (api.md §1). Presente siempre (también en
 -- workers). Mínimo por ahora: "ui" según haya backend (headless G20); el catálogo
 -- completo (net.tcp, images...) llega con la integración del Runtime (M13).
-function nu.has(cap)
-  if cap == "ui" then return nu.ui ~= nil end
+function enu.has(cap)
+  if cap == "ui" then return enu.ui ~= nil end
   return false
 end
--- exporta el codec para los tests de la frontera (no forma parte de nu.*).
+-- exporta el codec para los tests de la frontera (no forma parte de enu.*).
 _G.__wire = { enc_list = __enc_list, dec_list = __dec_list, NULL = NULL }
 `
 
@@ -384,17 +384,17 @@ const preludioSched = `
 local __tasks = {}      -- id -> { co, done, ok, result, awaiters, cleanups, cancelled }
 local __ready = {}      -- lista de { id, arg, iserr } a reanudar en el próximo step
 local __next_id = 1
-local __futures = {}    -- fid -> { resolved, value, waiters } (nu.task.future)
+local __futures = {}    -- fid -> { resolved, value, waiters } (enu.task.future)
 local __next_fid = 1
 __aborted = {}          -- ids abortados en el paso actual; __sched_step lo resetea
 
-nu.task = nu.task or {}
+enu.task = enu.task or {}
 
 local function __enqueue(id, arg, iserr)
   __ready[#__ready+1] = { id = id, arg = arg, iserr = iserr }
 end
 
--- Task handle (api.md §3): nu.task.spawn devuelve un Task, no un id crudo. Es
+-- Task handle (api.md §3): enu.task.spawn devuelve un Task, no un id crudo. Es
 -- una tabla con __task_id y una metatable que despacha :await() / :cancel().
 -- El id numérico sigue siendo la clave interna en __tasks; el handle lo envuelve
 -- para dar la superficie de métodos del contrato (paridad con el backend gopher,
@@ -410,18 +410,18 @@ local __task_mt = {
     await = function(self)
       local id = __task_id_of(self)
       if id == nil then error({ code = "EINVAL", message = "Task:await: el receptor no es una Task" }) end
-      return nu.task.await(id)
+      return enu.task.await(id)
     end,
     cancel = function(self)
       local id = __task_id_of(self)
       if id == nil then error({ code = "EINVAL", message = "Task:cancel: el receptor no es una Task" }) end
-      nu.task.cancel(id)
+      enu.task.cancel(id)
     end,
   },
 }
 
--- nu.task.spawn(fn, ...) -> Task. Crea una corrutina y la encola lista.
-function nu.task.spawn(fn, ...)
+-- enu.task.spawn(fn, ...) -> Task. Crea una corrutina y la encola lista.
+function enu.task.spawn(fn, ...)
   local packed = table.pack(...)
   local id = __next_id; __next_id = __next_id + 1
   local co = coroutine.create(function()
@@ -438,29 +438,29 @@ function nu.task.spawn(fn, ...)
   return setmetatable({ __task_id = id }, __task_mt)
 end
 
--- nu.task.sleep(ms). Cede una petición de sleep; el driver Go la cumple y
+-- enu.task.sleep(ms). Cede una petición de sleep; el driver Go la cumple y
 -- reanuda tras ms.
-function nu.task.sleep(ms)
+function enu.task.sleep(ms)
   -- ⏸: fuera de una task no hay a quién ceder → EINVAL (§1.3), como await.
   if __current == nil then
-    error({ code = "EINVAL", message = "nu.task.sleep: debe llamarse dentro de una task (⏸)" })
+    error({ code = "EINVAL", message = "enu.task.sleep: debe llamarse dentro de una task (⏸)" })
   end
   -- Un periodo negativo es error de programador, no algo que el scheduler interprete.
   if type(ms) ~= "number" or ms < 0 then
-    error({ code = "EINVAL", message = "nu.task.sleep: el periodo no puede ser negativo" })
+    error({ code = "EINVAL", message = "enu.task.sleep: el periodo no puede ser negativo" })
   end
   coroutine.yield({ op = "sleep", ms = ms })
 end
 
--- nu.task.await(id) -> resultado. Si la task ya terminó, devuelve su resultado
+-- enu.task.await(id) -> resultado. Si la task ya terminó, devuelve su resultado
 -- (o relanza su error); si no, cede una petición de await que el scheduler
 -- resuelve cuando la task termine.
-function nu.task.await(id)
+function enu.task.await(id)
   id = __task_id_of(id)
   local t = id and __tasks[id]
-  if not t then error({ code = "EINVAL", message = "nu.task.await: no es una Task" }) end
+  if not t then error({ code = "EINVAL", message = "enu.task.await: no es una Task" }) end
   if id == __current then
-    error({ code = "EINVAL", message = "nu.task.await: una task no puede esperarse a sí misma" })
+    error({ code = "EINVAL", message = "enu.task.await: una task no puede esperarse a sí misma" })
   end
   if t.done then
     if not t.ok then error(t.result) end
@@ -470,16 +470,54 @@ function nu.task.await(id)
   -- Va a SUSPENDER: fuera de una task (chunk principal de EvalString) no hay a quién
   -- ceder, así que es EINVAL (§1.3), no un "yield from outside a coroutine" crudo.
   if __current == nil then
-    error({ code = "EINVAL", message = "nu.task.await: debe llamarse dentro de una task (⏸)" })
+    error({ code = "EINVAL", message = "enu.task.await: debe llamarse dentro de una task (⏸)" })
   end
   local r = coroutine.yield({ op = "await", id = id })
   if not r.ok then error(r.result) end
   if r.results then return table.unpack(r.results, 1, r.nresults) end
 end
 
--- la task cuyo código corre AHORA (para nu.task.cleanup, que se llama desde
+-- la task cuyo código corre AHORA (para enu.task.cleanup, que se llama desde
 -- dentro de la task sin conocer su id).
 __current = nil
+
+-- __run_guarded(fn, ...): corre fn(...) con el watchdog cubriéndola AUNQUE la
+-- frontera se ejecute en el HILO DEL SCHEDULER (A-36). El count-hook (DM4) se arma
+-- por corrutina y sólo lo llevan las corrutinas de task (enu.task.spawn → __wd_arm);
+-- pero __finish (cleanups) y __ev_dispatch (handlers del bus) corren en el hilo
+-- principal (GL), que NO lo lleva. Un bucle de CPU (while true do end) ahí congelaría
+-- painter, FeedInput, EmitEvent y el propio bucle sin EBUDGET posible, contradiciendo
+-- la robustez por watchdog + pcall de ADR-008. Aquí se le da a esas fronteras el MISMO
+-- presupuesto de slice y la MISMA semántica de disparo que a una task.
+--
+-- Sólo el hilo principal necesita envoltura: dentro de una task la corrutina YA
+-- lleva el hook armado y su presupuesto cubre lo que la emisión anide (un bucle
+-- infinito aborta la task entera, que es lo correcto), así que ahí se llama directo
+-- (pcall) sin coste extra —no penalizar el camino normal del scheduler—. En el hilo
+-- principal se corre fn en una corrutina propia CON __wd_arm() y un slice fresco: el
+-- hook cede (lua_yield) al rebasar el presupuesto, cesión que ATRAPA este
+-- coroutine.resume local —no escapa al Call de nu_sched_step, que no es yieldable— y
+-- se reconoce por el yield sin valor (status ~= "dead"), gemelo del aborto de una
+-- task. Devuelve (ok, err) como pcall: ok=false con err={code=...} si fn lanzó o si
+-- el watchdog la cortó.
+local function __run_guarded(fn, ...)
+  local _, ismain = coroutine.running()
+  if not ismain then
+    -- dentro de una task: su count-hook ya cubre esto. Llamada directa.
+    return pcall(fn, ...)
+  end
+  local co = coroutine.create(function(...) __wd_arm(); return fn(...) end)
+  enu.__reset_budget()   -- slice fresco para esta frontera (como __resume ante cada task)
+  local r = table.pack(coroutine.resume(co, ...))
+  if not r[1] then return false, r[2] end          -- fn lanzó: error normal (best-effort arriba)
+  if coroutine.status(co) ~= "dead" then
+    -- cedió sin terminar: sólo el watchdog cede desde aquí (el hook cede sin valor).
+    -- Estas fronteras no pueden ⏸ (corren con el __current del contexto, que no lo
+    -- permite), así que un yield aquí es inequívocamente el aborto por budget.
+    return false, { code = "EBUDGET", message = "una frontera del scheduler excedió el presupuesto de slice (watchdog)" }
+  end
+  return true, r[2]
+end
 
 -- __finish(t): la task terminó (ok/error/cancelada). Corre sus cleanups en
 -- orden LIFO (§1, "el defer de esta casa": pase lo que pase) y notifica a sus
@@ -489,12 +527,15 @@ local function __finish(t)
   t.finished = true
   if t.cleanups then
     for i = #t.cleanups, 1, -1 do
-      local cok, cerr = pcall(t.cleanups[i])
-      -- pcall por frontera (ADR-008): un cleanup que lanza no impide que corran los
-      -- demás ni tumba el proceso; queda en el log (best-effort, como gopher).
-      if not cok and nu.log and nu.log.error then
+      -- __run_guarded, no pcall pelado (A-36): __finish corre en el hilo del scheduler,
+      -- sin count-hook; un cleanup con un bucle de CPU congelaría el runtime. Con esto
+      -- se aborta por EBUDGET (watchdog) y los demás cleanups siguen corriendo.
+      local cok, cerr = __run_guarded(t.cleanups[i])
+      -- por frontera (ADR-008): un cleanup que lanza no impide que corran los demás ni
+      -- tumba el proceso; queda en el log (best-effort, como gopher).
+      if not cok and enu.log and enu.log.error then
         local msg = type(cerr) == "table" and (cerr.message or cerr.code) or tostring(cerr)
-        nu.log.error("un liberador de nu.task.cleanup lanzó: " .. tostring(msg))
+        enu.log.error("un liberador de enu.task.cleanup lanzó: " .. tostring(msg))
       end
     end
   end
@@ -509,9 +550,9 @@ local function __finish(t)
   if not t.ok and not t.cancelled and #t.awaiters == 0 and t.result ~= nil then
     local e = t.result
     local code = type(e) == "table" and e.code or nil
-    if code ~= "ECANCELED" and code ~= "EBUDGET" and nu.log and nu.log.error then
+    if code ~= "ECANCELED" and code ~= "EBUDGET" and enu.log and enu.log.error then
       local s = code and (tostring(code) .. ": " .. tostring(e.message or "")) or tostring(e)
-      nu.log.error("una task terminó con error y nadie hizo await: " .. s)
+      enu.log.error("una task terminó con error y nadie hizo await: " .. s)
     end
   end
 end
@@ -537,7 +578,7 @@ local function __resume(id, arg, iserr, pending)
   local prev = __current; __current = id
   -- Watchdog (DM4): reinicia el deadline del slice que va a correr; el count-hook
   -- de esta corrutina (armado en spawn) lo comparará cada WD_COUNT instrucciones.
-  nu.__reset_budget()
+  enu.__reset_budget()
   -- table.pack para preservar TODOS los valores de retorno de la task: await -> any
   -- no se limita a uno (§3). Al SUSPENDER, la corrutina cede un único valor (la tabla
   -- op=...), que es resumed[2]; al TERMINAR (dead) puede devolver varios.
@@ -573,12 +614,12 @@ local function __resume(id, arg, iserr, pending)
     -- rt.emitMisbehaved de gopher, cableado en runTask). El plugin es el owner en curso
     -- (nil fuera de una extensión → "user"); el reason menciona EBUDGET.
     local __mb_reason = "EBUDGET: una task excedió el presupuesto de slice del watchdog"
-    if nu.log and nu.log.error then nu.log.error("core:plugin.misbehaved: " .. __mb_reason) end
-    if nu.events and nu.events.emit then
+    if enu.log and enu.log.error then enu.log.error("core:plugin.misbehaved: " .. __mb_reason) end
+    if enu.events and enu.events.emit then
       -- El owner es el del contexto en curso: durante la EJECUCIÓN de una task la
       -- pila de owners está vacía → "user", igual que rt.currentOwner() en gopher
       -- (scheduler.go usa currentOwner() al emitir, no un owner por task).
-      nu.events.emit("core:plugin.misbehaved", { plugin = "user", reason = __mb_reason })
+      enu.events.emit("core:plugin.misbehaved", { plugin = "user", reason = __mb_reason })
     end
   elseif yielded.op == "await" then
     local target = __tasks[yielded.id]
@@ -618,12 +659,12 @@ function __sched_step(injected)
   local guard = 0
   while #__ready > 0 do
     guard = guard + 1
-    if guard > 1000000 then error("nu.task: bucle de scheduler sin fin") end
+    if guard > 1000000 then error("enu.task: bucle de scheduler sin fin") end
     local r = table.remove(__ready, 1)
     __resume(r.id, r.arg, r.iserr, pending)
   end
   -- Cuenta las tasks vivas de PRIMER PLANO (no done, no de fondo). Los timers de
-  -- fondo (nu.task.every) nunca terminan: si contaran, el bucle no volvería jamás.
+  -- fondo (enu.task.every) nunca terminan: si contaran, el bucle no volvería jamás.
   -- Go usa este recuento para la quiescencia (paridad con waitIdle de gopher, que
   -- espera mientras hay primer plano vivo, no por los timers).
   local live_fg = 0
@@ -637,7 +678,7 @@ function __sched_step(injected)
 end
 `
 
-// preludioTask: el resto de la superficie nu.task (M07), toda sobre el bucle de
+// preludioTask: el resto de la superficie enu.task (M07), toda sobre el bucle de
 // M06: future (rendez-vous), all (alineado con inputs, G27), race, cleanup (LIFO),
 // cancel (cooperativo, §1.3) y defer. Semántica de api.md §3.
 const preludioTask = `
@@ -675,28 +716,28 @@ local __future_mt = {
   },
 }
 
--- nu.task.future() -> Future (§3). Rendez-vous de un solo uso: una task espera un
+-- enu.task.future() -> Future (§3). Rendez-vous de un solo uso: una task espera un
 -- valor que otra producirá, sin polling.
-function nu.task.future()
+function enu.task.future()
   local fid = __next_fid; __next_fid = __next_fid + 1
   __futures[fid] = { resolved = false, waiters = {} }
   return setmetatable({ __future_id = fid }, __future_mt)
 end
 
--- nu.task.cleanup(fn) (§3). Registra un liberador en la pila LIFO de la task
+-- enu.task.cleanup(fn) (§3). Registra un liberador en la pila LIFO de la task
 -- actual; corre al terminar (éxito/error/aborto). El "defer" de esta casa.
-function nu.task.cleanup(fn)
+function enu.task.cleanup(fn)
   local t = __current and __tasks[__current]
   if not t then
-    error({ code = "EINVAL", message = "nu.task.cleanup: debe llamarse dentro de una task" })
+    error({ code = "EINVAL", message = "enu.task.cleanup: debe llamarse dentro de una task" })
   end
   t.cleanups = t.cleanups or {}; t.cleanups[#t.cleanups+1] = fn
 end
 
--- nu.task.cancel(id) (§3, Task:cancel). Cancelación cooperativa: aborta la task
+-- enu.task.cancel(id) (§3, Task:cancel). Cancelación cooperativa: aborta la task
 -- en su siguiente punto de suspensión (no capturable); corren sus cleanups. Si
 -- está suspendida, se encola para que el scheduler la finalice.
-function nu.task.cancel(id)
+function enu.task.cancel(id)
   id = __task_id_of(id)
   local t = id and __tasks[id]
   if t and not t.done then
@@ -705,25 +746,25 @@ function nu.task.cancel(id)
   end
 end
 
--- nu.task.all(fns) -> resultados (§3, G27). Espera a todas; resultados ALINEADOS
+-- enu.task.all(fns) -> resultados (§3, G27). Espera a todas; resultados ALINEADOS
 -- con los inputs (out[i] es el de fns[i]), no en orden de terminación. FAIL-FAST:
 -- si una lanza, se CANCELA al resto (abortan en su próximo ⏸) y se relanza ese
 -- error. Cada elemento corre envuelto en una task cuyo pcall reporta su desenlace a
 -- un future de coordinación; así se detecta el PRIMER fallo en cuanto ocurre (no en
 -- orden de array), condición para cancelar a las demás cuanto antes.
-function nu.task.all(fns)
+function enu.task.all(fns)
   if __current == nil then
-    error({ code = "EINVAL", message = "nu.task.all: debe llamarse dentro de una task (⏸)" })
+    error({ code = "EINVAL", message = "enu.task.all: debe llamarse dentro de una task (⏸)" })
   end
   local n = #fns
   if n == 0 then
-    error({ code = "EINVAL", message = "nu.task.all: la lista de tareas está vacía" })
+    error({ code = "EINVAL", message = "enu.task.all: la lista de tareas está vacía" })
   end
   local out = {}
   local remaining = n
   local first_err = nil       -- { err = <valor> } una vez que alguna lanza
   local resolved = false
-  local coord = nu.task.future()
+  local coord = enu.task.future()
   local tasks = {}
   local function report(ok, r, idx)
     if ok then out[idx] = r
@@ -736,80 +777,80 @@ function nu.task.all(fns)
   for i = 1, n do
     local e, idx = fns[i], i
     if type(e) == "function" then
-      tasks[i] = nu.task.spawn(function() local ok, r = pcall(e); report(ok, r, idx) end)
+      tasks[i] = enu.task.spawn(function() local ok, r = pcall(e); report(ok, r, idx) end)
     elseif __task_id_of(e) ~= nil then
-      tasks[i] = nu.task.spawn(function()
-        local ok, r = pcall(function() return nu.task.await(e) end); report(ok, r, idx)
+      tasks[i] = enu.task.spawn(function()
+        local ok, r = pcall(function() return enu.task.await(e) end); report(ok, r, idx)
       end)
     else
-      error({ code = "EINVAL", message = "nu.task.all: el elemento " .. i .. " no es una Task ni una función" })
+      error({ code = "EINVAL", message = "enu.task.all: el elemento " .. i .. " no es una Task ni una función" })
     end
   end
   coord:await()
   if first_err ~= nil then
-    for _, tk in ipairs(tasks) do nu.task.cancel(tk) end
+    for _, tk in ipairs(tasks) do enu.task.cancel(tk) end
     error(first_err.err)
   end
   return out
 end
 
--- nu.task.race(fns) -> (winner_index, result) (§3). La primera en terminar gana
+-- enu.task.race(fns) -> (winner_index, result) (§3). La primera en terminar gana
 -- (incluido terminar por error: se relanza su error). Se CANCELA a las perdedoras.
-function nu.task.race(fns)
+function enu.task.race(fns)
   if __current == nil then
-    error({ code = "EINVAL", message = "nu.task.race: debe llamarse dentro de una task (⏸)" })
+    error({ code = "EINVAL", message = "enu.task.race: debe llamarse dentro de una task (⏸)" })
   end
   local n = #fns
   if n == 0 then
-    error({ code = "EINVAL", message = "nu.task.race: la lista de tareas está vacía" })
+    error({ code = "EINVAL", message = "enu.task.race: la lista de tareas está vacía" })
   end
-  local coord = nu.task.future()
+  local coord = enu.task.future()
   local settled = false
   local winner = nil          -- { idx, ok, r } del primero en terminar
   local tasks = {}
   for i = 1, n do
     local fn, idx = fns[i], i
     if type(fn) ~= "function" then
-      error({ code = "EINVAL", message = "nu.task.race: el elemento " .. i .. " no es una función" })
+      error({ code = "EINVAL", message = "enu.task.race: el elemento " .. i .. " no es una función" })
     end
-    tasks[i] = nu.task.spawn(function()
+    tasks[i] = enu.task.spawn(function()
       local ok, r = pcall(fn)
       if not settled then settled = true; winner = { idx = idx, ok = ok, r = r }; coord:set(true) end
     end)
   end
   coord:await()
-  for _, tk in ipairs(tasks) do nu.task.cancel(tk) end   -- la ganadora ya terminó (no-op)
+  for _, tk in ipairs(tasks) do enu.task.cancel(tk) end   -- la ganadora ya terminó (no-op)
   if not winner.ok then error(winner.r) end
   return winner.idx, winner.r
 end
 
--- nu.task.defer(fn) (§3). Ejecuta fn en el siguiente tick (como una task que no
+-- enu.task.defer(fn) (§3). Ejecuta fn en el siguiente tick (como una task que no
 -- suspende: corre en el próximo paso del bucle).
-function nu.task.defer(fn)
-  nu.task.spawn(fn)
+function enu.task.defer(fn)
+  enu.task.spawn(fn)
 end
 
--- nu.task.every(ms, fn) -> { stop } (§3). Timer periódico: una task que repite
+-- enu.task.every(ms, fn) -> { stop } (§3). Timer periódico: una task que repite
 -- sleep+fn hasta que se para. Vive en preludioTask (no en eventos) porque es una
--- primitiva de nu.task y debe existir también en los WORKERS (api.md §13), que no
+-- primitiva de enu.task y debe existir también en los WORKERS (api.md §13), que no
 -- cargan el bus de eventos.
-function nu.task.every(ms, fn)
+function enu.task.every(ms, fn)
   -- Un periodo no positivo no tiene semántica útil (sería un bucle ocupado): EINVAL.
   if type(ms) ~= "number" or ms <= 0 then
-    error({ code = "EINVAL", message = "nu.task.every: el periodo debe ser un número > 0" })
+    error({ code = "EINVAL", message = "enu.task.every: el periodo debe ser un número > 0" })
   end
   local stopped = false
-  local h = nu.task.spawn(function()
+  local h = enu.task.spawn(function()
     while not stopped do
-      nu.task.sleep(ms)
+      enu.task.sleep(ms)
       if stopped then break end
       -- pcall por frontera (ADR-008): un error en un disparo no para el timer ni
       -- tumba el proceso; queda en el log (best-effort), como gopher.
       local ok, err = pcall(fn)
-      if not ok and nu.log and nu.log.error then
+      if not ok and enu.log and enu.log.error then
         local msg = type(err) == "table" and (err.message or err.code) or tostring(err)
         local code = type(err) == "table" and err.code or nil
-        nu.log.error("nu.task.every: un disparo del timer lanzó: " .. (code and (code .. ": ") or "") .. tostring(msg))
+        enu.log.error("enu.task.every: un disparo del timer lanzó: " .. (code and (code .. ": ") or "") .. tostring(msg))
       end
     end
   end)
@@ -823,11 +864,11 @@ function nu.task.every(ms, fn)
   -- :stop() a mano lo desregistra además, para no dejar basura en el registro.
   local oh
   local function __stop()
-    stopped = true; nu.task.cancel(h)
+    stopped = true; enu.task.cancel(h)
     if oh and _G.__untrack_handle then _G.__untrack_handle(oh) end
   end
   if _G.__track_handle then
-    oh = { release = function() stopped = true; nu.task.cancel(h) end }
+    oh = { release = function() stopped = true; enu.task.cancel(h) end }
     _G.__track_handle(oh)
   end
   return { stop = __stop }
@@ -836,13 +877,13 @@ end
 
 // preludioReload: el registro de handles por dueño (G2, paridad con handles.go del
 // backend gopher). SOLO en el estado principal (no en workers: allí no hay
-// concepto de plugin ni de reload). Es la pieza que hace que `nu.plugin.reload`
+// concepto de plugin ni de reload). Es la pieza que hace que `enu.plugin.reload`
 // "suelte TODOS los handles del plugin" sin dejar huérfanos: cada handle persistente
 // que el core entrega y que sobrevive a un reload —una suscripción de eventos
-// (`nu.events.on/once`), un timer periódico (`nu.task.every`)— se etiqueta, al
+// (`enu.events.on/once`), un timer periódico (`enu.task.every`)— se etiqueta, al
 // crearse, con el DUEÑO vigente y se suelta al recargar su plugin.
 //
-// El dueño vigente se lee de Go (`nu.plugin._owner`, que devuelve `rt.currentOwner()`
+// El dueño vigente se lee de Go (`enu.plugin._owner`, que devuelve `rt.currentOwner()`
 // del ownerStack) en el momento de crear el handle: durante el `init.lua` de un
 // plugin (arranque o reload) es ese plugin; fuera de todo init (chunk del usuario,
 // una task cualquiera) es "user". Es la MISMA fuente de verdad que gopher (un solo
@@ -856,17 +897,17 @@ const preludioReload = `
 local __owner_handles = {}   -- owner -> lista de handles { release, owner }
 
 -- __owner_now(): el dueño vigente, leído del ownerStack de Go. Fuera del catálogo
--- de plugin (tests aislados de vmwasm sin nu.plugin) o ante cualquier fallo, "user".
+-- de plugin (tests aislados de vmwasm sin enu.plugin) o ante cualquier fallo, "user".
 local function __owner_now()
-  if nu.plugin and nu.plugin._owner then
-    local ok, o = pcall(nu.plugin._owner)
+  if enu.plugin and enu.plugin._owner then
+    local ok, o = pcall(enu.plugin._owner)
     if ok and type(o) == "string" then return o end
   end
   return "user"
 end
 
 -- __track_handle(h): etiqueta h con el dueño vigente y lo registra bajo él. Lo llaman
--- __new_sub (eventos) y nu.task.every al entregar el handle.
+-- __new_sub (eventos) y enu.task.every al entregar el handle.
 _G.__track_handle = function(h)
   h.owner = __owner_now()
   local list = __owner_handles[h.owner]
@@ -912,18 +953,18 @@ _G.__count_owner = function(owner)
 end
 `
 
-// preludioEvents: el bus de eventos nu.events (M08, api.md §4) con la semántica
+// preludioEvents: el bus de eventos enu.events (M08, api.md §4) con la semántica
 // de G10 (foto de suscriptores al emitir, cancelar surte efecto inmediato, subs
 // nuevos solo ven eventos futuros, emits anidados encolados por ANCHURA), y los
-// timers periódicos nu.task.every. Todo síncrono y en Lua (emit no suspende).
+// timers periódicos enu.task.every. Todo síncrono y en Lua (emit no suspende).
 const preludioEvents = `
 local __ev_subs = {}         -- name -> lista de { fn, live, once }
 local __ev_queue = {}        -- emits pendientes { name, payload }
 local __ev_dispatching = false
 
-nu.events = nu.events or {}
+enu.events = enu.events or {}
 
--- Sub handle (api.md §4): nu.events.on/once devuelven un Sub con :cancel(). Como
+-- Sub handle (api.md §4): enu.events.on/once devuelven un Sub con :cancel(). Como
 -- Task/Future, es una tabla con una metatable que valida el receptor (Sub:cancel
 -- sobre otro handle → EINVAL, paridad con el userdata gopher). __sub apunta al
 -- registro interno { fn, live, once }.
@@ -954,8 +995,8 @@ local function __new_sub(name, fn, once)
   return setmetatable({ __sub = sub }, __sub_mt)
 end
 
-function nu.events.on(name, fn) return __new_sub(name, fn, false) end
-function nu.events.once(name, fn) return __new_sub(name, fn, true) end
+function enu.events.on(name, fn) return __new_sub(name, fn, false) end
+function enu.events.once(name, fn) return __new_sub(name, fn, true) end
 
 local function __ev_dispatch(name, payload)
   local subs = __ev_subs[name]
@@ -974,11 +1015,15 @@ local function __ev_dispatch(name, payload)
         -- acumularía handles muertos (fuga que viola "sin fuga en el registro").
         if _G.__untrack_handle and s.__oh then _G.__untrack_handle(s.__oh) end
       end
-      -- cada handler bajo pcall (ADR-008); si lanza, best-effort al log (como gopher)
-      local ok, err = pcall(s.fn, payload)
-      if not ok and nu.log and nu.log.error then
+      -- cada handler por frontera (ADR-008); si lanza, best-effort al log (como gopher).
+      -- __run_guarded, no pcall pelado (A-36): un emit del hilo del scheduler
+      -- (EmitEvent, o el core:plugin.misbehaved de __resume) despacha sin count-hook;
+      -- un handler con un bucle de CPU congelaría painter/FeedInput/EmitEvent y el
+      -- bucle. Con esto el watchdog lo corta (EBUDGET) y el resto de handlers corre.
+      local ok, err = __run_guarded(s.fn, payload)
+      if not ok and enu.log and enu.log.error then
         local msg = type(err) == "table" and (err.message or err.code) or tostring(err)
-        nu.log.error("un handler de nu.events lanzó: " .. tostring(msg))
+        enu.log.error("un handler de enu.events lanzó: " .. tostring(msg))
       end
     end
   end
@@ -988,14 +1033,14 @@ local function __ev_dispatch(name, payload)
   __ev_subs[name] = kept
 end
 
-function nu.events.emit(name, payload)
+function enu.events.emit(name, payload)
   __ev_queue[#__ev_queue+1] = { name = name, payload = payload }
   if __ev_dispatching then return end   -- G10: anidado → encolado, no recursión
   __ev_dispatching = true
   local guard = 0
   while #__ev_queue > 0 do
     guard = guard + 1
-    if guard > 1000000 then __ev_dispatching = false; error("nu.events: ping-pong infinito") end
+    if guard > 1000000 then __ev_dispatching = false; error("enu.events: ping-pong infinito") end
     local e = table.remove(__ev_queue, 1)
     __ev_dispatch(e.name, e.payload)
   end
@@ -1007,9 +1052,9 @@ end
 // api.md §9.3). Como los handlers son funciones Lua, la pila vive en el preludio
 // (igual que el bus de eventos), no Go-side; Go sólo inyecta eventos crudos
 // (FeedInput → __ui_dispatch_input) y, en M13, dispara el timeout con un timer.
-// El catálogo nu.ui.* (size/region/block/caps/clipboard) lo montan las primitivas
+// El catálogo enu.ui.* (size/region/block/caps/clipboard) lo montan las primitivas
 // (ui.go); aquí se añaden on_input/keymap/block y el despacho. Si no hay backend
-// de UI (headless, G20), `nu.ui` no existe y este bloque no lo crea.
+// de UI (headless, G20), `enu.ui` no existe y este bloque no lo crea.
 //
 // Aproximación anotada (M11): el resolver de secuencias usa progreso POR handler
 // (cada keymap recuerda cuántos acordes lleva), no el buffer global único de
@@ -1017,7 +1062,7 @@ end
 // (re-inyección del prefijo abortado, generaciones del timer) se completa al
 // cablear el driver real en M13.
 const preludioInput = `
-if nu.ui then
+if enu.ui then
   local __stack = {}   -- pila: { live, raw=fn } (on_input) o { live, seq, pos, fn } (keymap)
 
   local function __purge()
@@ -1026,8 +1071,8 @@ if nu.ui then
     __stack = kept
   end
 
-  -- nu.ui.on_input(fn) -> InputHandle. Apila un handler crudo; fn(ev)->bool.
-  function nu.ui.on_input(fn)
+  -- enu.ui.on_input(fn) -> InputHandle. Apila un handler crudo; fn(ev)->bool.
+  function enu.ui.on_input(fn)
     local h = { live = true, raw = fn }
     __stack[#__stack+1] = h
     return { pop = function() h.live = false end }
@@ -1043,26 +1088,26 @@ if nu.ui then
     end
     -- Un acorde sin tecla (p. ej. "ctrl+") es una secuencia inválida: EINVAL.
     if key == nil or key == "" then
-      error({ code = "EINVAL", message = "nu.ui.keymap: secuencia inválida (falta la tecla en '" .. tostring(tok) .. "')" })
+      error({ code = "EINVAL", message = "enu.ui.keymap: secuencia inválida (falta la tecla en '" .. tostring(tok) .. "')" })
     end
     return { key = key, mods = mods }
   end
   local function __parse_seq(seq)
     if type(seq) ~= "string" or seq == "" then
-      error({ code = "EINVAL", message = "nu.ui.keymap: la secuencia debe ser un string no vacío" })
+      error({ code = "EINVAL", message = "enu.ui.keymap: la secuencia debe ser un string no vacío" })
     end
     local chords = {}
     for tok in string.gmatch(seq, "%S+") do chords[#chords+1] = __parse_chord(tok) end
     if #chords == 0 then
-      error({ code = "EINVAL", message = "nu.ui.keymap: la secuencia está vacía" })
+      error({ code = "EINVAL", message = "enu.ui.keymap: la secuencia está vacía" })
     end
     return chords
   end
 
-  -- nu.ui.keymap(seq, fn, opts?) -> Keymap. Azúcar sobre la pila (§9.3): la más
+  -- enu.ui.keymap(seq, fn, opts?) -> Keymap. Azúcar sobre la pila (§9.3): la más
   -- reciente activa gana. Consume por defecto; fn puede devolver false EXPLÍCITO
   -- para ceder la tecla (que siga bajando por la pila).
-  function nu.ui.keymap(seq, fn, opts)
+  function enu.ui.keymap(seq, fn, opts)
     local h = { live = true, seq = __parse_seq(seq), pos = 0, fn = fn }
     __stack[#__stack+1] = h
     return { unmap = function() h.live = false end }
@@ -1117,16 +1162,16 @@ if nu.ui then
     return false
   end
 
-  -- nu.ui.block(lines) -> Block. Envuelve el id que da nu.ui._block como handle
+  -- enu.ui.block(lines) -> Block. Envuelve el id que da enu.ui._block como handle
   -- con los campos read-only .width/.height (api.md §9.2).
-  function nu.ui.block(lines)
-    local m = nu.ui._block(lines)
+  function enu.ui.block(lines)
+    local m = enu.ui._block(lines)
     return setmetatable({ __id = m.id, width = m.width, height = m.height }, __handle_mt)
   end
 
-  -- nu.ui.region(opts) -> Region (§9.1, S30). El CICLO DE VIDA en Lua, en paridad con
+  -- enu.ui.region(opts) -> Region (§9.1, S30). El CICLO DE VIDA en Lua, en paridad con
   -- el backend gopher (ui.go: checkRegion/regionDestroy). El handle crudo del
-  -- compositor (nu.ui._region, el thunk del catálogo) se ENVUELVE en una tabla que:
+  -- compositor (enu.ui._region, el thunk del catálogo) se ENVUELVE en una tabla que:
   --   * valida los argumentos de creación (w/h enteros no negativos), como gopher;
   --   * controla la ALIVENESS: un método sobre una región ya destruida es EINVAL
   --     accionable ("la región ya fue destruida"), NO un ECLOSED del handle crudo —en
@@ -1135,7 +1180,7 @@ if nu.ui then
   --     una región gopher con alive=false—;
   --   * hace destroy IDEMPOTENTE: libera el handle del compositor UNA vez (la segunda
   --     es no-op, sin re-tocar el handle ya liberado).
-  local __raw_region = nu.ui.region
+  local __raw_region = enu.ui.region
   local function __region_dead()
     error({ code = "EINVAL", message = "Region: la región ya fue destruida" })
   end
@@ -1144,10 +1189,10 @@ if nu.ui then
     fill = function(self, style)
       if self.__dead then __region_dead() end
       -- valida el color literal (§9.2, G22): EINVAL si no es del core. La validación
-      -- vive en Go (parseStyleWasm) y la expone nu.ui._check_style, que registra la
+      -- vive en Go (parseStyleWasm) y la expone enu.ui._check_style, que registra la
       -- integración del Runtime (vmwasm_ui.go). En un backend desnudo de test que no la
       -- registra no se pre-valida (esos tests usan estilos válidos); el fill real la lleva.
-      if nu.ui._check_style then nu.ui._check_style(style) end
+      if enu.ui._check_style then enu.ui._check_style(style) end
       self.__rh:fill(style)
     end,
     clear = function(self) if self.__dead then __region_dead() end self.__rh:clear() end,
@@ -1171,13 +1216,13 @@ if nu.ui then
     end,
   }
   local __region_mt = { __index = __region_methods }
-  function nu.ui.region(opts)
+  function enu.ui.region(opts)
     opts = opts or {}
     if type(opts.w) ~= "number" or type(opts.h) ~= "number" then
-      error({ code = "EINVAL", message = "nu.ui.region: opts necesita w y h enteros" })
+      error({ code = "EINVAL", message = "enu.ui.region: opts necesita w y h enteros" })
     end
     if opts.w < 0 or opts.h < 0 then
-      error({ code = "EINVAL", message = "nu.ui.region: w y h no pueden ser negativos" })
+      error({ code = "EINVAL", message = "enu.ui.region: w y h no pueden ser negativos" })
     end
     return setmetatable({ __rh = __raw_region(opts), __dead = false }, __region_mt)
   end
@@ -1206,25 +1251,25 @@ end
 _G.__check_msg = __check_msg
 `
 
-// preludioWorkerHost: el lado PADRE (§13). nu.worker.spawn devuelve un Worker con
+// preludioWorkerHost: el lado PADRE (§13). enu.worker.spawn devuelve un Worker con
 // send/recv/on_message/terminate. La exclusión recv/on_message (G8) vive en campos
 // del Worker, serializada por el estado principal single-thread (el "token" de
 // esta casa) — las tres reglas lanzan EINVAL en el acto. Sólo en el estado
 // principal (un worker no crea workers).
 const preludioWorkerHost = `
-function nu.worker.spawn(module, opts)
+function enu.worker.spawn(module, opts)
   if type(module) ~= "string" or module == "" then
-    error({ code = "EINVAL", message = "nu.worker.spawn: module es obligatorio (string no vacío)" })
+    error({ code = "EINVAL", message = "enu.worker.spawn: module es obligatorio (string no vacío)" })
   end
   if opts ~= nil and type(opts) ~= "table" then
-    error({ code = "EINVAL", message = "nu.worker.spawn: opts debe ser una tabla" })
+    error({ code = "EINVAL", message = "enu.worker.spawn: opts debe ser una tabla" })
   end
-  local wid = nu.worker._spawn(module, opts)
+  local wid = enu.worker._spawn(module, opts)
   local W = { __wid = wid, _recvPending = 0, _onMsg = false }
 
   function W:send(msg)
     __check_msg(msg)
-    return nu.worker._send(self.__wid, msg)
+    return enu.worker._send(self.__wid, msg)
   end
 
   function W:recv()
@@ -1232,7 +1277,7 @@ function nu.worker.spawn(module, opts)
       error({ code = "EINVAL", message = "Worker:recv: hay un on_message registrado sobre este worker (excluyentes, G8)" })
     end
     self._recvPending = self._recvPending + 1
-    local ok, m = pcall(nu.worker._recv, self.__wid)
+    local ok, m = pcall(enu.worker._recv, self.__wid)
     self._recvPending = self._recvPending - 1
     if not ok then error(m) end
     return m
@@ -1248,9 +1293,9 @@ function nu.worker.spawn(module, opts)
     self._onMsg = true
     local sub = { live = true }
     local wself = self
-    nu.task.spawn(function()
+    enu.task.spawn(function()
       while sub.live do
-        local ok, m = pcall(nu.worker._recv, wself.__wid)
+        local ok, m = pcall(enu.worker._recv, wself.__wid)
         if not ok then break end        -- worker terminó
         if m == nil then break end       -- fin de canal
         if sub.live then pcall(fn, m) end -- cada handler bajo pcall (ADR-008)
@@ -1260,7 +1305,7 @@ function nu.worker.spawn(module, opts)
   end
 
   function W:terminate()
-    nu.worker._terminate(self.__wid)
+    enu.worker._terminate(self.__wid)
   end
 
   return W
@@ -1270,20 +1315,20 @@ end
 // preludioWorkerParent: el lado WORKER del canal con el padre (§13). Mismas colas
 // acotadas; sin spawn (no hay anidamiento). Sólo en el estado de un worker.
 const preludioWorkerParent = `
-nu.worker = nu.worker or {}
-nu.worker.parent = nu.worker.parent or {}
-function nu.worker.parent.send(msg)
+enu.worker = enu.worker or {}
+enu.worker.parent = enu.worker.parent or {}
+function enu.worker.parent.send(msg)
   __check_msg(msg)
-  return nu.worker.parent._send(msg)
+  return enu.worker.parent._send(msg)
 end
-function nu.worker.parent.recv()
-  return nu.worker.parent._recv()
+function enu.worker.parent.recv()
+  return enu.worker.parent._recv()
 end
 `
 
 // preludioLoader: el require curado (M13, DM5, api.md §14). La lib `package` de
 // PUC no se abre; este require resuelve por nombre contra el registro Go
-// (nu.loader._source), cachea la primera carga, detecta ciclos y ofrece reload
+// (enu.loader._source), cachea la primera carga, detecta ciclos y ofrece reload
 // best-effort (G2). Presente en el estado principal y en los workers.
 const preludioLoader = `
 local __loaded = {}   -- name -> resultado del módulo (caché de una sola carga)
@@ -1295,7 +1340,7 @@ function require(name)
   if __loading[name] then
     error({ code = "EINVAL", message = "require: ciclo de dependencias con " .. tostring(name) })
   end
-  local src = nu.loader._source(name)
+  local src = enu.loader._source(name)
   if src == nil then
     error({ code = "ENOENT", message = "require: módulo no encontrado: " .. tostring(name) })
   end
@@ -1315,7 +1360,7 @@ end
 
 -- __loader_reload(name): reload best-effort (G2). Limpia la caché y re-require;
 -- las referencias viejas al módulo persisten (por eso "best-effort"). El
--- nu.plugin.reload de la integración lo envuelve (M13).
+-- enu.plugin.reload de la integración lo envuelve (M13).
 _G.__loader_reload = function(name)
   __loaded[name] = nil
   return require(name)

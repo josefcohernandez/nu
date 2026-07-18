@@ -6,7 +6,7 @@ package runtime
 //   - P28: comandos /fork y /permissions,
 //   - P29: "permitir siempre" (sesión/global) + autocompletado de `/`.
 //
-// Mismo arnés que chat_test.go (bootChat: las cinco extensiones, nu.ui forzada,
+// Mismo arnés que chat_test.go (bootChat: las cinco extensiones, enu.ui forzada,
 // tamaño conocido). Se conduce la UI emitiendo eventos `agent:*` y alimentando
 // teclas con C.app:handle_key, e inspeccionando el estado del Chat.
 
@@ -22,7 +22,7 @@ import (
 func startChat(h *harness, extraOpts string) {
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true` + extraOpts + ` })
 		end)
@@ -36,10 +36,10 @@ func TestChatToolProgressCompact(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
 	startChat(h, "")
 	h.eval(`
-		nu.events.emit("agent:tool.start", { session = SID, id = "t1", name = "grep", args = {} })
-		nu.events.emit("agent:tool.progress", { session = SID, id = "t1", name = "grep", text = "42 ficheros..." })
+		enu.events.emit("agent:tool.start", { session = SID, id = "t1", name = "grep", args = {} })
+		enu.events.emit("agent:tool.progress", { session = SID, id = "t1", name = "grep", text = "42 ficheros..." })
 		MD_PROG = C.transcript:markdown()
-		nu.events.emit("agent:compact", { session = SID, auto = true })
+		enu.events.emit("agent:compact", { session = SID, auto = true })
 		MD_COMPACT = C.transcript:markdown()
 	`)
 	prog := h.eval(`return MD_PROG`)[0]
@@ -62,7 +62,7 @@ func TestChatAllowAlways(t *testing.T) {
 
 	// sesión: tecla `s` (permitir siempre, sesión).
 	h.eval(`
-		nu.events.emit("agent:permission.asked", {
+		enu.events.emit("agent:permission.asked", {
 			session = SID, id = "ask-1", tool = "bash",
 			args = { command = "git status" }, suggested = "bash:git *",
 		})
@@ -79,7 +79,7 @@ func TestChatAllowAlways(t *testing.T) {
 
 	// global: tecla `g` persiste a agent.toml.
 	h.eval(`
-		nu.events.emit("agent:permission.asked", {
+		enu.events.emit("agent:permission.asked", {
 			session = SID, id = "ask-2", tool = "bash",
 			args = { command = "npm install" }, suggested = "bash:npm *",
 		})
@@ -87,8 +87,8 @@ func TestChatAllowAlways(t *testing.T) {
 	h.eval(`C.app:handle_key({ type = "key", key = "g" })`)
 	h.eval(`
 		GLOBAL = ""
-		nu.task.spawn(function()
-			local ok, raw = pcall(nu.fs.read, nu.config.dir() .. "/agent.toml")
+		enu.task.spawn(function()
+			local ok, raw = pcall(enu.fs.read, enu.config.dir() .. "/agent.toml")
 			if ok then GLOBAL = raw end
 		end)
 	`)
@@ -136,9 +136,9 @@ func TestChatFilePicker(t *testing.T) {
 	startChat(h, ", cwd = "+quote(repo))
 	h.eval(`
 		PICKER, NCAND = false, 0
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			C:open_file_picker()
-			nu.task.sleep(20)
+			enu.task.sleep(20)
 			PICKER = (C._picker ~= nil)
 			if C._picker then NCAND = #C._picker.candidates end
 		end)
@@ -172,7 +172,7 @@ func TestChatForkCommand(t *testing.T) {
 	h.eval(`
 		OLD_ID = C.session.id
 		MSG, NEW_ID = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ctx = C:command_ctx()
 			local _h, m = require("chat.commands").dispatch("/fork", ctx)
 			MSG = m
@@ -193,7 +193,7 @@ func TestChatThinkCommand(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
 	startChat(h, "")
 	h.eval(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local cmds = require("chat.commands")
 			local ctx = C:command_ctx()
 			_, SHOW0 = cmds.dispatch("/think", ctx)            -- estado inicial: off
@@ -219,7 +219,7 @@ func TestChatPermissionsCommand(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
 	startChat(h, "")
 	h.eval(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ctx = C:command_ctx()
 			local cmds = require("chat.commands")
 			cmds.dispatch("/permissions allow bash:git *", ctx)

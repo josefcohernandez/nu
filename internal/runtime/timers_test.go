@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Tests de S05 (api.md §3): `nu.task.sleep`/`defer`/`every` + `Timer:stop`. S05
+// Tests de S05 (api.md §3): `enu.task.sleep`/`defer`/`every` + `Timer:stop`. S05
 // no está en el inventario 🔒, pero `every`/`defer` tienen lógica propia
 // (scheduling periódico, handlers síncronos sobre el token, parar sin fugas de
 // goroutine, quiescencia). La suite corre con `-race -count=4` para descartar
@@ -26,8 +26,8 @@ func TestSleepReturns(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		done = false
-		nu.task.spawn(function()
-			nu.task.sleep(5)
+		enu.task.spawn(function()
+			enu.task.sleep(5)
 			done = true
 		end)
 	`)
@@ -43,12 +43,12 @@ func TestSleepDoesNotBlockLoop(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		order = {}
-		nu.task.spawn(function()
-			nu.task.sleep(40)                 -- duerme largo
+		enu.task.spawn(function()
+			enu.task.sleep(40)                 -- duerme largo
 			order[#order + 1] = "lenta"
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(1)                  -- duerme corto: despierta antes
+		enu.task.spawn(function()
+			enu.task.sleep(1)                  -- duerme corto: despierta antes
 			order[#order + 1] = "rapida"
 		end)
 	`)
@@ -62,8 +62,8 @@ func TestSleepZeroYields(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		ok = false
-		nu.task.spawn(function()
-			nu.task.sleep(0)
+		enu.task.spawn(function()
+			enu.task.sleep(0)
 			ok = true
 		end)
 	`)
@@ -71,10 +71,10 @@ func TestSleepZeroYields(t *testing.T) {
 }
 
 // TestSleepOutsideTask: `sleep` es ⏸; fuera de una task lanza EINVAL (§1.3),
-// como `await`/`suspendEcho`. El chunk de `nu -e` corre en el estado principal.
+// como `await`/`suspendEcho`. El chunk de `enu -e` corre en el estado principal.
 func TestSleepOutsideTask(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`nu.task.sleep(1)`)
+	se := h.evalErr(`enu.task.sleep(1)`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("sleep fuera de task: code = %q, want %q", se.Code, CodeEINVAL)
 	}
@@ -86,8 +86,8 @@ func TestSleepOutsideTask(t *testing.T) {
 func TestSleepNegativeRejected(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
-		nu.task.spawn(function()
-			nu.task.sleep(-1)
+		enu.task.spawn(function()
+			enu.task.sleep(-1)
 		end)
 	`)
 	if !logHas(h, "EINVAL", "negativo") {
@@ -102,7 +102,7 @@ func TestDeferRunsNextTick(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		ran = false
-		nu.task.defer(function() ran = true end)
+		enu.task.defer(function() ran = true end)
 	`)
 	h.expectEval(`return tostring(ran)`, "true")
 }
@@ -115,7 +115,7 @@ func TestDeferAfterCurrent(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		order = {}
-		nu.task.defer(function() order[#order + 1] = "defer" end)
+		enu.task.defer(function() order[#order + 1] = "defer" end)
 		order[#order + 1] = "inline-1"
 		order[#order + 1] = "inline-2"
 	`)
@@ -130,9 +130,9 @@ func TestDeferFromTask(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		hits = 0
-		nu.task.spawn(function()
-			nu.task.sleep(1)
-			nu.task.defer(function() hits = hits + 1 end)
+		enu.task.spawn(function()
+			enu.task.sleep(1)
+			enu.task.defer(function() hits = hits + 1 end)
 		end)
 	`)
 	h.expectEval(`return tostring(hits)`, "1")
@@ -144,7 +144,7 @@ func TestDeferFromTask(t *testing.T) {
 func TestDeferErrorIsolated(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
-		nu.task.defer(function() error({ code = "EIO", message = "defer roto" }) end)
+		enu.task.defer(function() error({ code = "EIO", message = "defer roto" }) end)
 	`)
 	if !logHas(h, "EIO", "defer roto") {
 		t.Fatalf("el error del defer debería quedar en el log; log:\n%s", strings.Join(h.logLines(), "\n"))
@@ -162,18 +162,18 @@ func TestEveryFiresAndStops(t *testing.T) {
 	h.eval(`
 		ticks = 0
 		local timer
-		timer = nu.task.every(2, function()
+		timer = enu.task.every(2, function()
 			ticks = ticks + 1
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- Espera a juntar al menos 3 ticks, luego corta el timer.
 			while ticks < 3 do
-				nu.task.sleep(2)
+				enu.task.sleep(2)
 			end
 			timer:stop()
 			final = ticks
 			-- Da margen a que cualquier disparo en vuelo (ya inexistente) se vería.
-			nu.task.sleep(20)
+			enu.task.sleep(20)
 			after = ticks
 		end)
 	`)
@@ -189,12 +189,12 @@ func TestEveryStopIsClean(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		count = 0
-		nu.task.spawn(function()
-			local timer = nu.task.every(2, function() count = count + 1 end)
-			nu.task.sleep(15)         -- deja correr unos cuantos ticks
+		enu.task.spawn(function()
+			local timer = enu.task.every(2, function() count = count + 1 end)
+			enu.task.sleep(15)         -- deja correr unos cuantos ticks
 			timer:stop()
 			snapshot = count
-			nu.task.sleep(30)         -- bastante más que el periodo
+			enu.task.sleep(30)         -- bastante más que el periodo
 			drift = count - snapshot  -- debe ser 0: nada disparó tras stop
 		end)
 	`)
@@ -207,11 +207,11 @@ func TestEveryStopIsClean(t *testing.T) {
 // periodo cero no tiene semántica útil.
 func TestEveryRejectsNonPositive(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`nu.task.every(0, function() end)`)
+	se := h.evalErr(`enu.task.every(0, function() end)`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("every(0): code = %q, want %q", se.Code, CodeEINVAL)
 	}
-	se = h.evalErr(`nu.task.every(-5, function() end)`)
+	se = h.evalErr(`enu.task.every(-5, function() end)`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("every(-5): code = %q, want %q", se.Code, CodeEINVAL)
 	}
@@ -224,7 +224,7 @@ func TestEveryRejectsNonPositive(t *testing.T) {
 func TestEveryDoesNotBlockExit(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
-		nu.task.every(1, function() end)  -- nunca se para explícitamente
+		enu.task.every(1, function() end)  -- nunca se para explícitamente
 	`)
 	// Si llegamos aquí, EvalString volvió pese al timer activo: la quiescencia
 	// ignora los timers periódicos, como se diseñó.
@@ -238,12 +238,12 @@ func TestEveryErrorIsolated(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		fires = 0
-		nu.task.spawn(function()
-			local timer = nu.task.every(2, function()
+		enu.task.spawn(function()
+			local timer = enu.task.every(2, function()
 				fires = fires + 1
 				error({ code = "EIO", message = "tick roto" })
 			end)
-			while fires < 2 do nu.task.sleep(2) end  -- sigue disparando pese al error
+			while fires < 2 do enu.task.sleep(2) end  -- sigue disparando pese al error
 			timer:stop()
 		end)
 	`)
@@ -259,9 +259,9 @@ func TestEveryErrorIsolated(t *testing.T) {
 func TestTimerStopIdempotent(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
-		nu.task.spawn(function()
-			local timer = nu.task.every(2, function() end)
-			nu.task.sleep(5)
+		enu.task.spawn(function()
+			local timer = enu.task.every(2, function() end)
+			enu.task.sleep(5)
 			timer:stop()
 			timer:stop()   -- segundo stop: no debe romper nada
 			ok = true

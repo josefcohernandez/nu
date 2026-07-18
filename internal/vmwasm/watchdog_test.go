@@ -63,11 +63,11 @@ func TestWatchdogAbortaBucleCPU(t *testing.T) {
 	inst := newInstanceBudget(t, 30*time.Millisecond)
 	if _, lerr, err := inst.Eval(`
 		otra = "no-corrio"
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			while true do end   -- bucle de CPU puro: jamás cede
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(1)
+		enu.task.spawn(function()
+			enu.task.sleep(1)
 			otra = "corrio"     -- el estado sigue vivo: esta task avanza tras el corte
 		end)`); err != nil || lerr != "" {
 		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
@@ -88,12 +88,12 @@ func TestWatchdogNoCapturablePorPcall(t *testing.T) {
 	if _, lerr, err := inst.Eval(`
 		observado = "no"
 		capturado = nil
-		local w = nu.task.spawn(function()
+		local w = enu.task.spawn(function()
 			local ok = pcall(function() while true do end end)
 			capturado = "SI:" .. tostring(ok)  -- NO debe ejecutarse (aborto no capturable)
 		end)
-		nu.task.spawn(function()
-			local ok, e = pcall(function() return nu.task.await(w) end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() return enu.task.await(w) end)
 			observado = tostring(ok) .. ":" .. tostring(e and e.code)
 		end)`); err != nil || lerr != "" {
 		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
@@ -109,19 +109,19 @@ func TestWatchdogNoCapturablePorPcall(t *testing.T) {
 	}
 }
 
-// CLEANUPS CORREN (DM4 🔒, §1.3): una task con nu.task.cleanup que entra en un
+// CLEANUPS CORREN (DM4 🔒, §1.3): una task con enu.task.cleanup que entra en un
 // bucle de CPU corre sus cleanups (LIFO) al abortarse por budget —pase lo que pase—.
 func TestWatchdogCorreCleanups(t *testing.T) {
 	inst := newInstanceBudget(t, 30*time.Millisecond)
 	if _, lerr, err := inst.Eval(`
 		traza = ""
-		local w = nu.task.spawn(function()
-			nu.task.cleanup(function() traza = traza .. "A" end)  -- registrado 1º
-			nu.task.cleanup(function() traza = traza .. "B" end)  -- registrado 2º
+		local w = enu.task.spawn(function()
+			enu.task.cleanup(function() traza = traza .. "A" end)  -- registrado 1º
+			enu.task.cleanup(function() traza = traza .. "B" end)  -- registrado 2º
 			while true do end   -- se aborta por budget; los cleanups DEBEN correr
 		end)
-		nu.task.spawn(function()
-			pcall(function() nu.task.await(w) end)  -- espera a que w muera
+		enu.task.spawn(function()
+			pcall(function() enu.task.await(w) end)  -- espera a que w muera
 		end)`); err != nil || lerr != "" {
 		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
 	}
@@ -139,7 +139,7 @@ func TestWatchdogDesactivado(t *testing.T) {
 	inst := newInstanceBudget(t, 0) // watchdog desactivado
 	if _, lerr, err := inst.Eval(`
 		out = "no"
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local x = 0
 			for i = 1, 2000000 do x = x + 1 end  -- acotado; sin watchdog completa
 			out = "completo:" .. tostring(x)

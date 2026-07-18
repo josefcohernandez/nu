@@ -37,9 +37,9 @@ _traza[#_traza+1] = "base"
 _traza = _traza or {}
 _traza[#_traza+1] = "app:" .. require("saludo").texto
 -- (e) un handler que lanza: debe quedar aislado por pcall (ADR-008).
-nu.events.on("ping", function() error("revienta a propósito") end)
+enu.events.on("ping", function() error("revienta a propósito") end)
 -- handler sano del mismo evento: debe correr pese al anterior.
-nu.events.on("ping", function() _sano = (_sano or 0) + 1 end)
+enu.events.on("ping", function() _sano = (_sano or 0) + 1 end)
 `)
 
 	// --- init.lua del usuario: el ÚLTIMO del arranque canónico (§14). ---
@@ -48,7 +48,7 @@ _traza = _traza or {}
 _traza[#_traza+1] = "user"
 -- cuenta core:ready para verificar que se emite UNA vez.
 _ready = 0
-nu.events.on("core:ready", function() _ready = _ready + 1 end)
+enu.events.on("core:ready", function() _ready = _ready + 1 end)
 `)
 
 	h := newBootedHarness(t, root, cfg)
@@ -66,7 +66,7 @@ nu.events.on("core:ready", function() _ready = _ready + 1 end)
 
 	// (e) un emit "ping" invoca los dos handlers de `app`: el que lanza queda
 	// aislado (log), el sano corre. El proceso NO cae; el contador sano sube.
-	h.eval(`nu.events.emit("ping")`)
+	h.eval(`enu.events.emit("ping")`)
 	h.expectEval(`return _sano`, "1")
 	assertLogContains(t, h, "revienta a propósito")
 
@@ -75,12 +75,12 @@ nu.events.on("core:ready", function() _ready = _ready + 1 end)
 	// nueva"), recargamos, y comprobamos que tras un emit solo corre la versión
 	// nueva (no la vieja además).
 	rewritePluginInit(t, root, "app", `
-nu.events.on("ping", function() error("revienta v2") end)
-nu.events.on("ping", function() _sano = (_sano or 0) + 10 end)
+enu.events.on("ping", function() error("revienta v2") end)
+enu.events.on("ping", function() _sano = (_sano or 0) + 10 end)
 `)
-	h.eval(reloadSpawn(`nu.plugin.reload("app")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("app")`))
 
-	h.eval(`_sano = 0; nu.events.emit("ping")`)
+	h.eval(`_sano = 0; enu.events.emit("ping")`)
 	// Solo la versión nueva (suma 10). Si las suscripciones viejas de `app`
 	// quedaran huérfanas, _sano sería 11 (1 viejo + 10 nuevo).
 	h.expectEval(`return _sano`, "10")

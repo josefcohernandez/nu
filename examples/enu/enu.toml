@@ -1,0 +1,16 @@
+# Configuración de ejemplo para la TUI de demostración (examples/enu/plugins/tui-demo).
+#
+# Úsala apuntando el directorio de config a `examples/` con XDG_CONFIG_HOME (así
+# `config.dir()` resuelve a `examples/enu`, donde vive este fichero). Desde la raíz del
+# repo:
+#
+#     XDG_CONFIG_HOME=examples go run .
+#   o, con el binario instalado:
+#     XDG_CONFIG_HOME=examples enu
+#
+# `dirs` es relativo al directorio desde el que arrancas `enu` (la raíz del repo).
+# `enabled` activa el plugin por nombre: con un plugin activo, `enu` NO muestra la
+# pantalla de runtime desnudo (G21) sino que arranca y corre su init.lua (§14).
+[plugins]
+dirs = ["examples/enu/plugins"]
+enabled = ["tui-demo"]

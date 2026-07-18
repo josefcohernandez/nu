@@ -1,7 +1,7 @@
 package runtime
 
 // Tests del portapapeles OSC 52 (§9.2, S32). Blindan la LÓGICA PROPIA y arriesgada de
-// `nu.ui.clipboard_set`/`clipboard_get`:
+// `enu.ui.clipboard_set`/`clipboard_get`:
 //
 //   - **set**: la secuencia OSC 52 emitida es exactamente `ESC ] 52 ; c ; <base64> BEL`
 //     con el base64 del contenido (round-trip de bytes arbitrarios: salto de línea,

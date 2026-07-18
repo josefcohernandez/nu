@@ -13,7 +13,7 @@ package vmwasm
 // guardan Go-side como `*lua.LFunction` (input.go). En wasm eso es imposible: Go
 // no sostiene referencias a funciones del estado Lua a través de la frontera. Por
 // eso la **pila de input y la resolución de secuencias viven en el preludio Lua**
-// (como nu.events), con Go inyectando eventos crudos. Es coherente con "la
+// (como enu.events), con Go inyectando eventos crudos. Es coherente con "la
 // resolución de secuencias es del core" (api.md §9.3): el preludio se compila en
 // el binario, ES el core. El compositor real (compositor.go, reusable tal cual)
 // se enchufa a la interfaz `UIBackend` en la integración con el Runtime (M13);
@@ -30,16 +30,16 @@ import (
 // (C5): sus objetos Go reales (RegionObj/BlockObj) viven en la tabla de handles
 // de la Instance y sus métodos se despachan por el mecanismo de M10.
 type UIBackend interface {
-	// Size devuelve el tamaño del terminal en celdas (nu.ui.size).
+	// Size devuelve el tamaño del terminal en celdas (enu.ui.size).
 	Size() (w, h int)
-	// Caps devuelve las capacidades del terminal (nu.ui.caps).
+	// Caps devuelve las capacidades del terminal (enu.ui.caps).
 	Caps() map[string]any
 	// NewBlock construye un bloque pre-renderizado a partir de las líneas
-	// (nu.ui.block). Un error es de validación (líneas mal formadas).
+	// (enu.ui.block). Un error es de validación (líneas mal formadas).
 	NewBlock(lines []any) (BlockObj, error)
-	// NewRegion crea una región de composición con z-order (nu.ui.region).
+	// NewRegion crea una región de composición con z-order (enu.ui.region).
 	NewRegion(x, y, w, h, z int) RegionObj
-	// Clipboard vía OSC 52 (nu.ui.clipboard_*). Get es la única op ⏸ del módulo.
+	// Clipboard vía OSC 52 (enu.ui.clipboard_*). Get es la única op ⏸ del módulo.
 	ClipboardSet(s string)
 	ClipboardGet() (string, bool)
 }
@@ -69,29 +69,45 @@ type RegionObj interface {
 
 // SetUIBackend instala el backend de UI del Pool. Debe llamarse antes de
 // NewInstance (el preludio se arma con el catálogo completo, y la presencia de UI
-// decide si `nu.ui` existe — headless G20). Registra las primitivas nu.ui.* y sus
+// decide si `enu.ui` existe — headless G20). Registra las primitivas enu.ui.* y sus
 // métodos de handle.
 func (p *Pool) SetUIBackend(b UIBackend) {
 	p.ui = b
 	p.registerUIPrimitives()
 }
 
-// HasUI indica si el Pool tiene UI (para el preludio: `nu.has("ui")`, headless G20).
+// HasUI indica si el Pool tiene UI (para el preludio: `enu.has("ui")`, headless G20).
 func (p *Pool) HasUI() bool { return p.ui != nil }
 
-// registerUIPrimitives registra el catálogo nu.ui.* como host functions y los
+// SetOwnerSnapshot instala el resolvedor del dueño vigente del estado principal
+// (G56, ADR-024). Lo llama el Runtime con su currentOwner. enu.worker._spawn lo
+// invoca en la goroutine de la VM —donde la pila de dueños es coherente— para
+// tomar la FOTO del dueño con que arranca cada worker. Sólo tiene sentido en el
+// Pool principal.
+func (p *Pool) SetOwnerSnapshot(fn func() string) { p.ownerSnapshot = fn }
+
+// WorkerOwner devuelve la foto del plugin dueño de esta Instance si es un worker
+// (G56, ADR-024): `owner` es la identidad capturada en el spawn y `fromWorker`
+// indica que la Instance corre en un Pool de worker. En el estado principal
+// devuelve ("", false), señal de que el llamador debe resolver el dueño vigente
+// (currentOwner). Lectura pura de campos inmutables tras el spawn: sin carrera.
+func (inst *Instance) WorkerOwner() (owner string, fromWorker bool) {
+	return inst.workerOwner, inst.pool.isWorker
+}
+
+// registerUIPrimitives registra el catálogo enu.ui.* como host functions y los
 // métodos de Region como métodos de handle (M10). Se llama desde SetUIBackend.
 func (p *Pool) registerUIPrimitives() {
-	// nu.ui.size() -> {w, h}
+	// enu.ui.size() -> {w, h}
 	p.Register("ui.size", func(inst *Instance, args []any) ([]any, error) {
 		w, h := inst.pool.ui.Size()
 		return []any{map[string]any{"w": int64(w), "h": int64(h)}}, nil
 	})
-	// nu.ui.caps() -> {colors, kitty_keyboard, mouse, images}
+	// enu.ui.caps() -> {colors, kitty_keyboard, mouse, images}
 	p.Register("ui.caps", func(inst *Instance, args []any) ([]any, error) {
 		return []any{inst.pool.ui.Caps()}, nil
 	})
-	// nu.ui._block(lines) -> {id, width, height}. El wrapper Lua nu.ui.block
+	// enu.ui._block(lines) -> {id, width, height}. El wrapper Lua enu.ui.block
 	// (preludioInput) envuelve el id como handle con .width/.height (api.md §9.2).
 	p.Register("ui._block", func(inst *Instance, args []any) ([]any, error) {
 		var lines []any
@@ -106,7 +122,7 @@ func (p *Pool) registerUIPrimitives() {
 		id := inst.AllocHandle("Block", b)
 		return []any{map[string]any{"id": int64(id), "width": int64(w), "height": int64(h)}}, nil
 	})
-	// nu.ui.region(opts) -> Region (handle). opts: {x, y, w, h, z?}.
+	// enu.ui.region(opts) -> Region (handle). opts: {x, y, w, h, z?}.
 	p.Register("ui.region", func(inst *Instance, args []any) ([]any, error) {
 		opts, _ := args[0].(map[string]any)
 		x := optInt(opts, "x")
@@ -117,13 +133,13 @@ func (p *Pool) registerUIPrimitives() {
 		r := inst.pool.ui.NewRegion(x, y, w, h, z)
 		return []any{inst.AllocHandle("Region", r)}, nil
 	})
-	// nu.ui.clipboard_set(s)
+	// enu.ui.clipboard_set(s)
 	p.Register("ui.clipboard_set", func(inst *Instance, args []any) ([]any, error) {
 		s, _ := args[0].(string)
 		inst.pool.ui.ClipboardSet(s)
 		return nil, nil
 	})
-	// nu.ui._next_input() -> ev: saca el evento de input más antiguo de la cola que
+	// enu.ui._next_input() -> ev: saca el evento de input más antiguo de la cola que
 	// FeedInput llena (la puerta Go del input). nil si no hay ninguno. NO toma
 	// inst.mu: corre DENTRO de Eval (mismo goroutine, que ya la tiene); el modelo
 	// es single-thread (el estado principal) así que no hay carrera sobre la cola.
@@ -135,7 +151,7 @@ func (p *Pool) registerUIPrimitives() {
 		inst.pendingInput = inst.pendingInput[1:]
 		return []any{ev}, nil
 	})
-	// nu.ui.clipboard_get() -> string?  — la única ⏸ del módulo (lee la respuesta
+	// enu.ui.clipboard_get() -> string?  — la única ⏸ del módulo (lee la respuesta
 	// OSC 52 del terminal, bloqueante).
 	p.RegisterSuspending("ui.clipboard_get", func(inst *Instance, args []any) ([]any, error) {
 		s, ok := inst.pool.ui.ClipboardGet()
@@ -256,14 +272,14 @@ func argInt(args []any, i int) int {
 // --- entrada de input desde el driver (M13 la cablea al tty real) -------------
 
 // FeedInput inyecta un evento de input crudo y lo despacha SÍNCRONAMENTE por la
-// pila del preludio (como nu.events.emit). Devuelve si algún handler lo consumió.
+// pila del preludio (como enu.events.emit). Devuelve si algún handler lo consumió.
 // El driver real (tty → inputEvent) lo llama en M13; aquí es la puerta Go del
 // mecanismo. ev: {type, key?, mods?, x?, y?, text?, path?}.
 func (inst *Instance) FeedInput(ev map[string]any) (bool, error) {
 	inst.mu.Lock()
 	inst.pendingInput = append(inst.pendingInput, ev)
 	inst.mu.Unlock()
-	out, lerr, err := inst.Eval(`return tostring(__ui_dispatch_input(nu.ui._next_input()))`)
+	out, lerr, err := inst.Eval(`return tostring(__ui_dispatch_input(enu.ui._next_input()))`)
 	if err != nil {
 		return false, err
 	}

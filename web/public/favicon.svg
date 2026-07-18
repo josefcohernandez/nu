@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Wordmark de nu como favicon: caja bright con "nu" en bg, sobre fondo del
+       theme nu. Único SVG permitido (es el favicon, no un icono de UI). -->
+  <rect width="64" height="64" fill="#0a1416"/>
+  <rect x="6" y="18" width="52" height="28" fill="#e8f4f6"/>
+  <text x="32" y="38" font-family="IBM Plex Mono, ui-monospace, monospace"
+        font-size="24" font-weight="700" fill="#0a1416"
+        text-anchor="middle" dominant-baseline="middle">nu</text>
+</svg>

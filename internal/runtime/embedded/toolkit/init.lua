@@ -11,17 +11,17 @@
 -- toolkit).
 --
 -- ADR-003 / ADR-012: el core NO sabe lo que es un widget; todo esto es Lua puro
--- sobre la API pública congelada ([api.md](../../../../docs/api.md) §9 `nu.ui` +
--- §10 `nu.text`), sin privilegio de kernel. El spike de S28 (ADR-012) midió que
+-- sobre la API pública congelada ([api.md](../../../../docs/api.md) §9 `enu.ui` +
+-- §10 `enu.text`), sin privilegio de kernel. El spike de S28 (ADR-012) midió que
 -- orquestar la UI desde Lua es despreciable (el trabajo pesado —medir texto,
 -- componer markdown, recortar el viewport, pintar— es primitiva Go), así que el
 -- veto de ADR-007 NO se ejecutó y el toolkit se construye en Lua, como aquí.
 --
--- El toolkit NO existe sin `nu.ui`: en headless (G20, sin TTY) `nu.ui` no está y
+-- El toolkit NO existe sin `enu.ui`: en headless (G20, sin TTY) `enu.ui` no está y
 -- las funciones que pintan no se pueden usar. Igual que `chat` (chat.md §8), el
--- consumidor comprueba `nu.has("ui")` antes de montar una app. Cargar la
+-- consumidor comprueba `enu.has("ui")` antes de montar una app. Cargar la
 -- extensión solo expone la maquinaria (funciones puras de árbol/layout/theme); no
--- toca `nu.ui` hasta que se monta una app de verdad. Por eso este `init.lua` solo
+-- toca `enu.ui` hasta que se monta una app de verdad. Por eso este `init.lua` solo
 -- CABLEA: deja el módulo público accesible por `require("toolkit")`.
 --
 -- Lo que reusará S43 (chat): `toolkit.app` (la raíz que vincula el árbol a una

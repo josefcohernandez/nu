@@ -6,9 +6,9 @@ import (
 
 // El tipo `Block` y los estilos (api.md §9.2, sesión S22). Un **Block** es un
 // handle **opaco** (userdata) de líneas estilizadas con `.width` y `.height`
-// legibles desde Lua. Es la moneda común del render: lo producen `nu.text.wrap`
-// (S22), `nu.text.markdown` (S23), `nu.text.highlight` (S24) y
-// `nu.text.diff` (S25), lo construye a mano `nu.ui.block` (S22), y lo consume
+// legibles desde Lua. Es la moneda común del render: lo producen `enu.text.wrap`
+// (S22), `enu.text.markdown` (S23), `enu.text.highlight` (S24) y
+// `enu.text.diff` (S25), lo construye a mano `enu.ui.block` (S22), y lo consume
 // `Region:blit` como un viewport (S29). Por eso su estructura interna se fija
 // aquí, fundacional para toda la Fase 5 y la 6.
 //
@@ -26,7 +26,7 @@ import (
 // POR QUÉ UNA REBANADA DE SPANS Y NO UNA REJILLA DE CELDAS. Un Block guarda el
 // texto lógico por tramos de estilo, no una matriz de celdas ya resuelta. La
 // rejilla es del compositor (S29), que recorta el viewport y resuelve el
-// degradado de color con `nu.ui.caps().colors`. Guardar spans (a) deja a S25
+// degradado de color con `enu.ui.caps().colors`. Guardar spans (a) deja a S25
 // (diff) y S23 (markdown) construir líneas concatenando tramos sin pensar en
 // celdas, y (b) mantiene el Block como descripción, no como pintura —blit es
 // copia, "nunca re-render" (§9.1)—.

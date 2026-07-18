@@ -1,12 +1,12 @@
 package runtime
 
 // Driver de TTY (api.md §9, §4, sesión S33, CP-7 manual). Es la pieza que conecta el
-// `nu.ui` —compositor, regiones, pila de input, eventos `ui:*`, todo construido y
+// `enu.ui` —compositor, regiones, pila de input, eventos `ui:*`, todo construido y
 // probado headless en S22–S32— a un **terminal de verdad**. Hasta S33 ese cableado no
 // existía: el compositor componía el frame en memoria (`comp.enc`) pero nada lo enviaba
 // a la pantalla, y la pila de input (`feedInput`) tenía su lógica pero **ninguna fuente
 // de bytes** —los comentarios de input.go/ui.go la llamaban "el driver (S33+)" y la
-// daban por pendiente—. Sin esto, un programa Lua podía `nu.ui.region`/`blit`/`keymap`
+// daban por pendiente—. Sin esto, un programa Lua podía `enu.ui.region`/`blit`/`keymap`
 // y no se veía ni respondía nada: la UI no era funcional. Este fichero la cierra.
 //
 // QUÉ HACE EL DRIVER (las cuatro conexiones del CP-7):
@@ -26,16 +26,17 @@ package runtime
 // `term.GetSize`, `signal.Notify(SIGWINCH)`— vive en `RunInteractive` y es fina; el
 // parseo (tty.go) y el despacho (input.go) que la rodean ya están blindados por unidad.
 //
-// QUIT SIN API NUEVA. El apagado no añade superficie a `nu.*` (la API es sagrada): se
+// QUIT SIN API NUEVA. El apagado no añade superficie a `enu.*` (la API es sagrada): se
 // apoya en el evento de ciclo de vida `core:shutdown` que §4 ya reserva al core. El
 // driver registra un handler INTERNO (una `*lua.LFunction` que envuelve una closure Go,
 // como hace `emitMisbehaved` con el bus) sobre `core:shutdown`: cuando algo lo emite
-// —una app Lua que mapea su tecla de salida a `nu.events.emit("core:shutdown")`, o el
+// —una app Lua que mapea su tecla de salida a `enu.events.emit("core:shutdown")`, o el
 // propio driver al recibir `SIGTERM`/`SIGINT`— el handler cierra el canal `quit` y el
 // bucle termina. Así "Lua decide cuándo salir, Go ejecuta el apagado" sin inventar
-// `nu.ui.quit` ni tocar `nu.version.api`.
+// `enu.ui.quit` ni tocar `enu.version.api`.
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/signal"
@@ -90,7 +91,7 @@ func (d *ttyDriver) installShutdownHandler() {
 		return
 	}
 	_, _, _ = d.rt.wasm.Eval("_G.__driver_quit = false\n" +
-		`nu.events.on("core:shutdown", function() _G.__driver_quit = true end)`)
+		`enu.events.on("core:shutdown", function() _G.__driver_quit = true end)`)
 }
 
 // pollWasmQuit sondea el flag `__driver_quit` que el handler Lua de `core:shutdown`
@@ -118,16 +119,45 @@ func (d *ttyDriver) attachOutput() {
 	if d.rt.ui == nil {
 		return
 	}
-	d.rt.ui.out = d.out
-	d.rt.ui.comp.invalidate()
-	d.rt.flushFrame() // primer frame completo, ya
+	// Las tres operaciones (conectar la salida, invalidar, pintar) bajo el
+	// candado de la UI de una vez (G44: el bombeo puede estar mutando el
+	// compositor); flushFrameUnlocked porque el candado ya está tomado.
+	d.rt.withUILock(func() {
+		d.rt.ui.out = d.out
+		d.rt.ui.comp.invalidate()
+		d.rt.flushFrameUnlocked() // primer frame completo, ya
+	})
 }
 
 // drive es el BUCLE del driver (lo testeable): lee bytes de `d.in`, los parsea y los
 // inyecta, hasta que se pide apagar. La lectura ocurre en una goroutine aparte (un
 // `Read` de un terminal bloquea), que empuja los trozos por un canal; el bucle principal
 // selecciona entre esos trozos, el timeout del ESC pendiente y el canal de apagado.
+//
+// G44: junto al bucle de input arranca el BOMBEO CONTINUO del scheduler
+// (`PumpTasks`), la pieza que hasta ahora no existía: sin ella, una task
+// spawneada desde un keymap o un handler (el turno del agente del chat, el
+// spinner `enu.task.every`) encolaba y nadie la reanudaba jamás. Los dos bucles
+// conviven serializados por el mutex de la Instance (un solo hilo entra a la VM
+// a la vez; el bombeo lo toma por-paso y espera sin él). El bombeo vive
+// exactamente lo que vive drive(): al salir se corta su ctx y se espera su
+// retorno — sin barrer el trabajo de fondo, que reclama `Runtime.Close`.
 func (d *ttyDriver) drive() {
+	if d.rt.wasm != nil {
+		pumpCtx, pumpCancel := context.WithCancel(context.Background())
+		pumpDone := make(chan struct{})
+		go func() {
+			defer close(pumpDone)
+			// El error esperado al apagar es el ctx cancelado; un error duro del
+			// motor también termina aquí (el driver sigue vivo para poder salir).
+			_ = d.rt.wasm.PumpTasks(pumpCtx)
+		}()
+		defer func() {
+			pumpCancel()
+			<-pumpDone
+		}()
+	}
+
 	chunks := make(chan []byte, 8)
 	go d.readChunks(chunks)
 
@@ -283,10 +313,10 @@ const (
 // bucle del driver hasta que se pide apagar, momento en que restaura el terminal. Es la
 // contraparte interactiva de `EvalTaskString`/`RenderBareScreen`: interfaz Go del
 // BINARIO (lo invoca main.go), no superficie Lua sagrada (fuera de api.md) —el core no
-// aprende aquí lo que es un agente; solo da vida al `nu.ui` que las extensiones usan—.
+// aprende aquí lo que es un agente; solo da vida al `enu.ui` que las extensiones usan—.
 //
 // El contenido (qué se pinta) ya lo montó quien llama: o la pantalla desnuda (G21) o el
-// `Boot` canónico que corrió los `init.lua`. Aquí solo se conecta ese `nu.ui` ya vivo al
+// `Boot` canónico que corrió los `init.lua`. Aquí solo se conecta ese `enu.ui` ya vivo al
 // terminal. Requiere `rt.ui != nil` (un TTY interactivo, `rt.uiActive`); sin él devuelve
 // un error —no hay superficie que conducir—.
 func (rt *Runtime) RunInteractive() (err error) {
@@ -302,7 +332,7 @@ func (rt *Runtime) RunInteractive() (err error) {
 			Message: "RunInteractive: no se pudo poner el terminal en raw mode: " + rawErr.Error()}
 	}
 	// Restaurar el terminal pase lo que pase (incluido un panic que se re-lanza tras
-	// limpiar): un `nu` que muere sin restaurar deja el terminal inservible.
+	// limpiar): un `enu` que muere sin restaurar deja el terminal inservible.
 	defer func() {
 		_, _ = io.WriteString(os.Stdout, ttyLeaveSeq)
 		_ = term.Restore(inFd, oldState)
@@ -347,7 +377,7 @@ func (rt *Runtime) UIActive() bool { return rt.uiActive }
 // teclado MÍNIMO del kernel para poder salir —`q`, `esc` o `ctrl+c` emiten
 // `core:shutdown`, que el driver convierte en apagado—. La activación por teclado del
 // conjunto de extensiones (acciones 1/2/3) sigue siendo el CP-7 ampliable; el onramp sin
-// teclado es `nu --default-config` (G33). Bajo el token (toca compositor e input).
+// teclado es `enu --default-config` (G33). Bajo el token (toca compositor e input).
 func (rt *Runtime) PrepareBareScreen() {
 	rt.renderBareScreen()
 	rt.armPainter()
@@ -397,11 +427,11 @@ func (rt *Runtime) installKernelExitWasm() {
 	if rt.wasm == nil {
 		return
 	}
-	_, _, _ = rt.wasm.Eval(`nu.ui.on_input(function(ev)
+	_, _, _ = rt.wasm.Eval(`enu.ui.on_input(function(ev)
   if ev == nil or ev.type ~= "key" then return false end
   local ctrl = ev.mods and ev.mods.ctrl
   if ev.key == "q" or ev.key == "esc" or (ev.key == "c" and ctrl) then
-    nu.events.emit("core:shutdown")
+    enu.events.emit("core:shutdown")
     return true
   end
   return false

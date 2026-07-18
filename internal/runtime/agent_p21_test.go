@@ -49,7 +49,7 @@ func TestSessionThinkingWiring(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlThinkRec, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerThinkRec + `
@@ -86,7 +86,7 @@ func TestSessionThinkingCompatBudget(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlThinkRec, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerThinkRec + `
 			local s = agent.session{ model = "test/m", no_store = true, thinking = { budget = 7000 } }
@@ -122,7 +122,7 @@ func TestSessionThinkingFromConfig(t *testing.T) {
 	h := &harness{t: t, rt: rt}
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerThinkRec + `
 			local s = agent.session{ model = "test/m", no_store = true }  -- sin opts.thinking

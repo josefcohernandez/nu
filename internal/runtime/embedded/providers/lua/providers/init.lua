@@ -3,17 +3,17 @@
 -- Implementa el contrato de [providers.md](../../../../../docs/providers.md):
 --
 --   1. **Lector del registro TOML** (§1): carga `providers.toml` de
---      `nu.config.dir()`, lo decodifica con `nu.toml.decode` y construye un
+--      `enu.config.dir()`, lo decodifica con `enu.toml.decode` y construye un
 --      registro de providers y modelos resoluble por `"proveedor/id-o-alias"`.
 --   2. **Contrato del adaptador** (§3): `register_adapter` valida la *forma* que
 --      un adaptador debe cumplir; `resolve` empareja un modelo con su adaptador
 --      y una `ProviderConfig` ya cocinada (base_url + api_key del entorno + extra
 --      + ModelInfo).
 --   3. **`approx_tokens`** (§4, G23): heurística ~4 bytes/token, Lua puro. Vivía
---      en el core como `nu.text.approx_tokens` y salió de él (G23): "token" es
+--      en el core como `enu.text.approx_tokens` y salió de él (G23): "token" es
 --      vocabulario de ESTA extensión.
 --
--- Todo sobre la API pública (api.md): `nu.toml`, `nu.fs`, `nu.config.dir`,
+-- Todo sobre la API pública (api.md): `enu.toml`, `enu.fs`, `enu.config.dir`,
 -- `require`, `error` estructurado (ADR-009). NINGÚN privilegio de kernel.
 --
 -- Código de error de la extensión: `EPROVIDER` (providers.md §3; las extensiones
@@ -134,9 +134,9 @@ end
 -- ---------------------------------------------------------------------------
 
 -- registry_path() -> string. Ruta de `providers.toml` (providers.md §1: "vive en
--- nu.config.dir()").
+-- enu.config.dir()").
 local function registry_path()
-  return nu.config.dir() .. "/providers.toml"
+  return enu.config.dir() .. "/providers.toml"
 end
 
 -- build_index construye, a partir del TOML decodificado, un índice plano de
@@ -144,13 +144,17 @@ end
 -- §1). Cada entrada lleva el provider crudo (base_url, adapter, api_key_env,
 -- extra...) y el ModelInfo, listos para cocinar la ProviderConfig en `resolve`.
 --
--- Valida lo mínimo accionable: un provider sin `adapter`, o un modelo sin `id`,
--- es un registro inválido (EPROVIDER) que nombra el provider —el usuario edita
--- datos, no código, y el error debe decirle qué línea arreglar (providers.md §1)—.
+-- Valida lo mínimo accionable: un provider sin `adapter` o sin `base_url` (ambos
+-- requeridos, providers.md §1), o un modelo sin `id`, es un registro inválido
+-- (EPROVIDER) que nombra el provider —el usuario edita datos, no código, y el
+-- error debe decirle qué línea arreglar—. Sin esto, un `base_url` ausente no
+-- reventaría aquí sino al concatenar la URL en el primer turno del adaptador.
 local function build_index(decoded)
   local index = {}            -- "proveedor/clave" -> { provider_name, provider, model }
   local models = {}           -- lista de ModelInfo enriquecidos (para list())
   local provs = (decoded and decoded.providers) or {}
+  local secret_set = {}       -- dedup de `api_key_env` (G55, §4): nombre -> true
+  local secrets = {}          -- misma info, en orden, para secret_env_vars()
 
   for pname, prov in pairs(provs) do
     if type(prov) ~= "table" then
@@ -158,6 +162,16 @@ local function build_index(decoded)
     end
     if type(prov.adapter) ~= "string" or prov.adapter == "" then
       eprovider(string.format("el provider %q en providers.toml no declara `adapter` (providers.md §1)", pname))
+    end
+    if type(prov.base_url) ~= "string" or prov.base_url == "" then
+      eprovider(string.format("el provider %q en providers.toml no declara `base_url` (providers.md §1)", pname))
+    end
+    -- G55 (§4): `api_key_env` es el NOMBRE de la variable que porta la credencial
+    -- de este provider. Se recoge aquí, DEDUPLICADO, para secret_env_vars(): el
+    -- pairs() de Lua no da un orden estable, así que ordenamos al final (M.secret_env_vars).
+    if type(prov.api_key_env) == "string" and prov.api_key_env ~= "" and not secret_set[prov.api_key_env] then
+      secret_set[prov.api_key_env] = true
+      secrets[#secrets + 1] = prov.api_key_env
     end
     local mlist = prov.models or {}
     for _, model in ipairs(mlist) do
@@ -190,13 +204,17 @@ local function build_index(decoded)
     end
   end
 
-  return { index = index, models = models }
+  -- Orden determinista (G55): el registro se lee con `pairs`, sin orden estable
+  -- entre providers; `secret_env_vars()` no debe variar de una carga a otra.
+  table.sort(secrets)
+
+  return { index = index, models = models, secrets = secrets }
 end
 
 -- load_registry carga y cachea el registro. Perezoso (no toca el disco hasta la
 -- primera resolución). Un `providers.toml` AUSENTE es válido y da un registro
--- vacío (un nu recién arrancado sin modelos configurados no es un error): se
--- distingue ENOENT de un fallo de IO real con el código del error de `nu.fs`.
+-- vacío (un enu recién arrancado sin modelos configurados no es un error): se
+-- distingue ENOENT de un fallo de IO real con el código del error de `enu.fs`.
 -- Un TOML mal formado SÍ es error accionable (EPROVIDER) que nombra el fichero.
 local function load_registry()
   if registry ~= nil then
@@ -204,9 +222,9 @@ local function load_registry()
   end
   local path = registry_path()
 
-  local ok, content = pcall(nu.fs.read, path)
+  local ok, content = pcall(enu.fs.read, path)
   if not ok then
-    -- `nu.fs.read` lanza estructurado (api.md §5). ENOENT: fichero ausente =>
+    -- `enu.fs.read` lanza estructurado (api.md §5). ENOENT: fichero ausente =>
     -- registro vacío. Cualquier otro error (EACCES, EIO) se propaga.
     if type(content) == "table" and content.code == "ENOENT" then
       registry = build_index(nil)
@@ -215,7 +233,7 @@ local function load_registry()
     error(content)
   end
 
-  local okd, decoded = pcall(nu.toml.decode, content)
+  local okd, decoded = pcall(enu.toml.decode, content)
   if not okd then
     eprovider(string.format("providers.toml mal formado (%s): %s", path,
       (type(decoded) == "table" and decoded.message) or tostring(decoded)))
@@ -264,7 +282,7 @@ function M.resolve(ref)
   -- local). No es error aquí: el adaptador decide si la necesita.
   local api_key = nil
   if type(prov.api_key_env) == "string" and prov.api_key_env ~= "" then
-    api_key = nu.sys.env(prov.api_key_env)
+    api_key = enu.sys.env(prov.api_key_env)
   end
 
   -- ModelInfo cocinado para el adaptador: el id tal y como lo espera el provider
@@ -299,6 +317,27 @@ function M.list()
   local out = {}
   for i, info in ipairs(reg.models) do
     out[i] = info
+  end
+  return out
+end
+
+-- secret_env_vars() -> string[] (providers.md §4, G55/SEC-04). Los NOMBRES
+-- —nunca los valores— de las variables de entorno que portan credenciales según
+-- el registro vigente: las `api_key_env` de TODOS los providers declarados en
+-- `providers.toml`, deduplicadas y en orden alfabético (determinista: `pairs`
+-- no promete orden). Solo esta extensión sabe qué variables son secretos de LLM
+-- ("provider"/"api key" son vocabulario de producto, ADR-003); otras
+-- extensiones —la tool `bash` de `agent` y el lanzamiento de servidores MCP,
+-- ambos por `enu.proc`— la consumen para NO regalarlas por defecto en el
+-- entorno de sus subprocesos (agente.md §3). Es una foto del registro, no una
+-- promesa de secreto absoluto: una credencial exportada al margen del TOML no
+-- se conoce aquí.
+function M.secret_env_vars()
+  local reg = load_registry()
+  -- Copia defensiva, igual que list().
+  local out = {}
+  for i, v in ipairs(reg.secrets) do
+    out[i] = v
   end
   return out
 end

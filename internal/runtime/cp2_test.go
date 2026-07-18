@@ -35,38 +35,38 @@ func TestCP2BrowserConcurrencyModel(t *testing.T) {
 	// raíz termine antes de volver, así que los asserts de abajo leen `out` ya pleno.
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- (a) alineación (G27)
-			out.all = nu.task.all({
-				function() nu.task.sleep(30); return "a" end,
-				function() nu.task.sleep(20); return "b" end,
-				function() nu.task.sleep(10); return "c" end,
+			out.all = enu.task.all({
+				function() enu.task.sleep(30); return "a" end,
+				function() enu.task.sleep(20); return "b" end,
+				function() enu.task.sleep(10); return "c" end,
 			})
 
 			-- (b) race: gana la más rápida (índice 3), las demás se cancelan.
 			out.cancelada_perdedora = false
-			local idx = nu.task.race({
-				function() nu.task.sleep(50); return "lento1" end,
+			local idx = enu.task.race({
+				function() enu.task.sleep(50); return "lento1" end,
 				function()
-					nu.task.cleanup(function() out.cancelada_perdedora = true end)
-					nu.task.sleep(50); return "lento2"
+					enu.task.cleanup(function() out.cancelada_perdedora = true end)
+					enu.task.sleep(50); return "lento2"
 				end,
-				function() nu.task.sleep(1); return "rapido" end,
+				function() enu.task.sleep(1); return "rapido" end,
 			})
 			out.race_idx = idx
 
 			-- (c) cancelación: cleanup corre y un pcall envolvente NO atrapa el aborto.
 			out.c_cleanup = false
 			out.c_despues_pcall = false
-			local ready = nu.task.future()
-			local v = nu.task.spawn(function()
-				nu.task.cleanup(function() out.c_cleanup = true end)
+			local ready = enu.task.future()
+			local v = enu.task.spawn(function()
+				enu.task.cleanup(function() out.c_cleanup = true end)
 				ready:set(true)
-				pcall(function() nu.task.sleep(10000) end)  -- el aborto atraviesa este pcall
+				pcall(function() enu.task.sleep(10000) end)  -- el aborto atraviesa este pcall
 				out.c_despues_pcall = true                   -- NO debe correr
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			v:cancel()
 			local ok, err = pcall(function() v:await() end)
 			out.c_await_code = err and err.code             -- ECANCELED (observable)
@@ -74,12 +74,12 @@ func TestCP2BrowserConcurrencyModel(t *testing.T) {
 			-- (d) watchdog corta un bucle de CPU puro SIN congelar el loop: un every
 			-- en paralelo sigue tickeando.
 			out.ticks = 0
-			local timer = nu.task.every(10, function() out.ticks = out.ticks + 1 end)
-			local cpu = nu.task.spawn(function() while true do end end)
+			local timer = enu.task.every(10, function() out.ticks = out.ticks + 1 end)
+			local cpu = enu.task.spawn(function() while true do end end)
 			local okw, errw = pcall(function() cpu:await() end)
 			out.d_await_code = errw and errw.code           -- EBUDGET
 			out.ticks_al_cortar = out.ticks
-			nu.task.sleep(50)                               -- deja tickear tras el corte
+			enu.task.sleep(50)                               -- deja tickear tras el corte
 			out.ticks_despues = out.ticks
 			timer:stop()
 

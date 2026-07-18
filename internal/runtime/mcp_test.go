@@ -3,8 +3,8 @@ package runtime
 // Tests de la extensión oficial `mcp` (S41, embebida en
 // internal/runtime/embedded/mcp). Es la **capa 2** de arquitectura.md (procesos
 // externos vía JSON-RPC/stdio): Lua sobre la API pública congelada (Fase 8,
-// ADR-003 — el core NO sabe lo que es MCP), construida sobre `nu.proc` (S16),
-// `nu.json` (S18) y la extensión `agent` (S39).
+// ADR-003 — el core NO sabe lo que es MCP), construida sobre `enu.proc` (S16),
+// `enu.json` (S18) y la extensión `agent` (S39).
 //
 // Blinda el CICLO COMPLETO (criterio de hecho de S41): un servidor MCP de prueba
 // se LANZA por la extensión, ANUNCIA sus tools (tools/list), se REGISTRAN en el
@@ -19,6 +19,7 @@ package runtime
 // por el enunciado de S41).
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // ---------------------------------------------------------------------------
@@ -148,7 +149,7 @@ var (
 func buildMCPServer(t *testing.T) string {
 	t.Helper()
 	mcpServerOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "nu-mcpserver-")
+		dir, err := os.MkdirTemp("", "enu-mcpserver-")
 		if err != nil {
 			mcpServerErr = err
 			return
@@ -226,7 +227,7 @@ func TestMCPConnectListAndRegister(t *testing.T) {
 
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local mcp = require("mcp")
 				local agent = require("agent")
@@ -264,7 +265,7 @@ func TestMCPAgentInvokesTool(t *testing.T) {
 
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local mcp = require("mcp")
 				local agent = require("agent")
@@ -287,7 +288,7 @@ func TestMCPAgentInvokesTool(t *testing.T) {
 			out = "done"
 		end)
 		-- cerramos la conexión tras el turno (vida del proceso).
-		nu.task.spawn(function() if CONN then CONN:close() end end)`)
+		enu.task.spawn(function() if CONN then CONN:close() end end)`)
 	h.expectEval(`return tostring(out)`, "done")
 	h.expectEval(`return tostring(errc)`, "nil")
 	h.expectEval(`return tostring(IS_ERROR)`, "false")
@@ -304,7 +305,7 @@ func TestMCPToolTrustHeadlessDeny(t *testing.T) {
 
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local mcp = require("mcp")
 				local agent = require("agent")
@@ -324,7 +325,7 @@ func TestMCPToolTrustHeadlessDeny(t *testing.T) {
 			if not ok then errc = (type(e) == "table" and (e.message or e.code)) or tostring(e) end
 			out = "done"
 		end)
-		nu.task.spawn(function() if CONN2 then CONN2:close() end end)`)
+		enu.task.spawn(function() if CONN2 then CONN2:close() end end)`)
 	h.expectEval(`return tostring(out)`, "done")
 	h.expectEval(`return tostring(errc)`, "nil")
 	h.expectEval(`return tostring(IS_ERROR)`, "true")
@@ -337,13 +338,70 @@ func TestMCPToolTrustHeadlessDeny(t *testing.T) {
 // TestMCPToolServerError (mapeo de resultados): una tool cuyo servidor devuelve
 // `isError=true` se propaga como tool_result is_error (el modelo lo ve). El turno
 // no se rompe.
+//
+// CUARENTENA A-42 (flake conocido, ver docs/audits/auditoria-2026-07-12.md §6). Este test
+// es un flake documentado bajo la SUITE COMPLETA con `-race -count=2` (pasa aislado
+// y en re-ejecuciones). SÍNTOMA EXACTO: bajo contención del conjunto el escenario
+// ocasionalmente NO observa el tool_result esperado —`out` distinto de "done", o el
+// texto del error del servidor ("explotó") ausente en `ERR_TEXT`—.
+//
+// DIAGNÓSTICO (2026-07): la nota original (`docs/worklog/README.md:3529`) atribuía el
+// flake a que "el handshake JSON-RPC excede el timing"; es INCORRECTO —no hay ningún
+// timeout en el camino de connect/handshake, `RunTasks` espera al lector—. La causa
+// real apunta a la QUIESCENCIA del scheduler (`internal/vmwasm/scheduler.go`,
+// `runTaskLoop`: retorna cuando `pumpOutstanding == 0`), que puede alcanzarse antes
+// de que termine el trabajo asíncrono entre tasks. (Ojo: un fallo parecido de
+// `TestWorkerOnMessageDelivery` visto durante este diagnóstico resultó ser otra
+// cosa —la regresión de la primera versión de A-07, mensajes bufferizados perdidos
+// al deregistrar, ya corregida—; no lo confundas con este flake.) El arreglo de
+// fondo vive en el kernel (sería un G## propio, superficie sagrada), FUERA del
+// alcance de A-42 y de esta prueba.
+//
+// MITIGACIÓN: retry explícito ACOTADO (no skip). Se re-ejecuta el escenario COMPLETO
+// con un runtime nuevo hasta `mcpFlakeAttempts` veces; basta UNA corrida del todo
+// correcta. Un fallo REAL (is_error mal mapeado, o "explotó" que nunca aparece)
+// falla TODAS las corridas → la prueba falla: el retry NO puede dar falso verde, solo
+// absorbe la intermitencia.
+//
+// CONDICIÓN DE SALIDA de la cuarentena: retirar el bucle de retry (volver a una sola
+// corrida con asserts directos) cuando la quiescencia de `runTaskLoop` deje de
+// retornar antes de tiempo. Señal concreta de que toca retirarla: este test Y
+// `TestWorkerOnMessageDelivery` superan `go test -race -count=10 ./internal/runtime/`
+// (suite completa) sin un solo fallo.
 func TestMCPToolServerError(t *testing.T) {
-	h, _ := bootMCP(t)
 	bin := buildMCPServer(t)
 
-	h.eval(`
+	const mcpFlakeAttempts = 5
+	var lastReason string
+	for attempt := 1; attempt <= mcpFlakeAttempts; attempt++ {
+		ok, reason := runMCPServerErrorScenario(t, bin)
+		if ok {
+			return // una corrida del todo correcta basta.
+		}
+		lastReason = reason
+		t.Logf("A-42: intento %d/%d falló (flake conocido de quiescencia): %s",
+			attempt, mcpFlakeAttempts, reason)
+	}
+	// Falló las N corridas: ya no es intermitente → regresión real, no el flake.
+	t.Fatalf("A-42: TestMCPToolServerError falló las %d corridas; deja de ser intermitente "+
+		"(posible regresión del mapeo isError, no el flake de quiescencia): %s",
+		mcpFlakeAttempts, lastReason)
+}
+
+// runMCPServerErrorScenario ejecuta UNA corrida completa del escenario de
+// TestMCPToolServerError con un runtime NUEVO y devuelve (ok, motivo) SIN abortar la
+// prueba (no usa `t.Fatalf`), para que el bucle de cuarentena A-42 pueda reintentar.
+// Un `ok=true` exige TODAS las condiciones del criterio original: el escenario no
+// lanzó, `out=="done"`, `errc=="nil"`, `IS_ERROR=="true"` y `ERR_TEXT` contiene el
+// texto de error del servidor ("explotó"). Cualquier condición incumplida devuelve
+// `false` con el motivo exacto (para distinguir un flake de una regresión real).
+func runMCPServerErrorScenario(t *testing.T, bin string) (bool, string) {
+	t.Helper()
+	h, _ := bootMCP(t) // runtime fresco: globales (out/IS_ERROR/...) limpios por intento.
+
+	if _, err := h.rt.EvalString(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local mcp = require("mcp")
 				local agent = require("agent")
@@ -363,14 +421,35 @@ func TestMCPToolServerError(t *testing.T) {
 			if not ok then errc = (type(e) == "table" and (e.message or e.code)) or tostring(e) end
 			out = "done"
 		end)
-		nu.task.spawn(function() if CONN3 then CONN3:close() end end)`)
-	h.expectEval(`return tostring(out)`, "done")
-	h.expectEval(`return tostring(errc)`, "nil")
-	h.expectEval(`return tostring(IS_ERROR)`, "true")
-	errText := h.eval(`return tostring(ERR_TEXT)`)[0]
-	if !strings.Contains(errText, "explotó") {
-		t.Fatalf("el isError del servidor MCP no se propagó: %q", errText)
+		enu.task.spawn(function() if CONN3 then CONN3:close() end end)`); err != nil {
+		return false, fmt.Sprintf("el escenario lanzó un error inesperado: %v", err)
 	}
+
+	if out := readGlobal(h, "out"); out != "done" {
+		// Síntoma A-42: el drenaje pudo retornar antes de que la task fijara `out`.
+		return false, fmt.Sprintf("out=%q (esperaba \"done\")", out)
+	}
+	if errc := readGlobal(h, "errc"); errc != "nil" {
+		return false, fmt.Sprintf("errc=%q (esperaba \"nil\")", errc)
+	}
+	if isErr := readGlobal(h, "IS_ERROR"); isErr != "true" {
+		return false, fmt.Sprintf("IS_ERROR=%q (esperaba \"true\")", isErr)
+	}
+	if errText := readGlobal(h, "ERR_TEXT"); !strings.Contains(errText, "explotó") {
+		return false, fmt.Sprintf("ERR_TEXT=%q no contiene \"explotó\" (isError del servidor no propagado)", errText)
+	}
+	return true, ""
+}
+
+// readGlobal lee un global Lua como string vía `tostring`, SIN abortar la prueba
+// (a diferencia de `harness.eval`). Devuelve "<eval-error>" si el puente falla, para
+// que el llamante (la cuarentena A-42) trate ese caso como corrida fallida.
+func readGlobal(h *harness, name string) string {
+	res, err := h.rt.EvalString("return tostring(" + name + ")")
+	if err != nil || len(res) == 0 {
+		return "<eval-error>"
+	}
+	return res[0]
 }
 
 // TestMCPProcessLifecycle (ciclo de vida): el proceso del servidor se LANZA, vive
@@ -398,12 +477,12 @@ func TestMCPProcessLifecycle(t *testing.T) {
 
 	h.eval(`
 		out, errc, ALIVE_BEFORE, LIFE_PID = nil, nil, nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local mcp = require("mcp")
 				local conn = mcp.connect{ name = "life", command = { "` + bin + `" } }
 				LIFE_PID = ` + pidExpr + `
-				ALIVE_BEFORE = nu.proc.alive(LIFE_PID)
+				ALIVE_BEFORE = enu.proc.alive(LIFE_PID)
 				conn:close()
 			end)
 			if not ok then errc = (type(e) == "table" and (e.message or e.code)) or tostring(e) end

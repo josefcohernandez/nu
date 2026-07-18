@@ -1,9 +1,9 @@
 package runtime
 
-// `nu.fs.watch` — observador del sistema de ficheros (api.md §5, §16, sesión S15,
+// `enu.fs.watch` — observador del sistema de ficheros (api.md §5, §16, sesión S15,
 // inventario 🔒). Vigila un `path` (fichero o directorio) y, cuando cambia, llama
 // a un handler **síncrono** con un **lote** de eventos. A diferencia del resto de
-// `nu.fs` (todo ⏸), `watch` **NO es ⏸ y es solo estado principal** (§16: no [W],
+// `enu.fs` (todo ⏸), `watch` **NO es ⏸ y es solo estado principal** (§16: no [W],
 // no se registra en workers): no suspende la task que lo arranca —devuelve un
 // `Watcher` y sigue—; los cambios llegan después, como los disparos de un `every`
 // (S05), por el camino del handler síncrono sobre el token.
@@ -47,7 +47,7 @@ package runtime
 //
 // QUIESCENCIA. Un `Watcher` activo **no** cuenta como trabajo de primer plano (no
 // toca `pending`), igual que un `every`: un watcher nunca "termina", y haría que
-// `nu -e` no volviera jamás. `Watcher:stop()` (o `Runtime.Close`) corta su
+// `enu -e` no volviera jamás. `Watcher:stop()` (o `Runtime.Close`) corta su
 // goroutine y cierra el watcher del SO, sin fuga.
 
 // watchKindCreate/Modify/Remove son los `kind` de cada evento del lote (§5):

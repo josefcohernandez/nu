@@ -19,11 +19,11 @@
 --      `agent.permission.respond`.
 --   §6 STATUSLINE: segmentos modelo/contexto/coste/cwd/permisos (módulo statusline).
 --   §7 THEME: colores semánticos resueltos por el theme del toolkit (G22).
---   §8 ARRANQUE: solo con TTY (`nu.has("ui")`); crea/reanuda la sesión del agente.
+--   §8 ARRANQUE: solo con TTY (`enu.has("ui")`); crea/reanuda la sesión del agente.
 --
 -- El Block del transcript CRECE con el texto en streaming porque el
 -- `toolkit.text` re-renderiza el markdown acumulado al hacer `set_text` (S42 +
--- `nu.text.markdown` streaming-safe, S23): el camino caliente de CP-9, ahora
+-- `enu.text.markdown` streaming-safe, S23): el camino caliente de CP-9, ahora
 -- dentro del chat.
 
 local toolkit = require("toolkit")
@@ -56,7 +56,7 @@ M.statusline = statusline
 M.commands = commands
 
 -- chat.keys: la tabla de atajos por defecto (chat.md §7), pública y remapeable por
--- el usuario en su init.lua. Notación de `nu.ui.keymap` (api.md §9.3). En S43 la
+-- el usuario en su init.lua. Notación de `enu.ui.keymap` (api.md §9.3). En S43 la
 -- mayoría del input lo enruta el editor multilínea (enter/shift+enter); estos son
 -- los atajos GLOBALES del chat (no dependientes del foco del editor).
 M.keys = {
@@ -70,7 +70,7 @@ M.keys = {
 -- renderer(tool_name, fn): registra el render del resultado de una tool (chat.md
 -- §2, renderers enchufables). v1: se guarda; el transcript usa el fallback de
 -- texto plano (el render rico por-tool es mejora posterior sobre el mismo item,
--- claude_decisions.md S43).
+-- docs/decisiones-implementacion.md S43).
 local tool_renderers = {}
 function M.renderer(tool_name, fn)
   if type(tool_name) ~= "string" or type(fn) ~= "function" then
@@ -114,6 +114,32 @@ function Chat:_refresh_transcript()
   end
 end
 
+-- Chat:_pending_total() -> número de asks pendientes que la statusline muestra como
+-- un único `pending_asks` (chat.md §6, G3). Suma DOS estados que antes compartían un
+-- solo campo (`pending_count`) y se PISABAN —el flujo de asks propios lo sobrescribía
+-- con `#ask_queue`/0 y borraba la cuenta de los asks ajenos aún pendientes, y a la
+-- inversa—:
+--   · la cola PROPIA, DERIVADA en vivo de `#self.ask_queue` (asks encolados) más el
+--     que esté visible en el modal (`current_modal`). Al derivarla no hay estado que
+--     otro flujo pueda machacar.
+--   · `self.pending_foreign`, el contador de asks de OTRAS sesiones (G3: no abren
+--     modal, solo suben este indicador). Se incrementa en la rama ajena de
+--     `agent:permission.asked` y se decrementa (con guard a 0) en `agent:permission.
+--     denied`.
+--
+-- ASIMETRÍA CONOCIDA del contador ajeno: el agente NO emite ningún evento observable
+-- cuando un ask se CONCEDE (`agent.permission.respond` solo resuelve el future del
+-- lado del agente; el único evento del ciclo de vida además de `permission.asked` es
+-- `permission.denied`, que emite el flujo de tools al denegar). Por eso solo podemos
+-- descontar los asks ajenos DENEGADOS por el usuario; los concedidos por otra sesión
+-- siguen sumados hasta que el chat cambie de sesión (`switch_session` re-suscribe) o
+-- se cierre. No añadimos un evento nuevo al agente para cerrar el hueco: sería
+-- cambiar su contrato por una mejora cosmética de esta statusline.
+function Chat:_pending_total()
+  local own = #(self.ask_queue or {}) + (self.current_modal ~= nil and 1 or 0)
+  return own + (self.pending_foreign or 0)
+end
+
 -- Chat:_update_statusline() recompone los segmentos (chat.md §6) y los vuelca a los
 -- labels. El ctx lo arma con el estado vivo de la sesión (modelo, usage, permisos).
 function Chat:_update_statusline()
@@ -124,7 +150,7 @@ function Chat:_update_statusline()
     cost_usd = (self.session.usage or {}).cost_usd,
     cwd = self.session.cwd,
     perms_mode = self.perms_mode,
-    pending_asks = self.pending_count or 0,
+    pending_asks = self:_pending_total(),
     thinking = (self.session.thinking_mode and self.session:thinking_mode()) or "off",
   }
   -- Construye los SPANS coloreados de un lado de la barra (chat.md §6): cada segmento
@@ -225,15 +251,15 @@ function Chat:close_modal(_widget)
 end
 
 -- Chat:open_file_picker() abre el picker difuso de ficheros (menciones `@`,
--- chat.md §3 / P26). Lista el repo con `nu.search.files` (⏸, en una task) y, al
+-- chat.md §3 / P26). Lista el repo con `enu.search.files` (⏸, en una task) y, al
 -- elegir, INYECTA la ruta en el editor —el agente decide leerla, no se incrusta
 -- el contenido—. No abre si ya hay un modal (un picker o un diálogo de permiso).
 function Chat:open_file_picker()
   if self.current_modal ~= nil or self._picker ~= nil then
     return
   end
-  nu.task.spawn(function()
-    local ok, files = pcall(nu.search.files, self.session.cwd or nu.fs.cwd(), { max = 2000 })
+  enu.task.spawn(function()
+    local ok, files = pcall(enu.search.files, self.session.cwd or enu.fs.cwd(), { max = 2000 })
     if not ok or type(files) ~= "table" then files = {} end
     local pick
     pick = picker_mod.new({
@@ -305,7 +331,7 @@ function Chat:submit()
 
   -- ¿comando slash? (chat.md §3/§4). Se ejecuta en una task (el handler ⏸).
   if commands.parse(text) then
-    nu.task.spawn(function()
+    enu.task.spawn(function()
       local ctx = self:command_ctx()
       local _handled, message = commands.dispatch(text, ctx)
       if message ~= nil and message ~= "" then
@@ -323,7 +349,7 @@ function Chat:submit()
   self:_refresh_transcript()
   self:_repaint()
 
-  nu.task.spawn(function()
+  enu.task.spawn(function()
     self:_set_busy(true, "Pensando…")
     local ok, err = pcall(function()
       return self.session:send(text)
@@ -423,7 +449,7 @@ function Chat:_subscribe_agent()
     return type(p) == "table" and p.session == sid
   end
 
-  subs[#subs + 1] = nu.events.on("agent:turn.start", function(p)
+  subs[#subs + 1] = enu.events.on("agent:turn.start", function(p)
     if not mine(p) then return end
     self.transcript:begin_assistant()
     self:_refresh_transcript()
@@ -434,7 +460,7 @@ function Chat:_subscribe_agent()
   -- (providers.md §2.3) re-emitido por el agente: `ev.type` "text"/"thinking"/
   -- "tool_call.*"/"usage" (más `session`). El texto se acumula en el item en curso
   -- y el transcript re-renderiza su markdown: el widget CRECE incrementalmente.
-  subs[#subs + 1] = nu.events.on("agent:delta", function(p)
+  subs[#subs + 1] = enu.events.on("agent:delta", function(p)
     if not mine(p) then return end
     if p.type == "text" and p.text then
       self.transcript:append_delta(p.text)
@@ -452,7 +478,7 @@ function Chat:_subscribe_agent()
   end)
 
   -- agent:message — SELLA el mensaje con el Message del done (chat.md §2).
-  subs[#subs + 1] = nu.events.on("agent:message", function(p)
+  subs[#subs + 1] = enu.events.on("agent:message", function(p)
     if not mine(p) then return end
     self.transcript:seal_assistant(p.message)
     self:_refresh_transcript()
@@ -461,7 +487,7 @@ function Chat:_subscribe_agent()
   end)
 
   -- agent:tool.start / tool.end — bloques de tool (chat.md §2).
-  subs[#subs + 1] = nu.events.on("agent:tool.start", function(p)
+  subs[#subs + 1] = enu.events.on("agent:tool.start", function(p)
     if not mine(p) then return end
     self.transcript:add_tool(p.id, p.name, p.args)
     -- el spinner refleja la fase: "Ejecutando <tool>…".
@@ -471,7 +497,7 @@ function Chat:_subscribe_agent()
     self:_refresh_transcript()
     self:_repaint()
   end)
-  subs[#subs + 1] = nu.events.on("agent:tool.end", function(p)
+  subs[#subs + 1] = enu.events.on("agent:tool.end", function(p)
     if not mine(p) then return end
     self.transcript:tool_end(p.id, p.is_error, p.error)
     if self.activity and self.activity.visible then
@@ -482,7 +508,7 @@ function Chat:_subscribe_agent()
   end)
 
   -- agent:tool.progress — progreso EN VIVO de una tool larga (chat.md §2 / P27).
-  subs[#subs + 1] = nu.events.on("agent:tool.progress", function(p)
+  subs[#subs + 1] = enu.events.on("agent:tool.progress", function(p)
     if not mine(p) then return end
     self.transcript:tool_progress(p.id, p.text)
     self:_refresh_transcript()
@@ -490,7 +516,7 @@ function Chat:_subscribe_agent()
   end)
 
   -- agent:compact — marca de "historia compactada arriba" (chat.md §2 / P27).
-  subs[#subs + 1] = nu.events.on("agent:compact", function(p)
+  subs[#subs + 1] = enu.events.on("agent:compact", function(p)
     if not mine(p) then return end
     self.transcript:add_compact_marker()
     self:_refresh_transcript()
@@ -498,10 +524,32 @@ function Chat:_subscribe_agent()
     self:_repaint()
   end)
 
-  -- agent:error — bloque de error (chat.md §2).
-  subs[#subs + 1] = nu.events.on("agent:error", function(p)
+  -- agent:error — bloque de error con el código estructurado y la acción de
+  -- reintento (chat.md §2, G43). El payload trae ahora `code`/`retryable`/`detail`
+  -- (agente.md §4): se pinta `[code] mensaje` y, si el error es retryable, la pista
+  -- del builtin `/retry` → `Session:retry()` (la acción de reintento manual).
+  subs[#subs + 1] = enu.events.on("agent:error", function(p)
     if not mine(p) then return end
-    self.transcript:add_error(p.message or "error del agente")
+    local text = p.message or "error del agente"
+    if p.code then
+      text = "[" .. tostring(p.code) .. "] " .. text
+    end
+    if p.retryable then
+      text = text .. " (/retry para reintentar)"
+    end
+    self.transcript:add_error(text)
+    self:_refresh_transcript()
+    self:_repaint()
+  end)
+
+  -- agent:retry — nota atenuada mientras el motor espera el backoff de un reintento
+  -- automático de la apertura del stream (chat.md §2, G42): "reintentando (n/m) en
+  -- Xs…". Así el usuario ve que el turno no está colgado, sino esperando.
+  subs[#subs + 1] = enu.events.on("agent:retry", function(p)
+    if not mine(p) then return end
+    local secs = (p.delay_ms or 0) / 1000
+    self.transcript:add_system(string.format("reintentando (%d/%d) en %gs…",
+      p.attempt or 0, p.max_retries or 0, secs))
     self:_refresh_transcript()
     self:_repaint()
   end)
@@ -509,15 +557,30 @@ function Chat:_subscribe_agent()
   -- agent:permission.asked — diálogo modal (chat.md §5). Se encola FIFO; un solo
   -- modal visible (chat.md §1/§5). Los asks de OTRAS sesiones suben el contador de
   -- la statusline (G3) pero no abren modal aquí.
-  subs[#subs + 1] = nu.events.on("agent:permission.asked", function(p)
+  subs[#subs + 1] = enu.events.on("agent:permission.asked", function(p)
     if not mine(p) then
-      -- ask de otra sesión: indicador en la statusline (G3).
-      self.pending_count = (self.pending_count or 0) + 1
+      -- ask de otra sesión: indicador en la statusline (G3). Campo SEPARADO de la
+      -- cola propia (ver Chat:_pending_total) para que los dos flujos no se pisen.
+      self.pending_foreign = (self.pending_foreign or 0) + 1
       self:_update_statusline()
       self:_repaint()
       return
     end
     self:_enqueue_ask(p)
+  end)
+
+  -- agent:permission.denied — un ask AJENO que la otra sesión resolvió DENEGANDO
+  -- (G3): descuenta el indicador. Es el único evento del ciclo de vida de un ask que
+  -- podemos observar al resolverse (el CONCEDIDO no emite evento: ver la asimetría
+  -- documentada en Chat:_pending_total). `source == "user"` distingue la denegación
+  -- de un diálogo —la que sí incrementó el contador— de las denegaciones por política
+  -- (deny/default/hook/headless), que nunca emitieron `permission.asked`. Guard a 0.
+  subs[#subs + 1] = enu.events.on("agent:permission.denied", function(p)
+    if mine(p) then return end
+    if type(p) ~= "table" or p.source ~= "user" then return end
+    self.pending_foreign = math.max(0, (self.pending_foreign or 0) - 1)
+    self:_update_statusline()
+    self:_repaint()
   end)
 end
 
@@ -526,7 +589,7 @@ end
 -- tool y los args y responde con agent.permission.respond.
 function Chat:_enqueue_ask(p)
   self.ask_queue[#self.ask_queue + 1] = p
-  self.pending_count = #self.ask_queue
+  -- el total propio se deriva de #ask_queue + el modal (Chat:_pending_total).
   self:_update_statusline()
   if self.current_modal == nil then
     self:_show_next_ask()
@@ -539,7 +602,6 @@ function Chat:_show_next_ask()
   local p = table.remove(self.ask_queue, 1)
   if p == nil then
     self.current_modal = nil
-    self.pending_count = 0
     self:_update_statusline()
     self:close_modal(nil)
     return
@@ -555,7 +617,7 @@ function Chat:_show_next_ask()
       -- respuesta al agente y la UI siguen síncronas (agente.md §5).
       local granted = (action ~= "deny")
       if (action == "always" or action == "always_global") and p.suggested then
-        nu.task.spawn(function()
+        enu.task.spawn(function()
           pcall(function() self.session:allow(p.suggested) end)
           if action == "always_global" then
             pcall(function() agent.permission.persist_allow(p.suggested) end)
@@ -578,7 +640,7 @@ function Chat:_show_next_ask()
     end,
   })
   self.current_modal = dialog
-  self.pending_count = #self.ask_queue + 1
+  -- el total propio (cola + este modal) lo deriva Chat:_pending_total.
   self:_update_statusline()
   self:open_modal(dialog, { title = "Permiso requerido", height = 8 })
 end
@@ -599,7 +661,7 @@ function Chat:_build_ui(opts)
 
   -- Fila de ACTIVIDAD (chat.md §2): un spinner animado mientras el turno corre,
   -- oculto en reposo. Es lo que evita la sensación de "terminal muerta" entre el
-  -- envío y el primer delta. La anima `nu.task.every` (toolkit.spinner).
+  -- envío y el primer delta. La anima `enu.task.every` (toolkit.spinner).
   self.activity = toolkit.spinner({ id = "activity", label = "", color = "accent" })
   self.activity.pref_h = 1
   self.activity:set_visible(false)
@@ -670,13 +732,13 @@ end
 -- mínimas. El render lo colorea el theme del markdown (G22) — encabezado en acento,
 -- etc.—, así que la primera pantalla ya se ve como producto, no en blanco.
 function Chat:_welcome_md()
-  local v = nu.version
+  local v = enu.version
   local model = (self.session and self.session.model) or "?"
-  local cwd = (self.session and self.session.cwd) or nu.fs.cwd()
+  local cwd = (self.session and self.session.cwd) or enu.fs.cwd()
   return table.concat({
-    "# ✻ Bienvenido a nu",
+    "# ✻ Bienvenido a enu",
     "",
-    string.format("Harness de código sobre el runtime `nu` %d.%d.%d (API %d).",
+    string.format("Harness de código sobre el runtime `enu` %d.%d.%d (API %d).",
       v.major, v.minor, v.patch, v.api),
     "",
     "- **Modelo:** `" .. model .. "`",
@@ -733,7 +795,7 @@ function Chat:_sync_input_height()
 end
 
 -- Chat:_install_keymaps() registra los atajos GLOBALES del chat (chat.md §7):
--- esc cancela el turno, ctrl+c cierra. Usan `nu.ui.keymap` (api.md §9.3), por
+-- esc cancela el turno, ctrl+c cierra. Usan `enu.ui.keymap` (api.md §9.3), por
 -- encima del on_input de la app (el más reciente gana): así esc/ctrl+c funcionan
 -- aunque el editor tenga el foco. El editor maneja enter/shift+enter por su on_key
 -- (no como keymap global: dependen del foco del editor). Remapeables vía chat.keys.
@@ -741,7 +803,7 @@ function Chat:_install_keymaps()
   self.keymaps = self.keymaps or {}
   local km = self.keymaps
 
-  km[#km + 1] = nu.ui.keymap(M.keys.cancel, function()
+  km[#km + 1] = enu.ui.keymap(M.keys.cancel, function()
     -- con un modal/picker abierto, esc lo maneja el propio modal (deny/cancelar):
     -- el keymap global se aparta (devuelve false → la app lo enruta al foco).
     if self.current_modal ~= nil or self._picker ~= nil then
@@ -750,14 +812,14 @@ function Chat:_install_keymaps()
     self:cancel_turn()
     return true
   end)
-  km[#km + 1] = nu.ui.keymap(M.keys.quit, function()
+  km[#km + 1] = enu.ui.keymap(M.keys.quit, function()
     self:quit()
     return true
   end)
   -- enviar: el editor deja pasar enter "pelado" (chat.md §3); un keymap global lo
   -- recoge y envía. (El editor consume shift/alt+enter como nueva línea, así que
   -- este keymap solo dispara con enter sin modificadores.)
-  km[#km + 1] = nu.ui.keymap(M.keys.submit, function()
+  km[#km + 1] = enu.ui.keymap(M.keys.submit, function()
     if self.current_modal == nil and self._picker == nil then
       self:submit()
       return true
@@ -766,7 +828,7 @@ function Chat:_install_keymaps()
   end)
   -- autocompletado de comandos `/` (P29): tab con un `/...` en el editor abre el
   -- picker de comandos. Sin `/` (o con un modal abierto), el keymap se aparta.
-  km[#km + 1] = nu.ui.keymap(M.keys.complete, function()
+  km[#km + 1] = enu.ui.keymap(M.keys.complete, function()
     if self.current_modal == nil and self._picker == nil
         and self.input:value():sub(1, 1) == "/" then
       self:open_command_picker()
@@ -814,7 +876,7 @@ function Chat:quit()
   -- debajo (G36)—, esa sensación de "salir de una capa para caer en otra". El driver
   -- de TTY convierte `core:shutdown` en apagado limpio (driver.go §4); es el mismo
   -- canal que usa el arranque degradado. Idempotente: emitir dos veces no daña.
-  nu.events.emit("core:shutdown")
+  enu.events.emit("core:shutdown")
 end
 
 -- ---------------------------------------------------------------------------
@@ -832,10 +894,10 @@ end
 function M._start_degraded(err, opts)
   opts = opts or {}
   local msg = (type(err) == "table" and err.message) or tostring(err)
-  local dir = nu.config.dir()
+  local dir = enu.config.dir()
 
   local body = table.concat({
-    "# nu — configuración necesaria",
+    "# enu — configuración necesaria",
     "",
     "No se pudo abrir la sesión del agente:",
     "",
@@ -848,7 +910,7 @@ function M._start_degraded(err, opts)
     "2. `providers.toml` → el provider y su `api_key_env`",
     "3. Exporta tu API key, p. ej. `export ANTHROPIC_API_KEY=...`",
     "",
-    "Atajo: **`nu --default-config`** deja ambas plantillas listas.",
+    "Atajo: **`enu --default-config`** deja ambas plantillas listas.",
     "",
     "Pulsa `esc`, `q` o `ctrl+c` para salir.",
   }, "\n")
@@ -877,11 +939,11 @@ function M._start_degraded(err, opts)
   -- Salida: esc/q/ctrl+c → core:shutdown. Apilados DESPUÉS de la app (más arriba en
   -- la pila), así reciben la tecla que la app dejó pasar.
   local function bye()
-    nu.events.emit("core:shutdown")
+    enu.events.emit("core:shutdown")
     return true
   end
   for _, seq in ipairs({ "esc", "q", "ctrl+c" }) do
-    self.keymaps[#self.keymaps + 1] = nu.ui.keymap(seq, bye)
+    self.keymaps[#self.keymaps + 1] = enu.ui.keymap(seq, bye)
   end
 
   M._active = self
@@ -889,7 +951,7 @@ function M._start_degraded(err, opts)
 end
 
 -- chat.start(opts?) ⏸ -> Chat. Arranca el chat (chat.md §8). SUSPENDE: crea o
--- reanuda la sesión del agente (lee disco). Exige `nu.ui` (TTY interactivo, G20):
+-- reanuda la sesión del agente (lee disco). Exige `enu.ui` (TTY interactivo, G20):
 -- en headless es EINVAL accionable (chat.md §8). opts (todos opcionales):
 --   - model: "proveedor/modelo" (default: agent.toml). resume: id (reanuda, G18).
 --   - cwd, permissions, system, max_turns: pasan a agent.session.
@@ -897,10 +959,10 @@ end
 --   - no_store: NO persistir (tests in-memory).
 function M.start(opts)
   opts = opts or {}
-  if not nu.has("ui") then
+  if not enu.has("ui") then
     error({ code = "EINVAL",
       message = "chat.start: no hay UI (headless, G20). El chat necesita un TTY "
-        .. "interactivo; comprueba nu.has(\"ui\") antes (chat.md §8). Para uso "
+        .. "interactivo; comprueba enu.has(\"ui\") antes (chat.md §8). Para uso "
         .. "headless usa el agente directamente (agent.session/Session:send)." })
   end
 
@@ -942,7 +1004,7 @@ function M.start(opts)
     keymaps       = {},
     ask_queue     = {},
     current_modal = nil,
-    pending_count = 0,
+    pending_foreign = 0, -- asks de OTRAS sesiones (G3); la cola propia se deriva
     input_history = {},
     history_cursor = 1,
     perms_mode    = (opts.permissions and opts.permissions.mode) or "ask",
@@ -986,7 +1048,7 @@ function M.start(opts)
   -- rehace el layout (S42). Va en `global_subs` (NO en `subs`, que son las del
   -- agente y se re-suscriben al bifurcar, P28): el resize es del chat, no de la sesión.
   self.global_subs = self.global_subs or {}
-  self.global_subs[#self.global_subs + 1] = nu.events.on("ui:resize", function(p)
+  self.global_subs[#self.global_subs + 1] = enu.events.on("ui:resize", function(p)
     if not self._closed and self.app then
       self.app:resize(p and p.w, p and p.h)
       self:_refresh_transcript()

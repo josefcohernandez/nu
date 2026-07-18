@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Tests del bus de eventos `nu.events` (api.md §4, sesión S10, inventario 🔒).
+// Tests del bus de eventos `enu.events` (api.md §4, sesión S10, inventario 🔒).
 // Esta sesión implementa lógica nuestra con casos de borde silenciosos —orden de
 // despacho, foto vs. mutación concurrente del registro, encolado por anchura,
 // aislamiento por `pcall`—, así que los unitarios Go son obligatorios y NOMBRAN
@@ -21,8 +21,8 @@ func TestEventsOnEmitBasic(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		got = nil
-		nu.events.on("plug:hello", function(p) got = p.msg end)
-		nu.events.emit("plug:hello", { msg = "hola" })
+		enu.events.on("plug:hello", function(p) got = p.msg end)
+		enu.events.emit("plug:hello", { msg = "hola" })
 		assert(got == "hola", "el handler debe recibir el payload")
 	`)
 }
@@ -33,8 +33,8 @@ func TestEventsEmitNoPayload(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		seen, value = false, "sentinela"
-		nu.events.on("plug:ping", function(p) seen = true; value = p end)
-		nu.events.emit("plug:ping")
+		enu.events.on("plug:ping", function(p) seen = true; value = p end)
+		enu.events.emit("plug:ping")
 		assert(seen, "el handler debe correr aunque no haya payload")
 		assert(value == nil, "sin payload el handler recibe nil")
 	`)
@@ -46,10 +46,10 @@ func TestEventsOrderOfRegistration(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		order = {}
-		nu.events.on("plug:e", function() order[#order+1] = "a" end)
-		nu.events.on("plug:e", function() order[#order+1] = "b" end)
-		nu.events.on("plug:e", function() order[#order+1] = "c" end)
-		nu.events.emit("plug:e")
+		enu.events.on("plug:e", function() order[#order+1] = "a" end)
+		enu.events.on("plug:e", function() order[#order+1] = "b" end)
+		enu.events.on("plug:e", function() order[#order+1] = "c" end)
+		enu.events.emit("plug:e")
 		assert(table.concat(order) == "abc", "orden de registro: got "..table.concat(order))
 	`)
 }
@@ -58,7 +58,7 @@ func TestEventsOrderOfRegistration(t *testing.T) {
 // nada observable —un bus genérico no obliga a registrar antes de emitir—.
 func TestEventsNoSubscribersNoop(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`nu.events.emit("plug:nadie", {x=1}); return "ok"`, "ok")
+	h.expectEval(`enu.events.emit("plug:nadie", {x=1}); return "ok"`, "ok")
 }
 
 // --- once ----------------------------------------------------------------------
@@ -69,10 +69,10 @@ func TestEventsOnceRunsOnce(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		n = 0
-		nu.events.once("plug:o", function() n = n + 1 end)
-		nu.events.emit("plug:o")
-		nu.events.emit("plug:o")
-		nu.events.emit("plug:o")
+		enu.events.once("plug:o", function() n = n + 1 end)
+		enu.events.emit("plug:o")
+		enu.events.emit("plug:o")
+		enu.events.emit("plug:o")
 		assert(n == 1, "once debe correr exactamente una vez, corrió "..n)
 	`)
 }
@@ -84,12 +84,12 @@ func TestEventsOnceThatThrowsStillOnce(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		n = 0
-		nu.events.once("plug:o", function() n = n + 1; error("boom") end)
-		nu.events.emit("plug:o")
-		nu.events.emit("plug:o")
+		enu.events.once("plug:o", function() n = n + 1; error("boom") end)
+		enu.events.emit("plug:o")
+		enu.events.emit("plug:o")
 		assert(n == 1, "once que lanza sigue corriendo solo una vez, corrió "..n)
 	`)
-	assertLogContains(t, h, "un handler de nu.events lanzó")
+	assertLogContains(t, h, "un handler de enu.events lanzó")
 }
 
 // --- G10 (1): despacho sobre FOTO de suscriptores ------------------------------
@@ -103,15 +103,15 @@ func TestG10DispatchOverSnapshot(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		late_ran = false
-		nu.events.on("plug:e", function()
+		enu.events.on("plug:e", function()
 			-- Suscriptor tardío: se registra MIENTRAS se despacha "plug:e".
-			nu.events.on("plug:e", function() late_ran = true end)
+			enu.events.on("plug:e", function() late_ran = true end)
 		end)
-		nu.events.emit("plug:e")
+		enu.events.emit("plug:e")
 		assert(late_ran == false, "G10: el suscriptor tardío NO debe ver el evento en curso")
 
 		-- Pero SÍ ve el siguiente.
-		nu.events.emit("plug:e")
+		enu.events.emit("plug:e")
 		assert(late_ran == true, "G10: el suscriptor tardío sí ve los eventos futuros")
 	`)
 }
@@ -130,9 +130,9 @@ func TestG10CancelImmediateDuringDispatch(t *testing.T) {
 		b_ran = false
 		local subB
 		-- A se registra primero y cancela a B (que va después en la foto).
-		nu.events.on("plug:e", function() subB:cancel() end)
-		subB = nu.events.on("plug:e", function() b_ran = true end)
-		nu.events.emit("plug:e")
+		enu.events.on("plug:e", function() subB:cancel() end)
+		subB = enu.events.on("plug:e", function() b_ran = true end)
+		enu.events.emit("plug:e")
 		assert(b_ran == false, "G10: cancelar B desde A debe impedir que B corra en este despacho")
 	`)
 }
@@ -145,9 +145,9 @@ func TestG10CancelSelfStopsRedispatch(t *testing.T) {
 	h.eval(`
 		n = 0
 		local sub
-		sub = nu.events.on("plug:e", function() n = n + 1; sub:cancel() end)
-		nu.events.emit("plug:e")
-		nu.events.emit("plug:e")
+		sub = enu.events.on("plug:e", function() n = n + 1; sub:cancel() end)
+		enu.events.emit("plug:e")
+		enu.events.emit("plug:e")
 		assert(n == 1, "un handler que se cancela no vuelve a correr, corrió "..n)
 	`)
 }
@@ -156,7 +156,7 @@ func TestG10CancelSelfStopsRedispatch(t *testing.T) {
 func TestEventsCancelIdempotent(t *testing.T) {
 	h := newHarness(t)
 	h.expectEval(`
-		local sub = nu.events.on("plug:e", function() end)
+		local sub = enu.events.on("plug:e", function() end)
 		sub:cancel()
 		sub:cancel()
 		return "ok"
@@ -175,13 +175,13 @@ func TestG10NestedEmitQueuedBreadthFirst(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		log = {}
-		nu.events.on("plug:a", function()
+		enu.events.on("plug:a", function()
 			log[#log+1] = "a:start"
-			nu.events.emit("plug:b")   -- se ENCOLA, no se despacha aquí
+			enu.events.emit("plug:b")   -- se ENCOLA, no se despacha aquí
 			log[#log+1] = "a:end"
 		end)
-		nu.events.on("plug:b", function() log[#log+1] = "b" end)
-		nu.events.emit("plug:a")
+		enu.events.on("plug:b", function() log[#log+1] = "b" end)
+		enu.events.emit("plug:a")
 		-- Si fuera recursión, sería a:start,b,a:end. Por anchura: a:start,a:end,b.
 		assert(table.concat(log, ",") == "a:start,a:end,b",
 			"G10: emit anidado debe encolarse (anchura): got "..table.concat(log, ","))
@@ -195,14 +195,14 @@ func TestG10NestedEmitOrderTwoChildren(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		log = {}
-		nu.events.on("plug:root", function()
+		enu.events.on("plug:root", function()
 			log[#log+1] = "root"
-			nu.events.emit("plug:x")
-			nu.events.emit("plug:y")
+			enu.events.emit("plug:x")
+			enu.events.emit("plug:y")
 		end)
-		nu.events.on("plug:x", function() log[#log+1] = "x" end)
-		nu.events.on("plug:y", function() log[#log+1] = "y" end)
-		nu.events.emit("plug:root")
+		enu.events.on("plug:x", function() log[#log+1] = "x" end)
+		enu.events.on("plug:y", function() log[#log+1] = "y" end)
+		enu.events.emit("plug:root")
 		assert(table.concat(log, ",") == "root,x,y",
 			"G10: FIFO por anchura: got "..table.concat(log, ","))
 	`)
@@ -219,15 +219,15 @@ func TestG10PingPongFlattenedNoStackOverflow(t *testing.T) {
 	h.eval(`
 		count = 0
 		local limit = 100000
-		nu.events.on("plug:ping", function()
+		enu.events.on("plug:ping", function()
 			count = count + 1
-			if count < limit then nu.events.emit("plug:pong") end
+			if count < limit then enu.events.emit("plug:pong") end
 		end)
-		nu.events.on("plug:pong", function()
+		enu.events.on("plug:pong", function()
 			count = count + 1
-			if count < limit then nu.events.emit("plug:ping") end
+			if count < limit then enu.events.emit("plug:ping") end
 		end)
-		nu.events.emit("plug:ping")
+		enu.events.emit("plug:ping")
 		assert(count == limit, "ping-pong acotado aplanado: count="..count)
 	`)
 }
@@ -246,10 +246,10 @@ func TestG10PingPongInfiniteCutByWatchdog(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		h.eval(`
-			nu.events.on("plug:ping", function() nu.events.emit("plug:pong") end)
-			nu.events.on("plug:pong", function() nu.events.emit("plug:ping") end)
-			nu.task.spawn(function()
-				nu.events.emit("plug:ping")  -- raíz dentro de una task
+			enu.events.on("plug:ping", function() enu.events.emit("plug:pong") end)
+			enu.events.on("plug:pong", function() enu.events.emit("plug:ping") end)
+			enu.task.spawn(function()
+				enu.events.emit("plug:ping")  -- raíz dentro de una task
 			end)
 		`)
 		close(done)
@@ -273,32 +273,32 @@ func TestG10HandlerErrorIsolated(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		ran = {}
-		nu.events.on("plug:e", function() ran[#ran+1] = "before" end)
-		nu.events.on("plug:e", function() error("boom") end)
-		nu.events.on("plug:e", function() ran[#ran+1] = "after" end)
-		nu.events.emit("plug:e")
+		enu.events.on("plug:e", function() ran[#ran+1] = "before" end)
+		enu.events.on("plug:e", function() error("boom") end)
+		enu.events.on("plug:e", function() ran[#ran+1] = "after" end)
+		enu.events.emit("plug:e")
 		assert(table.concat(ran, ",") == "before,after",
 			"un handler que lanza no debe impedir a los demás: got "..table.concat(ran, ","))
 	`)
-	assertLogContains(t, h, "un handler de nu.events lanzó")
+	assertLogContains(t, h, "un handler de enu.events lanzó")
 }
 
 // --- Handlers síncronos: el patrón canónico para IO (§1.3) ----------------------
 
 // TestEventsHandlerSpawnsTaskForIO: el patrón canónico (§1.3) —un handler síncrono
-// que necesita IO lanza una task con `nu.task.spawn`—. La task sí puede suspender;
+// que necesita IO lanza una task con `enu.task.spawn`—. La task sí puede suspender;
 // `EvalString` espera a que termine (waitIdle).
 func TestEventsHandlerSpawnsTaskForIO(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		done = false
-		nu.events.on("plug:e", function()
-			nu.task.spawn(function()
-				nu.task.sleep(1)  -- ⏸ legal dentro de la task
+		enu.events.on("plug:e", function()
+			enu.task.spawn(function()
+				enu.task.sleep(1)  -- ⏸ legal dentro de la task
 				done = true
 			end)
 		end)
-		nu.events.emit("plug:e")
+		enu.events.emit("plug:e")
 	`)
 	// La task lanzada por el handler corre durante waitIdle; al volver, done es true.
 	h.expectEval(`return tostring(done)`, "true")
@@ -312,10 +312,10 @@ func TestEventsHandlerSpawnsTaskForIO(t *testing.T) {
 func TestEventsCancelWrongHandle(t *testing.T) {
 	h := newHarness(t)
 	se := h.evalErr(`
-		local sub = nu.events.on("plug:e", function() end)
+		local sub = enu.events.on("plug:e", function() end)
 		local cancel = getmetatable(sub).__index.cancel
 		-- Un handle de Task es userdata, pero no un Sub: debe dar EINVAL.
-		local task = nu.task.spawn(function() return 1 end)
+		local task = enu.task.spawn(function() return 1 end)
 		cancel(task)
 	`)
 	if se.Code != CodeEINVAL {
@@ -329,20 +329,20 @@ func TestEventsCancelWrongHandle(t *testing.T) {
 // evento `core:plugin.misbehaved` que un `on` del estado principal captura, con el
 // payload `{plugin, reason}`. Esto blinda el cableado del gancho interno
 // `rt.emitMisbehaved` (S09) al bus real (S10) —emitido de forma segura desde la
-// goroutine de la task, bajo el token (ver claude_decisions.md S10)—.
+// goroutine de la task, bajo el token (ver docs/worklog/README.md S10)—.
 func TestMisbehavedWiredToBus(t *testing.T) {
 	// G10/S09: el gancho rt.emitMisbehaved emite core:plugin.misbehaved por el bus.
 	h := newHarnessBudget(t, 30*time.Millisecond)
 	h.eval(`
 		seen = false
 		seen_plugin, seen_reason = nil, nil
-		nu.events.on("core:plugin.misbehaved", function(p)
+		enu.events.on("core:plugin.misbehaved", function(p)
 			seen = true
 			seen_plugin = p.plugin
 			seen_reason = p.reason
 		end)
 		-- Lanza una task con un bucle de CPU puro que el watchdog cortará.
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			while true do end
 		end)
 	`)

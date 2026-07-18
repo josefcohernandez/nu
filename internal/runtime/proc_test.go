@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Tests de S16 (api.md §6): `nu.proc`. Sesión 🔒 —la lógica clave a blindar
+// Tests de S16 (api.md §6): `enu.proc`. Sesión 🔒 —la lógica clave a blindar
 // (inventario del plan): **vida del proceso por `cleanup`** (al cancelar la task
 // que lo creó, el proceso muere) y **`alive` (G17)**, que informa de **existencia,
 // no de identidad** (un pid reciclado daría `true`).
@@ -30,7 +30,7 @@ import (
 
 // --- 🔒 Lógica nuestra: alive (G17, existencia no identidad) ---
 
-// TestPidAliveG17 blinda `nu.proc.alive` (G17): informa de EXISTENCIA, no de
+// TestPidAliveG17 blinda `enu.proc.alive` (G17): informa de EXISTENCIA, no de
 // identidad. El pid del propio proceso de test está vivo → true; `pid 1` (init)
 // existe en cualquier Unix aunque no sea nuestro → true (existencia, no propiedad);
 // un pid imposible → false; un pid <= 0 → false. La parte "no identidad" se documenta
@@ -203,9 +203,9 @@ func TestSpawnCatRoundTrip(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"cat"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"cat"})
+			enu.task.cleanup(function() p:kill() end)
 			p:write("linea uno\n")
 			out.l1 = p:read_line("stdout")     -- "linea uno\n"
 			p:write("linea dos\n")
@@ -230,9 +230,9 @@ func TestSpawnReadRaw(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"sh", "-c", "printf 'abcdef'"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"sh", "-c", "printf 'abcdef'"})
+			enu.task.cleanup(function() p:kill() end)
 			out.all = p:read("stdout")        -- "abcdef" (todo hasta EOF)
 			out.more = p:read("stdout")       -- nil (ya en EOF)
 			out.code = p:wait().code
@@ -251,9 +251,9 @@ func TestProcReadStderr(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"sh", "-c", "echo err 1>&2"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"sh", "-c", "echo err 1>&2"})
+			enu.task.cleanup(function() p:kill() end)
 			out.err = p:read_line("stderr")     -- "err\n"
 			out.outline = p:read_line("stdout") -- nil: nada en stdout
 			p:wait()
@@ -270,9 +270,9 @@ func TestProcReadInvalidStream(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"cat"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"cat"})
+			enu.task.cleanup(function() p:kill() end)
 			local ok, err = pcall(function() p:read_line("nope") end)
 			out.ok = ok
 			out.code = err and err.code
@@ -288,9 +288,9 @@ func TestProcWriteAfterCloseECLOSED(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"cat"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"cat"})
+			enu.task.cleanup(function() p:kill() end)
 			p:close_stdin()
 			local ok, err = pcall(function() p:write("x") end)
 			out.ok = ok
@@ -304,7 +304,7 @@ func TestProcWriteAfterCloseECLOSED(t *testing.T) {
 
 // --- Snippet Lua: run de extremo a extremo (Definition of Done §2) ---
 
-// TestRunSnippet ejercita `nu.proc.run` desde el lado del autor de extensiones por
+// TestRunSnippet ejercita `enu.proc.run` desde el lado del autor de extensiones por
 // el puente ⏸ real: `run(["echo","hi"])` → code=0, stdout con "hi"; exit != 0 es
 // dato; sin shell.
 func TestRunSnippet(t *testing.T) {
@@ -312,13 +312,13 @@ func TestRunSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local r = nu.proc.run({"echo", "hi"})
+		enu.task.spawn(function()
+			local r = enu.proc.run({"echo", "hi"})
 			out.code = r.code
 			out.stdout = r.stdout
-			local r2 = nu.proc.run({"sh", "-c", "exit 7"})
+			local r2 = enu.proc.run({"sh", "-c", "exit 7"})
 			out.code2 = r2.code
-			local r3 = nu.proc.run({"echo", "$HOME"})
+			local r3 = enu.proc.run({"echo", "$HOME"})
 			out.literal = r3.stdout
 		end)
 	`)
@@ -340,9 +340,9 @@ func TestRunTimeoutSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, err = pcall(function()
-				nu.proc.run({"sleep", "30"}, { timeout_ms = 100 })
+				enu.proc.run({"sleep", "30"}, { timeout_ms = 100 })
 			end)
 			out.ok = ok
 			out.code = err and err.code
@@ -360,9 +360,9 @@ func TestRunNonexistentSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, err = pcall(function()
-				nu.proc.run({"no-existe-binario-xyz-123"})
+				enu.proc.run({"no-existe-binario-xyz-123"})
 			end)
 			out.ok = ok
 			out.code = err and err.code
@@ -379,22 +379,22 @@ func TestRunNonexistentSnippet(t *testing.T) {
 func TestProcOutsideTaskEINVAL(t *testing.T) {
 	h := newHarness(t)
 
-	if se := h.evalErr(`nu.proc.run({"echo","hi"})`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`enu.proc.run({"echo","hi"})`); se.Code != CodeEINVAL {
 		t.Fatalf("run fuera de task: got %s, want EINVAL", se.Code)
 	}
 
 	// alive fuera de task → funciona (no ⏸).
-	h.expectEval(`return tostring(nu.proc.alive(1))`, "true")
-	h.expectEval(`return tostring(nu.proc.alive(`+strconv.Itoa(1<<30)+`))`, "false")
+	h.expectEval(`return tostring(enu.proc.alive(1))`, "true")
+	h.expectEval(`return tostring(enu.proc.alive(`+strconv.Itoa(1<<30)+`))`, "false")
 
 	// spawn fuera de task → funciona (no ⏸): devuelve un handle.
 	h.eval(`
-		local p = nu.proc.spawn({"sleep", "30"})
+		local p = enu.proc.spawn({"sleep", "30"})
 		p:kill()
 	`)
 }
 
-// TestProcAliveSnippetG17 ejercita `nu.proc.alive` desde Lua (G17): el pid de un
+// TestProcAliveSnippetG17 ejercita `enu.proc.alive` desde Lua (G17): el pid de un
 // subproceso vivo da true; el de un pid imposible, false. La comprobación de "vivo"
 // la hace el propio snippet (`alive(pid_real)`) mientras el proceso sigue corriendo,
 // dentro de una task que completa (el proceso se mata por cleanup al terminar).
@@ -402,20 +402,20 @@ func TestProcOutsideTaskEINVAL(t *testing.T) {
 // El pid del subproceso lo obtiene el propio Lua (sin andamiaje Go que rebusque en
 // el userdata, inexistente en wasm): un `sh -c 'echo $$; exec sleep 30'` imprime su
 // pid y luego se REEMPLAZA por `sleep` conservándolo, de modo que el número que
-// `read_line` lee designa al proceso vivo. Sólo usa primitivas de nu.proc: idéntico
+// `read_line` lee designa al proceso vivo. Sólo usa primitivas de enu.proc: idéntico
 // en ambos backends.
 func TestProcAliveSnippetG17(t *testing.T) {
 	h := newHarness(t)
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local p = nu.proc.spawn({"sh", "-c", "echo $$; exec sleep 30"})
-			nu.task.cleanup(function() p:kill() end)
+		enu.task.spawn(function()
+			local p = enu.proc.spawn({"sh", "-c", "echo $$; exec sleep 30"})
+			enu.task.cleanup(function() p:kill() end)
 			local pid = tonumber(p:read_line("stdout"))   -- el pid que $$ imprimió
 			out.has_pid = (pid ~= nil)
-			out.alive_real = nu.proc.alive(pid)        -- true: el proceso está vivo
-			out.alive_fake = nu.proc.alive(1073741824) -- false: pid imposible (2^30)
+			out.alive_real = enu.proc.alive(pid)        -- true: el proceso está vivo
+			out.alive_fake = enu.proc.alive(1073741824) -- false: pid imposible (2^30)
 		end)
 	`)
 
@@ -466,18 +466,57 @@ func TestSpawnFinalizerSafetyNet(t *testing.T) {
 	}
 }
 
-// --- Sanity: la superficie de nu.proc existe (firma §6 completa) ---
+// --- 🔒 killSignal: un envío fallido NO debe dejar el proceso inmatable ---
 
-// TestProcSurface comprueba que `nu.proc` y los métodos de `Proc` están registrados,
+// TestKillSignalNotMarkedOnFailure blinda que `killed` sólo se fija cuando la señal
+// SE ENVIÓ sin error. Antes, `killSignal` marcaba `killed=true` incondicionalmente:
+// un envío fallido cortocircuitaba TODOS los kills posteriores (cleanup, finalizer,
+// scheduler, que consultan `killed`), dejando el proceso vivo pero "matado" —huérfano
+// e inmatable—. Se fuerza un fallo determinista con una señal fuera de rango (el
+// kernel devuelve EINVAL) sobre un proceso VIVO: `killed` debe seguir false y el
+// proceso seguir vivo; un SIGKILL posterior sí surte efecto y lo mata.
+func TestKillSignalNotMarkedOnFailure(t *testing.T) {
+	cmd := newCmd([]string{"sleep", "30"}, procOpts{})
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("no se pudo lanzar sleep: %v", err)
+	}
+	pid := cmd.Process.Pid
+	p := &luaProc{cmd: cmd}
+
+	// Señal inválida (fuera de rango) sobre un proceso vivo → el envío falla (EINVAL).
+	p.killSignal(syscall.Signal(0x1fff))
+	if p.killed {
+		t.Fatalf("un envío de señal fallido NO debe fijar killed=true")
+	}
+	if !pidAlive(pid) {
+		t.Fatalf("tras un kill fallido el proceso (pid %d) debería seguir vivo", pid)
+	}
+
+	// Un SIGKILL posterior SÍ debe surtir efecto: no está cortocircuitado por `killed`.
+	p.killSignal(syscall.SIGKILL)
+	if !p.killed {
+		t.Fatalf("tras un SIGKILL exitoso, killed debería ser true")
+	}
+	if err := cmd.Wait(); err == nil {
+		t.Fatalf("un proceso matado por SIGKILL debería salir con error de señal")
+	}
+	if pidAlive(pid) {
+		t.Fatalf("tras SIGKILL+Wait el proceso (pid %d) debería estar muerto", pid)
+	}
+}
+
+// --- Sanity: la superficie de enu.proc existe (firma §6 completa) ---
+
+// TestProcSurface comprueba que `enu.proc` y los métodos de `Proc` están registrados,
 // como prueba de humo de la sesión.
 func TestProcSurface(t *testing.T) {
 	h := newHarness(t)
-	h.expectEval(`return type(nu.proc)`, "table")
-	h.expectEval(`return type(nu.proc.run)`, "function")
-	h.expectEval(`return type(nu.proc.spawn)`, "function")
-	h.expectEval(`return type(nu.proc.alive)`, "function")
+	h.expectEval(`return type(enu.proc)`, "table")
+	h.expectEval(`return type(enu.proc.run)`, "function")
+	h.expectEval(`return type(enu.proc.spawn)`, "function")
+	h.expectEval(`return type(enu.proc.alive)`, "function")
 	h.eval(`
-		local p = nu.proc.spawn({"sleep", "30"})
+		local p = enu.proc.spawn({"sleep", "30"})
 		assert(type(p.write) == "function")
 		assert(type(p.close_stdin) == "function")
 		assert(type(p.read_line) == "function")

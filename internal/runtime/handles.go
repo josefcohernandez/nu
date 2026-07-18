@@ -1,17 +1,17 @@
 package runtime
 
 // Registro de handles por dueño (api.md §14, sesión S13, inventario 🔒). Es la
-// pieza que hace que `nu.plugin.reload` (best-effort, G2) "suelte TODOS los
+// pieza que hace que `enu.plugin.reload` (best-effort, G2) "suelte TODOS los
 // handles del plugin" sin dejar huérfanos: cada handle que el core entrega y que
-// **sobrevive a un reload** —una suscripción de eventos (`nu.events.on/once`), un
-// timer periódico (`nu.task.every`)— se etiqueta, al crearse, con el **dueño
+// **sobrevive a un reload** —una suscripción de eventos (`enu.events.on/once`), un
+// timer periódico (`enu.task.every`)— se etiqueta, al crearse, con el **dueño
 // vigente** (el `currentOwner()` del `ownerStack`, S11). Recargar un plugin
 // recorre su lista de handles y los libera uno a uno.
 //
 // POR QUÉ UN REGISTRO GENERAL, NO UN PARCHE PARA events+timers. El reload de G2
 // es "suelta todos los handles del plugin": el conjunto de cosas que un plugin
 // registra y que persisten entre arranques crecerá con el kernel —watchers de
-// `nu.fs.watch` (S15), procesos de `nu.proc.spawn` (S16), handlers de input y
+// `enu.fs.watch` (S15), procesos de `enu.proc.spawn` (S16), handlers de input y
 // regiones de UI (S29+)—. Si cada una inventara su propia limpieza, el reload
 // sería un agregado frágil de casos especiales. En su lugar, el core lleva **un
 // solo registro** indexado por dueño y cada primitiva que entrega un handle
@@ -21,12 +21,13 @@ package runtime
 // una sesión futura es: implementar `ownedHandle` y llamar `track`/`untrack` —el
 // reload la recoge gratis, sin tocar este fichero ni `reload`.
 //
-// CONCURRENCIA. Igual que el resto del estado del scheduler (bus de eventos,
-// timers), el registro vive bajo el **token** Lua y se toca solo desde el estado
-// principal: `on`/`once`/`every` (que registran), `cancel`/`stop` (que
-// desregistran) y `reload` (que libera) son funciones Lua que corren con el
-// token, y el arranque que empuja el `ownerStack` también. Por eso no necesita
-// candado propio —el token lo serializa, como `eventBus`—.
+// CONCURRENCIA. En el backend wasm el registro ya NO vive bajo un token único:
+// `track` lo llama `spawnProc` desde la goroutine de fondo de un hostcall
+// suspendente, `untrack` la ruta de reap temprano (proc.go maybeReap, otra
+// goroutine de fondo) y `releaseOwnerHandles` el reload (también suspendente).
+// Por eso las tres operan bajo `s.mu`, el mismo candado que protege los demás
+// mapas de recursos de fondo del scheduler; `release()` se invoca FUERA del
+// candado (hace IO: matar procesos, cerrar pipes).
 
 // ownedHandle es un recurso entregado a un plugin que debe liberarse al recargarlo
 // (G2). Lo implementan los tipos de handle persistente: `*subscriber` (eventos) y
@@ -44,9 +45,11 @@ type ownedHandle interface {
 }
 
 // track registra un handle persistente bajo su dueño (el `currentOwner()` vigente
-// al crearlo, que el handle ya guardó). Lo llaman `on`/`once` (events.go) y
-// `every` (timers.go) al entregar el handle. Presupone el token tomado.
+// al crearlo, que el handle ya guardó). Lo llaman las primitivas que entregan un
+// handle persistente Go-side (`enu.proc.spawn`, `enu.fs.watch`).
 func (s *scheduler) track(h ownedHandle) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.ownerHandles == nil {
 		s.ownerHandles = make(map[string][]ownedHandle)
 	}
@@ -59,9 +62,10 @@ func (s *scheduler) track(h ownedHandle) {
 // (fuga) y un `reload` posterior intentaría liberar suscripciones/timers ya
 // cancelados. Es idempotente: quitar uno que ya no está (p. ej. porque `reload` ya
 // vació la lista) no hace nada. No llama a `release` —el desregistro y la
-// liberación son pasos separados: aquí solo se actualiza el índice—. Presupone el
-// token tomado.
+// liberación son pasos separados: aquí solo se actualiza el índice—.
 func (s *scheduler) untrack(h ownedHandle) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.ownerHandles == nil {
 		return
 	}
@@ -82,26 +86,27 @@ func (s *scheduler) untrack(h ownedHandle) {
 	}
 }
 
-// releaseOwnerHandles libera TODOS los handles de un dueño y vacía su lista. Lo
-// llama `reload` (plugin.go) tras emitir `core:plugin.unload`: suelta las
-// suscripciones de eventos y para los timers del plugin que se recarga, de modo
-// que su `init.lua` re-ejecutado parta de cero —"reload no deja handlers
-// huérfanos" (G2, inventario 🔒)—. Presupone el token tomado.
+// releaseOwnerHandles libera TODOS los handles Go-side de un dueño y vacía su
+// lista. Lo llama `reloadWasm` (vmwasm_loader.go) tras el `__release_owner` del
+// preludio: el registro Lua solo conoce subs y timers; los recursos Go (procesos
+// de `enu.proc.spawn`, watchers de `enu.fs.watch`) viven aquí —"un spawn de su
+// init.lua no debe sobrevivir a la recarga" (G2, inventario 🔒)—.
 //
-// Copia la lista antes de iterar porque `release()` de algún handle podría, en
-// teoría, tocar el registro (hoy no lo hace —los `release` son locales—, pero la
-// copia lo blinda); y la entrada del mapa se borra al final, no a media iteración.
+// El snapshot y el borrado ocurren bajo `s.mu`; los `release()` corren FUERA del
+// candado (hacen IO: SIGKILL, cierre de pipes/watchers) y no deben re-tocar el
+// registro (contrato de `ownedHandle`); un `untrack` concurrente del reap
+// temprano sobre un handle ya retirado es un no-op idempotente.
 func (s *scheduler) releaseOwnerHandles(owner string) {
-	if s.ownerHandles == nil {
-		return
-	}
+	s.mu.Lock()
 	list := s.ownerHandles[owner]
 	if len(list) == 0 {
+		s.mu.Unlock()
 		return
 	}
 	snapshot := make([]ownedHandle, len(list))
 	copy(snapshot, list)
 	delete(s.ownerHandles, owner) // el dueño queda sin handles tras este reload
+	s.mu.Unlock()
 	for _, h := range snapshot {
 		h.release()
 	}

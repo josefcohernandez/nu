@@ -8,7 +8,7 @@ import (
 // Tras la retirada de gopher-lua (M17) el kernel corre SIEMPRE sobre wasm y el
 // selector de backend desapareció. Lo único que queda del patrón estrangulador es
 // la TOLERANCIA: una config o un script que todavía pidan el backend `gopher`
-// (vía `NU_VM=gopher` o `nu.toml [vm] backend`) no deben romper el arranque —nu
+// (vía `NU_VM=gopher` o `enu.toml [vm] backend`) no deben romper el arranque —enu
 // ignora la petición, avisa por stderr y sigue sobre wasm—.
 //
 // Este test blinda esa tolerancia: con `NU_VM=gopher` en el entorno, `New` no

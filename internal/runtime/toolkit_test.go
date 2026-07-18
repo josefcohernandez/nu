@@ -4,7 +4,7 @@ package runtime
 // internal/runtime/embedded/toolkit). Es el **toolkit de widgets** de
 // arquitectura.md §kernel/nota ui: Lua puro sobre la API pública congelada (Fase
 // 8, ADR-003 / ADR-012 —el core NO sabe lo que es un widget—), construido sobre
-// `nu.ui` (§9, S29/S30/S31) y `nu.text` (§10).
+// `enu.ui` (§9, S29/S30/S31) y `enu.text` (§10).
 //
 // Blindan el criterio de hecho de S42 ("Un layout con focus entre dos widgets
 // compone sin colisión entre plugins") y el alcance del enunciado:
@@ -20,7 +20,7 @@ package runtime
 //   - SIN COLISIÓN entre dos "plugins"/árboles: dos apps independientes, cada una
 //     su región y su árbol, componen y enrutan lo suyo sin pisarse.
 //
-// La UI es headless en los tests (sin TTY, G20), así que el arnés fuerza `nu.ui`
+// La UI es headless en los tests (sin TTY, G20), así que el arnés fuerza `enu.ui`
 // con `WithForceUI(true)` (como S29-S33). El Block es opaco a Lua (solo
 // `.width`/`.height`, block.go): la inspección de CONTENIDO se hace en Go mirando
 // la rejilla del compositor (igual que compositor_test.go), y la lógica del
@@ -32,8 +32,8 @@ import (
 	"testing"
 )
 
-// bootToolkit arranca un Runtime con la extensión `toolkit` activada por nu.toml,
-// con `nu.ui` forzada (headless, G20) y un tamaño de pantalla conocido para que el
+// bootToolkit arranca un Runtime con la extensión `toolkit` activada por enu.toml,
+// con `enu.ui` forzada (headless, G20) y un tamaño de pantalla conocido para que el
 // layout sea determinista. Devuelve el harness ya con Boot hecho.
 func bootToolkit(t *testing.T, w, h int) *harness {
 	t.Helper()
@@ -88,8 +88,8 @@ func TestToolkitThemeSemanticoALiteral(t *testing.T) {
 		local st = th:style({ fg = "accent", bold = true })
 		assert(st.fg == "#e0875f", "style.fg debía ser literal")
 		assert(st.bold == true, "atributo bold conservado")
-		-- ese Style YA es aceptable por el core (nu.ui.block no lanza con literales):
-		local blk = nu.ui.block({ { { text = "hola", style = st } } })
+		-- ese Style YA es aceptable por el core (enu.ui.block no lanza con literales):
+		local blk = enu.ui.block({ { { text = "hola", style = st } } })
 		assert(blk.height == 1, "el Block se construyó")
 		return "ok"`, "ok")
 
@@ -101,8 +101,8 @@ func TestToolkitThemeSemanticoALiteral(t *testing.T) {
 	// El core rechaza un nombre semántico crudo (la otra cara de G22): si el
 	// toolkit NO resolviera, esto es lo que pasaría. Lo comprobamos para anclar que
 	// la resolución es necesaria.
-	if se := h.evalErr(`return nu.ui.block({ { { text = "x", style = { fg = "accent" } } } })`); se.Code != CodeEINVAL {
-		t.Fatalf("nu.ui.block con nombre semántico debía ser EINVAL (G22), fue %q", se.Code)
+	if se := h.evalErr(`return enu.ui.block({ { { text = "x", style = { fg = "accent" } } } })`); se.Code != CodeEINVAL {
+		t.Fatalf("enu.ui.block con nombre semántico debía ser EINVAL (G22), fue %q", se.Code)
 	}
 
 	// Un theme nuevo debe RESOLVER a literales: definirlo con un valor no-literal
@@ -490,11 +490,11 @@ func TestToolkitFocusEventNamespace(t *testing.T) {
 		ui_focus_count = 0
 		-- Suscriptor del evento del toolkit (lo que un plugin haría para reaccionar al
 		-- foco de widget) y del evento del core (para probar que NO se dispara aquí).
-		nu.events.on("toolkit:focus", function(ev)
+		enu.events.on("toolkit:focus", function(ev)
 			tk_focus_count = tk_focus_count + 1
 			tk_focus_widget = ev.widget
 		end)
-		nu.events.on("ui:focus", function(ev) ui_focus_count = ui_focus_count + 1 end)
+		enu.events.on("ui:focus", function(ev) ui_focus_count = ui_focus_count + 1 end)
 
 		local root = tk.vbox{}
 		A = tk.input{ id = "a" }; A.flex = 1
@@ -512,9 +512,9 @@ func TestToolkitFocusEventNamespace(t *testing.T) {
 	h.expectEval(`return tostring(ui_focus_count)`, "0")
 }
 
-// TestToolkitAppRequiresUI: montar una app sin `nu.ui` (headless real, G20) es
-// EINVAL accionable (chat.md §8: el consumidor comprueba nu.has("ui") antes). Se
-// usa un runtime con WithForceUI(false): nu.ui no existe.
+// TestToolkitAppRequiresUI: montar una app sin `enu.ui` (headless real, G20) es
+// EINVAL accionable (chat.md §8: el consumidor comprueba enu.has("ui") antes). Se
+// usa un runtime con WithForceUI(false): enu.ui no existe.
 func TestToolkitAppRequiresUI(t *testing.T) {
 	cfg := t.TempDir()
 	writeNuToml(t, cfg, "[plugins]\nenabled = [\"toolkit\"]\n")
@@ -529,7 +529,7 @@ func TestToolkitAppRequiresUI(t *testing.T) {
 	h.expectEval(`return type(require("toolkit").app)`, "function")
 	se := h.evalErr(`return require("toolkit").app{ w = 10, h = 5 }`)
 	if se.Code != CodeEINVAL {
-		t.Fatalf("app sin nu.ui: code=%q, want EINVAL", se.Code)
+		t.Fatalf("app sin enu.ui: code=%q, want EINVAL", se.Code)
 	}
 }
 

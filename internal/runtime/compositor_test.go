@@ -1,6 +1,6 @@
 package runtime
 
-// Tests del compositor de `nu.ui` (§9.1, S29, lógica 🔒). Blindan los casos límite
+// Tests del compositor de `enu.ui` (§9.1, S29, lógica 🔒). Blindan los casos límite
 // que el inventario de [implementacion.md] nombra para S29:
 //
 //   - **G28 viewport**: `blit` con offsets negativos muestra la ventana correcta

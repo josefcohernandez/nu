@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.log` (S03, api.md §15). S03 no está en el inventario 🔒, pero el
+// Tests de `enu.log` (S03, api.md §15). S03 no está en el inventario 🔒, pero el
 // formateo del mensaje, la apertura perezosa del fichero y el alias `print` son
 // lógica propia con casos de borde (vararg vs argumento único, fichero aún sin
 // crear), así que se prueban desde el lado del autor de extensiones con el
@@ -18,7 +18,7 @@ import (
 
 func TestLogInfoEscribeLinea(t *testing.T) {
 	h := newHarness(t)
-	h.eval(`nu.log.info("hola")`)
+	h.eval(`enu.log.info("hola")`)
 
 	lines := h.logLines()
 	if len(lines) != 1 {
@@ -49,7 +49,7 @@ func TestLogNiveles(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.fn, func(t *testing.T) {
 			h := newHarness(t)
-			h.eval(`nu.log.` + c.fn + `("m")`)
+			h.eval(`enu.log.` + c.fn + `("m")`)
 			lines := h.logLines()
 			if len(lines) != 1 {
 				t.Fatalf("se esperaba 1 línea, hay %d: %q", len(lines), lines)
@@ -67,7 +67,7 @@ func TestLogNiveles(t *testing.T) {
 func TestLogFormateaVarargs(t *testing.T) {
 	h := newHarness(t)
 	// fmt + args -> string.format, semántica de Lua.
-	h.eval(`nu.log.info("valor: %d (%s)", 42, "ok")`)
+	h.eval(`enu.log.info("valor: %d (%s)", 42, "ok")`)
 	lines := h.logLines()
 	if len(lines) != 1 {
 		t.Fatalf("se esperaba 1 línea, hay %d: %q", len(lines), lines)
@@ -81,7 +81,7 @@ func TestLogArgumentoUnicoNoSeFormatea(t *testing.T) {
 	h := newHarness(t)
 	// Un solo argumento con un `%` no debe tratarse como formato (no hay args
 	// que consumir): se loguea tal cual vía tostring.
-	h.eval(`nu.log.info("100% hecho")`)
+	h.eval(`enu.log.info("100% hecho")`)
 	lines := h.logLines()
 	if len(lines) != 1 {
 		t.Fatalf("se esperaba 1 línea, hay %d: %q", len(lines), lines)
@@ -93,7 +93,7 @@ func TestLogArgumentoUnicoNoSeFormatea(t *testing.T) {
 
 func TestLogVariasLineasSeAcumulan(t *testing.T) {
 	h := newHarness(t)
-	h.eval(`nu.log.info("una"); nu.log.warn("dos"); nu.log.error("tres")`)
+	h.eval(`enu.log.info("una"); enu.log.warn("dos"); enu.log.error("tres")`)
 	lines := h.logLines()
 	if len(lines) != 3 {
 		t.Fatalf("se esperaban 3 líneas, hay %d: %q", len(lines), lines)
@@ -119,12 +119,12 @@ func TestPrintEsAliasDeInfo(t *testing.T) {
 	}
 
 	// Y es **la misma** función, no una copia: la identidad lo garantiza.
-	h.expectEval(`return print == nu.log.info`, "true")
+	h.expectEval(`return print == enu.log.info`, "true")
 }
 
 func TestLogFicheroPerezoso(t *testing.T) {
 	// Sin loguear nada, el fichero (y su directorio) no deben existir: un
-	// `nu -e` que no usa el log no ensucia el disco.
+	// `enu -e` que no usa el log no ensucia el disco.
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "datos")
 	rt := New(WithDataDir(sub))
@@ -135,7 +135,7 @@ func TestLogFicheroPerezoso(t *testing.T) {
 		t.Fatalf("el fichero de log existe antes de loguear: stat err=%v", err)
 	}
 
-	if _, err := rt.EvalString(`nu.log.info("ahora sí")`); err != nil {
+	if _, err := rt.EvalString(`enu.log.info("ahora sí")`); err != nil {
 		t.Fatalf("log falló: %v", err)
 	}
 	if _, err := os.Stat(logPath); err != nil {
@@ -147,7 +147,7 @@ func TestLogPermisos0600(t *testing.T) {
 	dir := t.TempDir()
 	rt := New(WithDataDir(dir))
 	defer rt.Close()
-	if _, err := rt.EvalString(`nu.log.info("x")`); err != nil {
+	if _, err := rt.EvalString(`enu.log.info("x")`); err != nil {
 		t.Fatalf("log falló: %v", err)
 	}
 	info, err := os.Stat(filepath.Join(dir, logFileName))
@@ -167,7 +167,7 @@ func TestLogPermisos0600(t *testing.T) {
 func TestLogOwnerSigueElCampo(t *testing.T) {
 	h := newHarness(t)
 	h.rt.ownerStack = append(h.rt.ownerStack, &pluginInfo{Name: "miplugin"})
-	h.eval(`nu.log.info("hey")`)
+	h.eval(`enu.log.info("hey")`)
 	lines := h.logLines()
 	if len(lines) != 1 || !strings.Contains(lines[0], "[miplugin]") {
 		t.Fatalf("la línea no anota el owner actual: %q", lines)

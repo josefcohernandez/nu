@@ -1,4 +1,4 @@
-# Integración continua de `nu`. Formaliza la disciplina que CLAUDE.md ya exige a
+# Integración continua de `enu`. Formaliza la disciplina que CLAUDE.md ya exige a
 # mano —"toda sesión deja `go build ./...` verde", más el inventario 🔒 de tests
 # unitarios obligatorios— y la corre en cada PR y en cada push a `main`. No hay
 # nada específico de producto aquí: es DevOps del operador (ADR-013), no parte de
@@ -11,13 +11,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
-# El PR cubre la validación pre-merge (lo importante); el push a `main` cubre el
-# commit de merge y mantiene el badge verde. No se dispara en las ramas `claude/*`
-# de trabajo: el PR ya las valida, así no se gastan minutos por duplicado.
+# El PR cubre la validación pre-merge (lo importante); el push a `main`/`develop`
+# cubre el commit de merge y mantiene el badge verde. Desde 2026-07-14 `develop`
+# es la rama de integración (main solo estables): sus pushes y las PR contra ella
+# corren los mismos checks —la protección de rama los exige—. No se dispara en
+# las ramas `claude/*` de trabajo: el PR ya las valida, así no se gastan minutos
+# por duplicado.
 
 # Permisos mínimos: solo lectura del repo. Ningún job de CI publica nada.
 permissions:
@@ -41,9 +44,9 @@ jobs:
       - name: Preparar Go
         uses: actions/setup-go@v5
         with:
-          # Una sola fuente de verdad para la versión de Go: la directiva de go.mod
-          # (hoy 1.24.7). No hay matriz multi-versión: `nu` se distribuye como
-          # binario, no como librería que terceros compilan con su toolchain.
+          # Una sola fuente de verdad para la versión exacta de Go: la directiva de
+          # go.mod. No hay matriz multi-versión: `enu` se distribuye como binario,
+          # no como librería que terceros compilan con su toolchain.
           go-version-file: go.mod
           cache: true
 
@@ -75,10 +78,12 @@ jobs:
         # `version: "2"`). La v6 instalaba la v1, que rechazaba ese esquema.
         uses: golangci/golangci-lint-action@v7
         with:
-          # `only-new-issues` marca solo los hallazgos en líneas tocadas por el PR:
-          # no bloquea por deuda preexistente en las ~33k líneas ya escritas. La
-          # configuración (conjunto mínimo de linters) vive en .golangci.yml.
-          only-new-issues: true
+          # El binario exacto hace reproducible el baseline. Actualizarlo exige
+          # ejecutar de nuevo el conjunto completo y dejarlo en cero hallazgos.
+          version: v2.12.2
+          # El baseline cubre todo el repositorio: ningún hallazgo queda oculto
+          # por no pertenecer a las líneas modificadas por el PR (ADR-021).
+          only-new-issues: false
 
   # Garantiza el requisito literal de CLAUDE.md ("go build ./... verde") y, además,
   # que el binario distribuible —estático, CGO_ENABLED=0— compila en los DOS sistemas
@@ -107,16 +112,16 @@ jobs:
         # Mismas flags que el release (ADR-013): estático (CGO_ENABLED=0),
         # reproducible (-trimpath), pequeño (-ldflags "-s -w"). Validar aquí que el
         # artefacto distribuible compila en cada OS evita sorpresas en el tag.
-        run: CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o nu .
+        run: CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o enu .
 
       - name: Smoke test headless
-        # Arranca el binario de verdad sin secretos: `nu -e` evalúa Lua headless y
+        # Arranca el binario de verdad sin secretos: `enu -e` evalúa Lua headless y
         # sale 0 en éxito (códigos de salida de S45). Detecta regresiones de arranque
         # que `go build` no ve (un embed.FS roto, un panic en runtime.New()). No se
-        # prueba `nu -p` (turno de agente): requeriría un provider/API key.
+        # prueba `enu -p` (turno de agente): requeriría un provider/API key.
         run: |
-          salida=$(./nu -e 'return nu.version.api')
-          echo "nu.version.api = $salida"
+          salida=$(./enu -e 'return enu.version.api')
+          echo "enu.version.api = $salida"
           if [ -z "$salida" ]; then
             echo "El smoke test no imprimió nada (¿arranque roto?)" >&2
             exit 1
@@ -127,6 +132,17 @@ jobs:
   # cancelación S08) que solo destapan data races bajo -race; correr sin él dejaría
   # ciega justo la parte del runtime que más lo necesita (el puente goroutine↔task,
   # ADR-011). Coste medido: ~30 s. En ambos OS objetivo, por la misma razón que build.
+  #
+  # El barrido `go list ./...` YA incluye el paquete `./e2e/` —la suite END-TO-END
+  # que lanza el BINARIO real (chat/repl bajo PTY, agente/mcp/mesh/providers/sessions
+  # contra un provider fake por httptest)—, así que NO necesita un job propio: corre
+  # aquí, con el mismo -race y -shuffle=on, en Linux y macOS (ambos runners soportan
+  # /dev/ptmx, luego los tests interactivos se ejercen de verdad). Su `TestMain`
+  # compila `enu` una vez (CGO_ENABLED=0) y lo reusa; ese binario hijo NO va
+  # instrumentado con -race (se prueba el artefacto de release, no el de test) y el
+  # coste del build se amortiza entre todos los tests del paquete. Si algún runner
+  # futuro no pudiera asignar un PTY, `E2E_NO_PTY=1` salta solo la parte interactiva
+  # (ver e2e/pty_test.go) sin tumbar el resto de la suite e2e.
   test:
     name: Tests (-race)
     strategy:
@@ -153,12 +169,28 @@ jobs:
         # tests de concurrencia CON -race dirigido (subconjunto acotado, sin OOM).
         run: go test -race -shuffle=on $(go list ./... | grep -v /internal/vmwasm)
 
-  # Blob de la VM wasm (migracion-vm.md M02, DM1): reconstruye nu.wasm desde las
+  # La web de documentación (web/referencia/) es una presentación derivada de
+  # docs/contracts/api.md, la fuente de verdad. Este detector mecánico extrae el inventario
+  # de firmas y marcadores (⏸/[W]) de ambos lados y falla ante cualquier deriva:
+  # una firma que cambió en la espec y no en la web, una función sin documentar,
+  # o una que la web inventa. El trigger correcto es el cambio (no el calendario),
+  # por eso vive aquí y no en la pasada de salud. Corrección: skill /sync-web.
+  coherencia-web:
+    name: Coherencia web ↔ api.md
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detector de deriva (web/scripts/check-drift.mjs)
+        # Sin dependencias ni npm ci: Node de los runners basta (usa solo node:fs).
+        run: node web/scripts/check-drift.mjs
+
+  # Blob de la VM wasm (migracion-vm.md M02, DM1): reconstruye enu.wasm desde las
   # fuentes pineadas de Lua + el shim, y verifica que el artefacto comiteado no ha
   # derivado. Guarda la reproducibilidad de la VM (DM1): permanente mientras wasm
   # sea la VM del kernel.
   vmblob:
-    name: Blob de la VM (nu.wasm reproducible)
+    name: Blob de la VM (enu.wasm reproducible)
     # El runner ya NO necesita pineo: build.sh es hermético (fix post-M17,
     # migracion-vm.md) — descarga el wasi-sdk oficial pineado por sha256 y
     # compila con su clang/sysroot, sin tocar la toolchain de la distro. La
@@ -174,19 +206,19 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Reconstruir nu.wasm y verificar que el blob comiteado no derivó
+      - name: Reconstruir enu.wasm y verificar que el blob comiteado no derivó
         # build.sh descarga el wasi-sdk pineado (sha256), clona Lua pineado
         # (v5.4.7, commit verificado) y recompila. Si el resultado difiere del
-        # nu.wasm comiteado, fuentes o shim cambiaron sin regenerar el blob: el
+        # enu.wasm comiteado, fuentes o shim cambiaron sin regenerar el blob: el
         # diff falla y hay que correr build.sh y comitear el nuevo artefacto.
         run: |
-          hash_antes=$(sha256sum internal/vmwasm/nu.wasm | cut -d' ' -f1)
+          hash_antes=$(sha256sum internal/vmwasm/enu.wasm | cut -d' ' -f1)
           internal/vmwasm/build.sh
-          hash_despues=$(sha256sum internal/vmwasm/nu.wasm | cut -d' ' -f1)
+          hash_despues=$(sha256sum internal/vmwasm/enu.wasm | cut -d' ' -f1)
           echo "comiteado: $hash_antes"
           echo "rebuild:   $hash_despues"
-          git diff --exit-code internal/vmwasm/nu.wasm || {
-            echo "nu.wasm derivó de sus fuentes: corre internal/vmwasm/build.sh y comitea el blob" >&2
+          git diff --exit-code internal/vmwasm/enu.wasm || {
+            echo "enu.wasm derivó de sus fuentes: corre internal/vmwasm/build.sh y comitea el blob" >&2
             exit 1
           }
 

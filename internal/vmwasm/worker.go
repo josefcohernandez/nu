@@ -4,7 +4,7 @@ package vmwasm
 // ADR-019: cada worker es una Instance wasm distinta, con su **memoria lineal
 // físicamente aislada** — más fuerte que el `*LState` separado de gopher (que
 // comparte el heap de Go). Un worker es un mini-runtime completo (G15): su propio
-// scheduler (nu.task), sin watchdog (existe para quemar CPU), controlado por
+// scheduler (enu.task), sin watchdog (existe para quemar CPU), controlado por
 // terminate() + caps. Su único canal con el mundo es la mensajería con el padre.
 //
 // La frontera de workers **solo cruza datos, nunca referencias** (ADR-008): los
@@ -16,7 +16,7 @@ package vmwasm
 // Alcance (como M09-M11): M12 entrega el MECANISMO (aislamiento, mensajería
 // acotada, caps, exclusión recv/on_message, terminate) contra código fuente
 // directo; la resolución de `module` por el loader (require) es la integración de
-// M13. Desviación anotada: nu.task es intrínseco al runtime del worker (vive en el
+// M13. Desviación anotada: enu.task es intrínseco al runtime del worker (vive en el
 // preludio), siempre presente; las caps filtran los módulos respaldados por
 // primitivas (fs/proc/http/...), que es donde se prueba el mecanismo de G6.
 
@@ -48,43 +48,72 @@ func newWorkerChannels() *workerChannels {
 func (c *workerChannels) closeDone() { c.doneOnce.Do(func() { close(c.done) }) }
 
 // worker es un worker vivo visto desde el padre: su Instance aislada, sus canales
-// y su join de apagado.
+// y su join de apagado. `id`/`parent` son el ancla al registro del Pool principal:
+// permiten que shutdown() se retire a sí mismo del mapa (A-07).
 type worker struct {
 	inst       *Instance
 	chans      *workerChannels
 	terminated chan struct{}
 	termOnce   sync.Once
+	id         int64 // id en el registro del padre (0 hasta registrar)
+	parent     *Pool // Pool principal que lleva el registro (nil hasta registrar)
 }
 
 // registerWorker registra un worker en el Pool y devuelve su id (el __wid del
-// lado Lua). Sólo el Pool principal lleva este registro.
+// lado Lua). Sólo el Pool principal lleva este registro. Se llama ANTES de
+// arrancar la goroutine del worker, para que shutdown() —que se retira del mapa
+// (A-07)— nunca pueda correr sobre un worker aún sin id/parent.
 func (p *Pool) registerWorker(w *worker) int64 {
 	p.workerMu.Lock()
 	defer p.workerMu.Unlock()
 	p.workerNext++
 	id := p.workerNext
+	w.id = id
+	w.parent = p
 	p.workers[id] = w
 	return id
 }
 
-func (p *Pool) lookupWorker(id int64) *worker {
+// deregisterWorker retira un worker terminado del registro (A-07): evita el
+// crecimiento monótono del mapa —y con él la retención de la struct y sus
+// canales— en procesos de larga vida que spawneen workers periódicamente. Lo
+// llaman reapIfDrained (fin sin mensajes pendientes) y el _recv que encuentra
+// el fin de canal (zombie ya drenado). Idempotente (borrar una clave ausente
+// es un no-op).
+func (p *Pool) deregisterWorker(id int64) {
+	p.workerMu.Lock()
+	delete(p.workers, id)
+	p.workerMu.Unlock()
+}
+
+// lookupWorker resuelve un worker por su id. Devuelve (w, known): `w` es el
+// worker VIVO (nil si ya no está en el registro), y `known` indica si el id fue
+// alguna vez un worker válido. Tras A-07 un worker terminado se retira del mapa,
+// así que un id conocido (0 < id ≤ workerNext) que ya no está presente es un
+// worker RETIRADO —send debe dar ECLOSED y recv nil, igual que cuando seguía en
+// el mapa con `done` cerrado—; sólo un id fuera de ese rango (forjado/corrupto)
+// es realmente inválido (EINVAL).
+func (p *Pool) lookupWorker(id int64) (w *worker, known bool) {
 	p.workerMu.Lock()
 	defer p.workerMu.Unlock()
-	return p.workers[id]
+	if w, ok := p.workers[id]; ok {
+		return w, true
+	}
+	return nil, id > 0 && id <= p.workerNext
 }
 
 // registerWorkerHost registra las primitivas del lado PADRE de los workers (M12).
-// El preludioWorkerHost las envuelve como nu.worker.spawn y los métodos del
+// El preludioWorkerHost las envuelve como enu.worker.spawn y los métodos del
 // handle Worker.
 func (p *Pool) registerWorkerHost() {
-	// nu.worker._spawn(source, opts?) -> wid. SÍNCRONA: crea la Instance del
+	// enu.worker._spawn(source, opts?) -> wid. SÍNCRONA: crea la Instance del
 	// worker (aislada), la arranca en su goroutine con su propio RunTasks, y
 	// devuelve su id. `source` es código Lua (M13 lo cambia por resolución del
 	// módulo vía el loader).
 	p.Register("worker._spawn", func(inst *Instance, args []any) ([]any, error) {
 		source, _ := args[0].(string)
 		if source == "" {
-			return nil, &StructuredError{Code: "EINVAL", Message: "nu.worker.spawn: module es obligatorio"}
+			return nil, &StructuredError{Code: "EINVAL", Message: "enu.worker.spawn: module es obligatorio"}
 		}
 		var opts map[string]any
 		if len(args) > 1 {
@@ -94,38 +123,69 @@ func (p *Pool) registerWorkerHost() {
 		if err != nil {
 			return nil, err
 		}
-		w, err := inst.spawnWorker(source, caps, capsGiven)
+		// FOTO del dueño en el spawn (G56, ADR-024): este HostFn es SÍNCRONO y corre en
+		// la goroutine que conduce la VM del estado principal, donde la pila de dueños es
+		// coherente por construcción (ADR-004). Se captura aquí el dueño vigente y viaja
+		// COPIADO al worker, que lo porta inmutable; así las primitivas [W] atribuidas por
+		// dueño (enu.log, enu.proc) no leen jamás el ownerStack del padre desde la
+		// goroutine del worker —desaparece el data race de SEC-05 y la atribución es
+		// determinista—. Sin resolvedor (tests de bajo nivel sin Runtime) la foto es "".
+		owner := ""
+		if inst.pool.ownerSnapshot != nil {
+			owner = inst.pool.ownerSnapshot()
+		}
+		w, err := inst.spawnWorker(source, caps, capsGiven, owner)
 		if err != nil {
 			return nil, err
 		}
+		// Registrar ANTES de arrancar la goroutine (A-07): así w.id/w.parent ya
+		// están fijados cuando run→shutdown se retire del mapa, aunque el worker
+		// termine de inmediato (p. ej. un error de carga o un módulo trivial).
 		id := inst.pool.registerWorker(w)
+		go w.run(source)
 		return []any{id}, nil
 	})
 
-	// nu.worker._send(wid, msg) ⏸: encola msg en la cola hacia el worker; SUSPENDE
+	// enu.worker._send(wid, msg) ⏸: encola msg en la cola hacia el worker; SUSPENDE
 	// si está llena (backpressure). ECLOSED si el worker terminó.
 	p.RegisterSuspending("worker._send", func(inst *Instance, args []any) ([]any, error) {
-		w := inst.pool.lookupWorker(toI64(args[0]))
+		w, known := inst.pool.lookupWorker(toI64(args[0]))
 		if w == nil {
+			if known {
+				// worker retirado tras terminar (A-07): misma semántica que con la
+				// entrada aún en el mapa y `done` cerrado.
+				return nil, &StructuredError{Code: "ECLOSED", Message: "Worker:send: el worker ha terminado"}
+			}
 			return nil, &StructuredError{Code: "EINVAL", Message: "Worker:send: worker inválido"}
 		}
 		return sendOnChan(w.chans.toWorker, w.chans.done, args[1], "Worker:send")
 	})
 
-	// nu.worker._recv(wid) ⏸: saca un mensaje de la cola desde el worker; SUSPENDE
+	// enu.worker._recv(wid) ⏸: saca un mensaje de la cola desde el worker; SUSPENDE
 	// hasta que llegue. nil (fin de canal) si el worker terminó y no queda nada.
 	p.RegisterSuspending("worker._recv", func(inst *Instance, args []any) ([]any, error) {
-		w := inst.pool.lookupWorker(toI64(args[0]))
+		w, known := inst.pool.lookupWorker(toI64(args[0]))
 		if w == nil {
+			if known {
+				// worker retirado tras terminar (A-07): fin de canal, igual que con
+				// la entrada aún en el mapa, `done` cerrado y la cola drenada.
+				return []any{nil}, nil
+			}
 			return nil, &StructuredError{Code: "EINVAL", Message: "Worker:recv: worker inválido"}
 		}
-		return recvOnChan(w.chans.fromWorker, w.chans.done)
+		res, err := recvOnChan(w.chans.fromWorker, w.chans.done)
+		if err == nil && len(res) == 1 && res[0] == nil {
+			// fin de canal: la cola quedó drenada — reapear al zombie que shutdown
+			// dejó por tener mensajes pendientes (A-07). Idempotente si ya se borró.
+			inst.pool.deregisterWorker(toI64(args[0]))
+		}
+		return res, err
 	})
 
-	// nu.worker._terminate(wid): inmediato y seguro (estados aislados). Interrumpe
+	// enu.worker._terminate(wid): inmediato y seguro (estados aislados). Interrumpe
 	// un bucle de CPU (cancela el ctx) y despierta cualquier send/recv (cierra done).
 	p.Register("worker._terminate", func(inst *Instance, args []any) ([]any, error) {
-		if w := inst.pool.lookupWorker(toI64(args[0])); w != nil {
+		if w, _ := inst.pool.lookupWorker(toI64(args[0])); w != nil {
 			w.terminate()
 		}
 		return nil, nil
@@ -133,8 +193,11 @@ func (p *Pool) registerWorkerHost() {
 }
 
 // spawnWorker construye la Instance aislada de un worker, con su registro de
-// primitivas filtrado por caps, y la arranca en su goroutine.
-func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven bool) (*worker, error) {
+// primitivas filtrado por caps, y la arranca en su goroutine. `owner` es la foto
+// del plugin dueño tomada en el estado principal (G56, ADR-024): la Instance del
+// worker la porta inmutable como su identidad para las primitivas [W] atribuidas
+// por dueño.
+func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven bool, owner string) (*worker, error) {
 	wp, err := newBarePool()
 	if err != nil {
 		return nil, err
@@ -156,6 +219,42 @@ func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven
 		wp.reg.register(name, parent.fns[id], parent.suspending[id])
 	}
 
+	// Los MÉTODOS de handle también cruzan (G45): la superficie [W] incluye los
+	// métodos de los handles que sus thunks producen (Proc:wait, Re:match,
+	// GrepIter:next...), y registerHandleDispatch arranca el pool del worker con
+	// el mapa vacío. Se copia entero, sin podar por caps: es inerte lo inalcanzable
+	// (un método solo se despacha sobre un handle YA creado por un thunk concedido
+	// de la PROPIA instancia — un worker sin `ui` jamás tendrá un handle Region).
+	for key, fn := range parent.methods {
+		wp.reg.methods[key] = fn
+	}
+
+	// Los wrappers Lua [W] del catálogo cruzan al worker (G45): buena parte de la
+	// superficie de api.md §16 (enu.log.*, enu.re.compile, enu.proc.spawn, enu.text.*,
+	// enu.ws.connect, enu.http.stream, enu.search.grep) no son thunks del registro
+	// sino snippets de extraPreludio; sin esta copia el worker arranca con esos
+	// módulos a nil. Cruzan SOLO los marcados worker-safe (enu.fs.watch no: su
+	// entrega depende de enu.events, que en un worker no existe) y SOLO si caps
+	// concede alguno de los thunks que envuelven (needs): así "lo no concedido no
+	// existe" (§14) vale también para la capa de wrappers —un worker sin la cap
+	// `http` no tiene enu.http ni como tabla—, con workerGrants como única
+	// autoridad de poda.
+	for _, s := range inst.pool.extraPreludio {
+		if !s.workerSafe {
+			continue
+		}
+		cruza := len(s.needs) == 0
+		for _, need := range s.needs {
+			if workerGrants(need, caps, capsGiven) {
+				cruza = true
+				break
+			}
+		}
+		if cruza {
+			wp.extraPreludio = append(wp.extraPreludio, s)
+		}
+	}
+
 	chans := newWorkerChannels()
 
 	// Primitivas del lado WORKER del canal con el padre (siempre presentes; el
@@ -172,27 +271,35 @@ func (inst *Instance) spawnWorker(source string, caps map[string]bool, capsGiven
 		return nil, &StructuredError{Code: "EIO", Message: "no se pudo crear el worker: " + err.Error()}
 	}
 	winst.workerChans = chans
+	winst.workerOwner = owner // foto del dueño del spawn (G56, ADR-024): inmutable
 
+	// La goroutine NO se arranca aquí: el llamador (worker._spawn) registra primero
+	// el worker en el Pool (fija id/parent) y sólo después hace `go w.run(source)`,
+	// para que shutdown() pueda retirarse siempre del registro (A-07).
 	w := &worker{inst: winst, chans: chans, terminated: make(chan struct{})}
-	go w.run(source)
 	return w, nil
 }
 
 // workerGrants decide si una primitiva `name` (p. ej. "fs.read") está concedida a
-// un worker (G6). Nunca cruzan: nu.ui (un solo escritor de UI), nu.worker (no hay
+// un worker (G6). Nunca cruzan: enu.ui (un solo escritor de UI), enu.worker (no hay
 // anidamiento) ni las primitivas internas de despacho de handles (las re-registra
 // el propio Pool del worker). Sin caps → toda la API [W]. Con caps: concede el
 // módulo entero ("fs") o la función exacta ("fs.read"), deny-by-default.
 func workerGrants(name string, caps map[string]bool, capsGiven bool) bool {
 	if hasPrefix(name, "ui.") || hasPrefix(name, "worker.") || hasPrefix(name, "loader.") ||
+		hasPrefix(name, "plugin.") ||
 		name == "__handle_call" || name == "__handle_call_s" || name == "__reset_budget" ||
 		name == "__pending_gname" || name == "__pending_gval" ||
 		name == "__pending_ename" || name == "__pending_epayload" {
-		// ui/worker no cruzan; loader._source, __reset_budget (watchdog, DM4) y
-		// __pending_gname/gval (SetGlobalString, M13d) ya los registra el propio Pool
-		// del worker (registerLoader/registerWatchdog/registerGlobals en newBarePool);
-		// las primitivas de despacho de handles las re-registra registerHandleDispatch.
-		// Copiarlas aquí sería una doble-registración (panic).
+		// ui/worker no cruzan; plugin.* es SOLO estado principal (api.md §13/§16: el
+		// worker no tiene ciclo de vida de plugins) y, peor, sus HostFns cierran
+		// sobre el runtime PRINCIPAL: un plugin.reload desde la goroutine del worker
+		// re-entraría la VM principal en paralelo con su bucle. loader._source,
+		// __reset_budget (watchdog, DM4) y __pending_gname/gval (SetGlobalString,
+		// M13d) ya los registra el propio Pool del worker (registerLoader/
+		// registerWatchdog/registerGlobals en newBarePool); las primitivas de
+		// despacho de handles las re-registra registerHandleDispatch. Copiarlas aquí
+		// sería una doble-registración (panic).
 		return false
 	}
 	if !capsGiven {
@@ -223,13 +330,13 @@ func parseWorkerCaps(opts map[string]any) (map[string]bool, bool, error) {
 	}
 	arr, ok := capsV.([]any)
 	if !ok {
-		return nil, false, &StructuredError{Code: "EINVAL", Message: "nu.worker.spawn: opts.caps debe ser un array de strings"}
+		return nil, false, &StructuredError{Code: "EINVAL", Message: "enu.worker.spawn: opts.caps debe ser un array de strings"}
 	}
 	caps := make(map[string]bool)
 	for _, e := range arr {
 		s, ok := e.(string)
 		if !ok || s == "" {
-			return nil, false, &StructuredError{Code: "EINVAL", Message: "nu.worker.spawn: opts.caps debe ser un array de nombres de capacidad (strings no vacíos)"}
+			return nil, false, &StructuredError{Code: "EINVAL", Message: "enu.worker.spawn: opts.caps debe ser un array de nombres de capacidad (strings no vacíos)"}
 		}
 		caps[s] = true
 	}
@@ -241,7 +348,7 @@ func parseWorkerCaps(opts map[string]any) (map[string]bool, bool, error) {
 // no queda nada vivo o lo interrumpe terminate.
 func (w *worker) run(module string) {
 	defer w.shutdown()
-	// El argumento de nu.worker.spawn es un NOMBRE DE MÓDULO (api.md §13), no código
+	// El argumento de enu.worker.spawn es un NOMBRE DE MÓDULO (api.md §13), no código
 	// fuente: el worker lo resuelve con `require` (contra el registro de módulos que
 	// heredó del padre), corriendo su top-level DENTRO de una task para que pueda usar
 	// ⏸ (parent.recv/send). Paridad con el backend gopher (`return require(module)`).
@@ -254,7 +361,7 @@ func (w *worker) run(module string) {
 	// NO existe (ENOENT), se trata el argumento como CÓDIGO FUENTE inline y se corre con
 	// `load` —lo usan pruebas de bajo nivel que pasan el cuerpo del worker directamente—.
 	// Cualquier otro error de require (p. ej. compilación del módulo) se propaga.
-	boot := `nu.task.spawn(function()
+	boot := `enu.task.spawn(function()
   local name = __worker_module
   local ok, mod = pcall(require, name)
   if ok then return mod end
@@ -271,12 +378,37 @@ end)`
 	_ = w.inst.RunTasks(w.inst.ctx) // se detiene solo (idle) o por terminate (ctx cancelado)
 }
 
-// shutdown cierra los canales y el estado del worker, y notifica el join. Lo corre
-// la goroutine dueña del worker (la única que toca su estado Lua).
+// shutdown cierra los canales y el estado del worker, se retira del registro del
+// padre (A-07) y notifica el join. Lo corre la goroutine dueña del worker (la
+// única que toca su estado Lua), sea cual sea la vía de fin —natural, terminate()
+// o StopWorkers—. La retirada respeta la promesa de recvOnChan («un mensaje
+// encolado justo antes de terminar aún se entrega»): si la cola hacia el padre
+// está vacía, la entrada se borra aquí mismo; si quedan mensajes bufferizados,
+// la entrada sobrevive como zombie y la reapea el _recv que encuentre el fin de
+// canal (retirar aquí perdería la cola: el recv sobre un id retirado da nil
+// inmediato). El chequeo va ANTES de cerrar `terminated`: cuando wait() (y con
+// él StopWorkers) retorna, un worker sin mensajes pendientes ya no está en el
+// registro.
 func (w *worker) shutdown() {
 	w.chans.closeDone()
 	_ = w.inst.Close()
+	if w.parent != nil {
+		w.parent.reapIfDrained(w)
+	}
 	close(w.terminated)
+}
+
+// reapIfDrained borra la entrada del registro si el worker terminó sin mensajes
+// pendientes hacia el padre; con mensajes bufferizados la deja (zombie) para que
+// el consumidor los drene — el _recv que dé fin de canal hará la retirada. El
+// len() es estable: cuando shutdown corre, la goroutine del worker ya salió de
+// RunTasks y nadie más escribe en fromWorker.
+func (p *Pool) reapIfDrained(w *worker) {
+	p.workerMu.Lock()
+	defer p.workerMu.Unlock()
+	if len(w.chans.fromWorker) == 0 {
+		delete(p.workers, w.id)
+	}
 }
 
 // terminate detiene el worker: cierra done (despierta send/recv bloqueados) y

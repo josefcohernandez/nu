@@ -9,16 +9,18 @@ import (
 	"github.com/coder/websocket"
 )
 
-// `nu.ws` — websockets (api.md §8, sesión S21). Una sola primitiva,
-// `nu.ws.connect(url, opts?) -> Ws`, y tres métodos del handle: `Ws:send(data)`
-// ⏸, `Ws:recv() -> string?` ⏸ (nil al cerrarse) y `Ws:close()`. Cierra la Fase 4
-// (Red). Es el complemento full-duplex de `nu.http.stream` (S20): donde el stream
+// `enu.ws` — websockets (api.md §8, sesión S21). Una sola primitiva,
+// `enu.ws.connect(url, opts?) -> Ws`, y tres métodos del handle: `Ws:send(data,
+// opts?)` ⏸ (`opts.binary` → frame binario; sin él, texto — G52/A-38),
+// `Ws:recv() -> data: string?, binary: boolean` ⏸ (nil al cerrarse; el segundo
+// valor distingue el tipo del frame entrante — G52/A-38) y `Ws:close()`. Cierra la Fase 4
+// (Red). Es el complemento full-duplex de `enu.http.stream` (S20): donde el stream
 // es un body que el servidor va emitiendo (SSE), el websocket es un canal de ida
 // y vuelta —el caso de un provider que empuja tokens y a la vez recibe control—.
 //
 // EL PUENTE ⏸ (S04, ADR-011). Como todo el IO de red, `connect`/`send`/`recv` son
 // ⏸: sueltan el token y bloquean en la goroutine de fondo del puente `suspend`,
-// que **JAMÁS toca Lua**. A diferencia de `nu.http.stream` (S20), aquí NO hace
+// que **JAMÁS toca Lua**. A diferencia de `enu.http.stream` (S20), aquí NO hace
 // falta una goroutine permanente de lectura: el modelo de un websocket es
 // *petición-respuesta dirigida por el consumidor* —Lua llama `recv()` cuando
 // quiere el siguiente mensaje—, así que cada `send`/`recv` ejecuta su `Write`/
@@ -27,7 +29,7 @@ import (
 // mismo patrón que `Proc:read_line`/`Proc:write` (S16), no el de `Stream` (que sí
 // necesita un productor de fondo porque el body llega aunque nadie lo pida).
 //
-// LA LIBRERÍA (claude_decisions.md S21). Se usa `github.com/coder/websocket`
+// LA LIBRERÍA (docs/worklog/README.md S21). Se usa `github.com/coder/websocket`
 // (antes `nhooyr.io/websocket`): **puro-Go, sin dependencias transitivas**
 // (`CGO_ENABLED=0` intacto, ADR-001), API limpia basada en `context.Context`
 // (encaja con la cancelación de tasks) y mantenida. La alternativa
@@ -46,7 +48,7 @@ import (
 //
 // CLOSE / CLEANUP. `Ws:close()` cierra la conexión y es **idempotente**
 // (`closeOnce`). El idioma de vida es el de §6 (igual que `Stream`): quien abre el
-// websocket registra `nu.task.cleanup(function() w:close() end)`, de modo que al
+// websocket registra `enu.task.cleanup(function() w:close() end)`, de modo que al
 // cancelar/terminar la task se cierra sin fuga de goroutines. Como red de
 // seguridad, `Runtime.Close` cierra todos los websockets vivos (`stopAllWs`). El
 // `Ws` se rastrea para `Close` (como `Stream`) pero **no** cuenta para la
@@ -134,18 +136,26 @@ func (rt *Runtime) dialWs(url string, o wsOpts) (*luaWs, error) {
 
 // --- métodos del tipo Ws ------------------------------------------------------
 
-// send escribe un mensaje de texto **fuera del token** (lo llama la goroutine de
-// fondo de `wsSend`). Si el handle ya se cerró, devuelve `errWsClosed` (→ `ECLOSED`)
-// sin tocar la conexión. Un fallo del `Write` real (conexión rota) es transporte
-// (`ENET`).
-func (w *luaWs) send(data []byte) error {
+// send escribe un mensaje **fuera del token** (lo llama la goroutine de fondo de
+// `wsSend`). El tipo de frame lo declara quien envía (G52/A-38): `binary` true →
+// `MessageBinary` (para bytes arbitrarios, no-UTF-8 incluidos), false → el
+// `MessageText` histórico (compatible con todo llamante que no pasa `opts`). NADA
+// de autodetección por contenido: el tipo de frame es semántica del protocolo, no
+// una consecuencia del payload. Si el handle ya se cerró, devuelve `errWsClosed`
+// (→ `ECLOSED`) sin tocar la conexión. Un fallo del `Write` real (conexión rota) es
+// transporte (`ENET`).
+func (w *luaWs) send(data []byte, binary bool) error {
 	w.mu.Lock()
 	closed := w.closed
 	w.mu.Unlock()
 	if closed {
 		return errWsClosed
 	}
-	err := w.conn.Write(w.ctx, websocket.MessageText, data)
+	msgType := websocket.MessageText
+	if binary {
+		msgType = websocket.MessageBinary
+	}
+	err := w.conn.Write(w.ctx, msgType, data)
 	if err != nil {
 		// Si nosotros lo cerramos mientras escribíamos, es cierre, no error de red.
 		w.mu.Lock()
@@ -160,32 +170,35 @@ func (w *luaWs) send(data []byte) error {
 }
 
 // recv lee el siguiente mensaje **fuera del token** (lo llama la goroutine de fondo
-// de `wsRecv`). Devuelve:
-//   - `(data, false, nil)` con un mensaje recibido,
-//   - `(nil, true, nil)` cuando la conexión se cerró —ordenadamente (la otra punta
-//     mandó un cierre normal) o porque nosotros llamamos `close()`— (→ `recv` da `nil`),
-//   - `(nil, false, err)` ante un fallo de transporte real (→ `ENET`).
+// de `wsRecv`). Devuelve `(data, binary, closed, err)`:
+//   - `(data, binary, false, nil)` con un mensaje recibido, donde `binary` es true
+//     si el frame entrante era `MessageBinary` (false si era texto) — así el
+//     llamante distingue el tipo del frame (G52/A-38),
+//   - `(nil, false, true, nil)` cuando la conexión se cerró —ordenadamente (la otra
+//     punta mandó un cierre normal) o porque nosotros llamamos `close()`— (→ `recv`
+//     da `nil`),
+//   - `(nil, false, false, err)` ante un fallo de transporte real (→ `ENET`).
 //
 // El criterio que distingue "cierre → nil" de "error → lanza" es
 // `websocket.CloseStatus(err)`: un cierre normal/going-away rinde fin de stream; un
 // `Read` abortado por nuestro propio `close()` también (la conexión se cerró a
 // propósito); cualquier otro error es transporte.
-func (w *luaWs) recv() ([]byte, bool, error) {
+func (w *luaWs) recv() ([]byte, bool, bool, error) {
 	w.mu.Lock()
 	closed := w.closed
 	w.mu.Unlock()
 	if closed {
-		return nil, true, nil // ya cerrado: fin de stream
+		return nil, false, true, nil // ya cerrado: fin de stream
 	}
 
-	_, data, err := w.conn.Read(w.ctx)
+	msgType, data, err := w.conn.Read(w.ctx)
 	if err != nil {
 		// ¿Lo cerramos nosotros mientras leíamos? Entonces es fin de stream, no error.
 		w.mu.Lock()
 		closed := w.closed
 		w.mu.Unlock()
 		if closed {
-			return nil, true, nil
+			return nil, false, true, nil
 		}
 		// Cierre ordenado de la otra punta (frame de cierre): fin de stream → nil.
 		// Tras detectarlo se marca el handle como cerrado (vía `close`, que es
@@ -194,12 +207,14 @@ func (w *luaWs) recv() ([]byte, bool, error) {
 		// error distinto, no clasificable como cierre normal).
 		if isWsNormalClose(err) {
 			w.close()
-			return nil, true, nil
+			return nil, false, true, nil
 		}
 		// Cualquier otro fallo de lectura: transporte.
-		return nil, false, classifyTransportError(w.ctx, err)
+		return nil, false, false, classifyTransportError(w.ctx, err)
 	}
-	return data, false, nil
+	// El tipo del frame entrante cruza a Lua como segundo valor (G52/A-38): binario
+	// si `MessageBinary`, texto en caso contrario.
+	return data, msgType == websocket.MessageBinary, false, nil
 }
 
 // isWsNormalClose informa de si `err` es un cierre de conexión que el contrato trata
@@ -219,7 +234,7 @@ func isWsNormalClose(err error) bool {
 
 // errWsClosed lo devuelve `send` cuando el handle ya se cerró: `wsSend` lo rinde
 // como `ECLOSED`.
-var errWsClosed = errors.New("nu.ws: conexión cerrada")
+var errWsClosed = errors.New("enu.ws: conexión cerrada")
 
 // close cierra la conexión y libera recursos (§8). Idempotente. Marca `closed` (para
 // que un `send`/`recv` concurrente sepa que el cierre es a propósito), manda un frame

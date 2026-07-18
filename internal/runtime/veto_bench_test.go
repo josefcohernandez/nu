@@ -31,9 +31,9 @@ func bootAgentB(b *testing.B, providersToml string, budget time.Duration) *Runti
 	b.Helper()
 	cfg := b.TempDir()
 	dataDir := b.TempDir()
-	if err := os.WriteFile(filepath.Join(cfg, "nu.toml"),
+	if err := os.WriteFile(filepath.Join(cfg, "enu.toml"),
 		[]byte("[plugins]\nenabled = [\"providers\", \"sessions\", \"agent\"]\n"), 0o644); err != nil {
-		b.Fatalf("write nu.toml: %v", err)
+		b.Fatalf("write enu.toml: %v", err)
 	}
 	if providersToml != "" {
 		if err := os.WriteFile(filepath.Join(cfg, "providers.toml"), []byte(providersToml), 0o644); err != nil {
@@ -83,7 +83,7 @@ func BenchmarkVetoAgentTurn(b *testing.B) {
 	// drena. Así el ns/op es el coste del turno, no el de recompilar el chunk ni
 	// re-cruzar la frontera por iteración (que en wasm dominaría y falsearía el ratio).
 	code := fmt.Sprintf(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			for i = 1, %d do
 				local s = agent.session{ model = "test/m", no_store = true }
@@ -100,16 +100,16 @@ func BenchmarkVetoAgentTurn(b *testing.B) {
 // BenchmarkVetoMarkdownRender mide la pata cara del streaming: renderizar a un
 // Block el markdown que cada delta de texto repinta (SSE → markdown → blit, la
 // simulación de modelo-ejecucion.md). Es trabajo de una primitiva Go
-// (nu.text.markdown) orquestada desde Lua; el ns/op contrasta el coste VM+frontera
+// (enu.text.markdown) orquestada desde Lua; el ns/op contrasta el coste VM+frontera
 // de un repintado. Veto 2: dentro de 2× del backend gopher.
 func BenchmarkVetoMarkdownRender(b *testing.B) {
 	rt := bootAgentB(b, "", 0)
 	rt.SetStringGlobal("__md_src", sampleMarkdown)
 	evalB(b, rt, `MD = __md_src`)
 	code := fmt.Sprintf(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			for i = 1, %d do
-				local blk = nu.text.markdown(MD, { width = 72 })
+				local blk = enu.text.markdown(MD, { width = 72 })
 				RENDERED_H = blk.height
 			end
 		end)

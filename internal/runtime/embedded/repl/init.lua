@@ -5,7 +5,7 @@
 -- harness (agente, chat, providers, MCP, toolkit), un `repl` —REPL de Lua sobre la
 -- API pública, **activable SOLO**, el punto de partida del autor de extensiones que
 -- no quiere el harness—. Es la prueba de que el runtime sirve para más que el
--- agente: `nu` con SOLO `repl` activo es un intérprete Lua interactivo con `nu.*`.
+-- agente: `enu` con SOLO `repl` activo es un intérprete Lua interactivo con `nu.*`.
 --
 -- ADR-003: el core NO sabe lo que es un REPL; todo es Lua puro sobre la API pública
 -- congelada ([api.md](../../../../docs/api.md)), SIN privilegio de kernel. El
@@ -17,27 +17,27 @@
 --
 -- El `init.lua` CABLEA el módulo (accesible por `require("repl")`) y, si hay TTY,
 -- arranca la UI interactiva al `core:ready` —igual que el chat (chat.md §8)—. En
--- headless (G20, `nu -e`, CI) NO monta UI: deja el módulo accesible (`repl.eval`
--- evalúa una línea sin pantalla; lo que prueban los tests). Así `nu` con solo
+-- headless (G20, `enu -e`, CI) NO monta UI: deja el módulo accesible (`repl.eval`
+-- evalúa una línea sin pantalla; lo que prueban los tests). Así `enu` con solo
 -- `repl` activo: en TTY abre el REPL interactivo; en headless, el módulo está listo.
 
 local repl = require("repl")
 
--- Arranque automático en TTY (G21): solo si hay `nu.ui` (`nu.has("ui")`, api.md
+-- Arranque automático en TTY (G21): solo si hay `enu.ui` (`enu.has("ui")`, api.md
 -- §9/G20). Se monta al `core:ready` —el último evento del arranque canónico (api.md
 -- §14), cuando todas las extensiones (incluido el `init.lua` del usuario) ya están
 -- cargadas—. En headless ni se suscribe: el módulo queda accesible por
 -- `require("repl")` para `repl.eval` y scripts, pero no hay UI que montar.
 -- chat_is_active() -> bool. ¿Está el `chat` (la UI oficial del harness) entre los
--- plugins ACTIVOS? (`nu.plugin.list()`, devuelve `{name, …, enabled}`). DESACOPLA al
+-- plugins ACTIVOS? (`enu.plugin.list()`, devuelve `{name, …, enabled}`). DESACOPLA al
 -- repl del chat (G36): el repl no `require`a chat (debe poder activarse SOLO, G21),
 -- pero sí puede mirar el registro del loader para saber si OTRA extensión reclamará la
 -- pantalla.
 local function chat_is_active()
-  if nu.plugin == nil or nu.plugin.list == nil then
+  if enu.plugin == nil or enu.plugin.list == nil then
     return false
   end
-  local ok, list = pcall(nu.plugin.list)
+  local ok, list = pcall(enu.plugin.list)
   if not ok or type(list) ~= "table" then
     return false
   end
@@ -49,7 +49,7 @@ local function chat_is_active()
   return false
 end
 
--- Arranque automático en TTY (G21/G36): solo si hay `nu.ui` Y el chat NO está activo.
+-- Arranque automático en TTY (G21/G36): solo si hay `enu.ui` Y el chat NO está activo.
 --
 -- POR QUÉ CEDE AL CHAT (G36). El conjunto oficial de producto (ADR-015) activa chat Y
 -- repl; ambos auto-montaban una `toolkit.app` a pantalla completa en `core:ready`, se
@@ -57,10 +57,10 @@ end
 -- capa para caer en otra"—. El repl es la herramienta del autor que NO quiere el harness
 -- (activable SOLO, G21); cuando el harness (chat) está presente, es ESTE quien posee la
 -- pantalla y el repl queda como módulo accesible (`require("repl")`, `repl.eval`) sin
--- montar UI. Así `nu` con el conjunto oficial abre SOLO el chat; `nu` con solo `repl`
+-- montar UI. Así `enu` con el conjunto oficial abre SOLO el chat; `enu` con solo `repl`
 -- abre el REPL. En headless, ninguno monta UI.
-if nu.has("ui") then
-  nu.events.once("core:ready", function()
+if enu.has("ui") then
+  enu.events.once("core:ready", function()
     if chat_is_active() then
       return -- el chat posee la pantalla (G36)
     end
@@ -68,7 +68,7 @@ if nu.has("ui") then
     -- toolkit no estuviera): un fallo se loguea (aún no hay UI donde pintarlo).
     local ok, err = pcall(repl.start)
     if not ok then
-      nu.log.error("repl: no se pudo arrancar la UI: %s",
+      enu.log.error("repl: no se pudo arrancar la UI: %s",
         (type(err) == "table" and err.message) or tostring(err))
     end
   end)

@@ -44,14 +44,14 @@ func pollEval(h *harness, code, want string) bool {
 // (nunca prioridad silenciosa). El worker no envía nada, así que el `recv` queda
 // pendiente; el `on_message` que se intenta a continuación debe rechazarse.
 func TestWorkerOnMessageExclusiveWithRecvPending(t *testing.T) {
-	h := workerHarness(t, `nu.task.sleep(60000)`) // el worker no envía: el recv queda pendiente
+	h := workerHarness(t, `enu.task.sleep(60000)`) // el worker no envía: el recv queda pendiente
 	h.eval(`
 		ERRCODE, EDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			-- Un recv que nunca completa (el worker no envía): queda suspendido.
-			local recver = nu.task.spawn(function() w:recv() end)
-			nu.task.sleep(10) -- deja que el recv tome recvPending y se suspenda
+			local recver = enu.task.spawn(function() w:recv() end)
+			enu.task.sleep(10) -- deja que el recv tome recvPending y se suspenda
 			local ok, e = pcall(function() w:on_message(function() end) end)
 			ERRCODE = (not ok) and e.code or "no-lanzo"
 			recver:cancel()
@@ -66,11 +66,11 @@ func TestWorkerOnMessageExclusiveWithRecvPending(t *testing.T) {
 // TestWorkerRecvExclusiveWithOnMessage (G8) blinda la dirección inversa: hacer un
 // `Worker:recv` MIENTRAS hay un `on_message` registrado lanza `EINVAL` en el acto.
 func TestWorkerRecvExclusiveWithOnMessage(t *testing.T) {
-	h := workerHarness(t, `nu.task.sleep(60000)`)
+	h := workerHarness(t, `enu.task.sleep(60000)`)
 	h.eval(`
 		ERRCODE2, E2DONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			local sub = w:on_message(function() end)
 			local ok, e = pcall(function() w:recv() end)
 			ERRCODE2 = (not ok) and e.code or "no-lanzo"
@@ -86,11 +86,11 @@ func TestWorkerRecvExclusiveWithOnMessage(t *testing.T) {
 // TestWorkerOnMessageSecondRejected (G8) blinda que registrar un SEGUNDO `on_message`
 // con uno ya activo lanza `EINVAL` (uno a la vez: un único consumidor del canal).
 func TestWorkerOnMessageSecondRejected(t *testing.T) {
-	h := workerHarness(t, `nu.task.sleep(60000)`)
+	h := workerHarness(t, `enu.task.sleep(60000)`)
 	h.eval(`
 		ERRCODE3, E3DONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			local sub = w:on_message(function() end)
 			local ok, e = pcall(function() w:on_message(function() end) end)
 			ERRCODE3 = (not ok) and e.code or "no-lanzo"
@@ -108,13 +108,13 @@ func TestWorkerOnMessageSecondRejected(t *testing.T) {
 // envía un mensaje; el padre, tras cancelar el `on_message`, lo recibe por `recv`.
 func TestWorkerRecvAfterOnMessageCancel(t *testing.T) {
 	h := workerHarness(t, `
-		nu.worker.parent.recv()           -- espera la señal del padre
-		nu.worker.parent.send("tras-cancel")
+		enu.worker.parent.recv()           -- espera la señal del padre
+		enu.worker.parent.send("tras-cancel")
 	`)
 	h.eval(`
 		GOTBACK, RCDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			local sub = w:on_message(function() end)
 			sub:cancel()                    -- libera el worker para recv (G8)
 			-- recv ya no lanza EINVAL: el on_message se canceló.
@@ -134,11 +134,11 @@ func TestWorkerRecvAfterOnMessageCancel(t *testing.T) {
 // fondo), así que se sondea hasta que llegan los cinco.
 func TestWorkerOnMessageDelivery(t *testing.T) {
 	h := workerHarness(t, `
-		for i = 1, 5 do nu.worker.parent.send(i) end
+		for i = 1, 5 do enu.worker.parent.send(i) end
 	`)
 	h.eval(`
 		ACC = {}
-		W = nu.worker.spawn("wmod")
+		W = enu.worker.spawn("wmod")
 		SUB = W:on_message(function(msg) ACC[#ACC+1] = msg end)
 	`)
 	if !pollEval(h, `return tostring(#ACC)`, "5") {
@@ -154,11 +154,11 @@ func TestWorkerOnMessageDelivery(t *testing.T) {
 // handler lanza en el primer mensaje pero cuenta el resto.
 func TestWorkerOnMessageHandlerThrows(t *testing.T) {
 	h := workerHarness(t, `
-		for i = 1, 4 do nu.worker.parent.send(i) end
+		for i = 1, 4 do enu.worker.parent.send(i) end
 	`)
 	h.eval(`
 		COUNT, THREW = 0, false
-		W2 = nu.worker.spawn("wmod")
+		W2 = enu.worker.spawn("wmod")
 		SUB2 = W2:on_message(function(msg)
 			COUNT = COUNT + 1
 			if msg == 1 then THREW = true; error({ code = "EINVAL", message = "boom" }) end
@@ -173,37 +173,37 @@ func TestWorkerOnMessageHandlerThrows(t *testing.T) {
 }
 
 // TestWorkerInternalTasksTimersFutures (G15) blinda que el worker es un mini-runtime
-// COMPLETO: dentro corren `nu.task.spawn`/`await`, `nu.task.sleep` (timer ⏸),
-// `nu.task.every` (timer periódico) y `nu.task.future` (set/await), todo `nu.task`
+// COMPLETO: dentro corren `enu.task.spawn`/`await`, `enu.task.sleep` (timer ⏸),
+// `enu.task.every` (timer periódico) y `enu.task.future` (set/await), todo `enu.task`
 // [W], SIN watchdog. El worker orquesta las cuatro cosas y devuelve un digesto.
 func TestWorkerInternalTasksTimersFutures(t *testing.T) {
 	h := workerHarness(t, `
 		-- (1) varias tasks con spawn/await
-		local a = nu.task.spawn(function() return 10 end)
-		local b = nu.task.spawn(function() nu.task.sleep(5); return 20 end)
+		local a = enu.task.spawn(function() return 10 end)
+		local b = enu.task.spawn(function() enu.task.sleep(5); return 20 end)
 		local sum = a:await() + b:await()         -- 30
 
 		-- (2) un future: una task lo resuelve, otra lo espera
-		local f = nu.task.future()
-		nu.task.spawn(function() nu.task.sleep(5); f:set(7) end)
+		local f = enu.task.future()
+		enu.task.spawn(function() enu.task.sleep(5); f:set(7) end)
 		local fv = f:await()                       -- 7
 
 		-- (3) un timer periódico every: cuenta 3 ticks y se para
 		local ticks = 0
-		local done = nu.task.future()
-		local timer = nu.task.every(2, function()
+		local done = enu.task.future()
+		local timer = enu.task.every(2, function()
 			ticks = ticks + 1
 			if ticks >= 3 then done:set(true) end
 		end)
 		done:await()
 		timer:stop()
 
-		nu.worker.parent.send({ sum = sum, fv = fv, ticks = ticks })
+		enu.worker.parent.send({ sum = sum, fv = fv, ticks = ticks })
 	`)
 	h.eval(`
 		DIG, IDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			DIG = w:recv()
 			w:terminate()
 			IDONE = true
@@ -220,16 +220,16 @@ func TestWorkerInternalTasksTimersFutures(t *testing.T) {
 // padre sigue ejecutando con normalidad tras el `terminate`, y un segundo `terminate`
 // es idempotente (no entra en pánico).
 func TestWorkerTerminateDoesNotAffectParent(t *testing.T) {
-	h := workerHarness(t, `nu.worker.parent.recv()`) // task suspendida en recv que no llega
+	h := workerHarness(t, `enu.worker.parent.recv()`) // task suspendida en recv que no llega
 	h.eval(`
 		PARENT_OK, TT_DONE = false, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
-			nu.task.sleep(10)
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
+			enu.task.sleep(10)
 			w:terminate()
 			w:terminate()          -- idempotente: no debe lanzar
 			-- El padre sigue: lanza otra task que progresa con normalidad.
-			local t2 = nu.task.spawn(function() nu.task.sleep(5); return 99 end)
+			local t2 = enu.task.spawn(function() enu.task.sleep(5); return 99 end)
 			PARENT_OK = (t2:await() == 99)
 			TT_DONE = true
 		end)
@@ -240,8 +240,8 @@ func TestWorkerTerminateDoesNotAffectParent(t *testing.T) {
 
 // TestCP8WorkerIndexesRepo es el CHECKPOINT CP-8 (cierra la Fase 7): prueba de humo de
 // paralelismo real + sandbox por capacidades. Un worker con `caps={"fs.read","search"}`
-// indexa un repo de prueba (lo recorre con `nu.search.files`, lee con `nu.fs.read`) y
-// devuelve un DIGESTO al estado principal. DENTRO del worker, `nu.fs.write` y `nu.ui`
+// indexa un repo de prueba (lo recorre con `enu.search.files`, lee con `enu.fs.read`) y
+// devuelve un DIGESTO al estado principal. DENTRO del worker, `enu.fs.write` y `enu.ui`
 // NO existen (deny-by-default, G6). Además: `send` suspende al llenar la cola acotada
 // (backpressure, coherente con CP-5) y `terminate` a mitad no afecta al padre.
 func TestCP8WorkerIndexesRepo(t *testing.T) {
@@ -275,21 +275,21 @@ func TestCP8WorkerIndexesRepo(t *testing.T) {
 	// fs.read, suma bytes y líneas, y devuelve el digesto. Comprueba ANTES que
 	// fs.write y ui NO existen (deny-by-default, G6: solo se concedió fs.read+search).
 	wmod := `
-		assert(nu.fs.read ~= nil, "fs.read deberia existir")
-		assert(nu.fs.write == nil, "fs.write NO deberia existir (deny-by-default)")
-		assert(nu.ui == nil, "nu.ui NO deberia existir en un worker")
-		assert(nu.search ~= nil, "search deberia existir")
+		assert(enu.fs.read ~= nil, "fs.read deberia existir")
+		assert(enu.fs.write == nil, "fs.write NO deberia existir (deny-by-default)")
+		assert(enu.ui == nil, "enu.ui NO deberia existir en un worker")
+		assert(enu.search ~= nil, "search deberia existir")
 
-		local root = nu.worker.parent.recv()   -- el padre manda la raíz del repo
-		local files = nu.search.files(root)
+		local root = enu.worker.parent.recv()   -- el padre manda la raíz del repo
+		local files = enu.search.files(root)
 		local nbytes, nlines, nfiles = 0, 0, 0
 		for _, f in ipairs(files) do
-			local content = nu.fs.read(f)
+			local content = enu.fs.read(f)
 			nbytes = nbytes + #content
 			nfiles = nfiles + 1
 			for _ in string.gmatch(content, "\n") do nlines = nlines + 1 end
 		end
-		nu.worker.parent.send({ files = nfiles, bytes = nbytes, lines = nlines })
+		enu.worker.parent.send({ files = nfiles, bytes = nbytes, lines = nlines })
 	`
 	escribir(filepath.Join(dir, "lua", "wmod.lua"), wmod)
 
@@ -303,8 +303,8 @@ func TestCP8WorkerIndexesRepo(t *testing.T) {
 	h.eval(`
 		DIGEST, CPDONE = nil, false
 		REPO = ` + luaString(repo) + `
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod", { caps = {"fs.read", "search"} })
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod", { caps = {"fs.read", "search"} })
 			w:send(REPO)
 			DIGEST = w:recv()
 			w:terminate()
@@ -320,10 +320,10 @@ func TestCP8WorkerIndexesRepo(t *testing.T) {
 	// otro worker o, más simple, lanza una task que progresa tras el corte).
 	h.eval(`
 		AFTER_OK, A2DONE = false, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod", { caps = {"fs.read", "search"} })
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod", { caps = {"fs.read", "search"} })
 			w:terminate()   -- corta antes de enviarle la raíz: no afecta al padre
-			local t = nu.task.spawn(function() nu.task.sleep(5); return 123 end)
+			local t = enu.task.spawn(function() enu.task.sleep(5); return 123 end)
 			AFTER_OK = (t:await() == 123)
 			A2DONE = true
 		end)

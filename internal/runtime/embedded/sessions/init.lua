@@ -4,10 +4,10 @@
 --
 -- ADR-003: el core NO sabe lo que es una sesión; toda esta lógica es Lua puro
 -- sobre la API pública congelada ([api.md](../../../../docs/api.md)), sin
--- privilegio de kernel. Sus únicas primitivas (sesiones.md §1.4): `nu.fs`
--- (read/append/write{exclusive}/list/stat/remove/mkdir), `nu.json`
--- (encode/decode), `nu.proc.alive`, `nu.sys` (pid/hostname/now_ms — la última
--- añadida por G17/G32) y `nu.config.data_dir`. El namespace de eventos de esta
+-- privilegio de kernel. Sus únicas primitivas (sesiones.md §1.4): `enu.fs`
+-- (read/append/write{exclusive}/list/stat/remove/mkdir), `enu.json`
+-- (encode/decode), `enu.proc.alive`, `enu.sys` (pid/hostname/now_ms — la última
+-- añadida por G17/G32) y `enu.config.data_dir`. El namespace de eventos de esta
 -- extensión es `sessions:` (el del propio plugin, por convención §4; el core
 -- solo reserva `core:`/`ui:`).
 --

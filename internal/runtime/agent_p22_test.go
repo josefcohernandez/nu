@@ -39,7 +39,7 @@ providers.register_adapter("ctl", {
   stream = function(req, provider)
     CALLS = CALLS + 1
     local mycall = CALLS
-    if SLEEP_MS and SLEEP_MS > 0 then nu.task.sleep(SLEEP_MS) end
+    if SLEEP_MS and SLEEP_MS > 0 then enu.task.sleep(SLEEP_MS) end
     local text = "r" .. mycall
     local assembled = { role = "assistant", content = { { type = "text", text = text } } }
     local events = {
@@ -61,12 +61,12 @@ func TestSessionCompactManual(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `
 				COMPACTED = false
-				nu.events.on("agent:compact", function(p) COMPACTED = true end)
+				enu.events.on("agent:compact", function(p) COMPACTED = true end)
 				agent.hook("compact", function(payload, ctx)
 					return { summary = { role = "user", content = { { type = "text", text = "RESUMEN" } } } }
 				end)
@@ -96,7 +96,7 @@ func TestSessionCompactHookDeny(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerCtl + `
 			agent.hook("compact", function() return { deny = "no" } end)
@@ -121,12 +121,12 @@ func TestSessionAutoCompact(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerCtl + `
 			USAGE_IN = 90    -- > 0.8 * 100
 			AUTO = nil
-			nu.events.on("agent:compact", function(p) AUTO = p.auto end)
+			enu.events.on("agent:compact", function(p) AUTO = p.auto end)
 			agent.hook("compact", function()
 				return { summary = { role = "user", content = { { type = "text", text = "S" } } } }
 			end)
@@ -151,7 +151,7 @@ func TestSessionFork(t *testing.T) {
 	_ = dataDir
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `
@@ -188,16 +188,16 @@ func TestSessionReentryQueue(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerCtl + `
 			SLEEP_MS = 15
 			local s = agent.session{ model = "test/m", no_store = true }
 			R1, R2 = nil, nil
-			nu.task.spawn(function() R1 = s:send("uno") end)
-			nu.task.sleep(5)   -- deja arrancar el turno (adaptador suspendido)
-			nu.task.spawn(function() R2 = s:send("dos") end)
-			nu.task.sleep(80)  -- deja terminar todo
+			enu.task.spawn(function() R1 = s:send("uno") end)
+			enu.task.sleep(5)   -- deja arrancar el turno (adaptador suspendido)
+			enu.task.spawn(function() R2 = s:send("dos") end)
+			enu.task.sleep(80)  -- deja terminar todo
 			-- ambos sends resuelven con el MISMO mensaje final (G4).
 			SAME = (R1 ~= nil and R2 ~= nil and R1.content[1].text == R2.content[1].text)
 			-- el historial contiene los DOS mensajes de usuario inyectados.
@@ -222,20 +222,20 @@ func TestSessionCancel(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerCtl + `
 			SLEEP_MS = 50
 			CANCELED_EV = false
-			nu.events.on("agent:turn.end", function(p)
+			enu.events.on("agent:turn.end", function(p)
 				if p.canceled then CANCELED_EV = true end
 			end)
 			local s = agent.session{ model = "test/m", no_store = true }
 			R = "sentinel"
-			nu.task.spawn(function() R = s:send("largo") end)
-			nu.task.sleep(10)   -- el turno está en vuelo (adaptador durmiendo)
+			enu.task.spawn(function() R = s:send("largo") end)
+			enu.task.sleep(10)   -- el turno está en vuelo (adaptador durmiendo)
 			s:cancel()
-			nu.task.sleep(30)   -- deja correr el cleanup
+			enu.task.sleep(30)   -- deja correr el cleanup
 			RES_NIL = (R == nil)
 			ACTIVE = s.turn_active
 			s:close()
@@ -253,18 +253,18 @@ func TestSessionClearQueue(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCtl, false)
 	h.eval(`
 		out = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			` + registerCtl + `
 			SLEEP_MS = 40
 			local s = agent.session{ model = "test/m", no_store = true }
 			R2 = "sentinel"
-			nu.task.spawn(function() s:send("uno") end)
-			nu.task.sleep(5)
-			nu.task.spawn(function() R2 = s:send("dos") end)  -- encolado
-			nu.task.sleep(5)
+			enu.task.spawn(function() s:send("uno") end)
+			enu.task.sleep(5)
+			enu.task.spawn(function() R2 = s:send("dos") end)  -- encolado
+			enu.task.sleep(5)
 			s:clear_queue()      -- descarta "dos"
-			nu.task.sleep(80)
+			enu.task.sleep(80)
 			R2_NIL = (R2 == nil)
 			-- solo un mensaje de usuario en el historial ("uno"); "dos" se descartó.
 			local users = 0

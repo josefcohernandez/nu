@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Tests de `nu.task.future` (api.md §3, sesión S06). Future está en el
+// Tests de `enu.task.future` (api.md §3, sesión S06). Future está en el
 // inventario de lógica clave 🔒 del plan: cada caso límite lleva test que lo
 // nombra para blindarlo de regresiones. La lógica a blindar:
 //
@@ -30,9 +30,9 @@ func TestFutureSetThenAwaitSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set("listo")            -- resuelto antes de cualquier await
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			out.v = f:await()     -- ve el valor ya resuelto, retorna inmediato
 		end)
 	`)
@@ -49,11 +49,11 @@ func TestFutureAwaitThenSet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
-		nu.task.spawn(function()
+		local f = enu.task.future()
+		enu.task.spawn(function()
 			out.v = f:await()         -- suspende: aún no hay set
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			suspend_echo("x")         -- cede el turno; el awaiter ya está esperando
 			f:set("desde productor")
 		end)
@@ -70,7 +70,7 @@ func TestFutureSetOnceRejectsSecond(t *testing.T) {
 	h := newHarness(t)
 
 	se := h.evalErr(`
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set(1)
 		f:set(2)            -- segundo set: prohibido
 	`)
@@ -87,12 +87,12 @@ func TestFutureSetOnceErrorCatchable(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set("primero")
 		local ok, err = pcall(function() f:set("segundo") end)
 		out.ok = ok
 		out.code = err.code
-		nu.task.spawn(function() out.v = f:await() end)
+		enu.task.spawn(function() out.v = f:await() end)
 	`)
 	h.expectEval(`return tostring(out.ok)`, "false")
 	h.expectEval(`return out.code`, "EINVAL")
@@ -108,11 +108,11 @@ func TestFutureMultipleAwaitersResolvedFirst(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set("compartido")
-		nu.task.spawn(function() out.a = f:await() end)
-		nu.task.spawn(function() out.b = f:await() end)
-		nu.task.spawn(function() out.c = f:await() end)
+		enu.task.spawn(function() out.a = f:await() end)
+		enu.task.spawn(function() out.b = f:await() end)
+		enu.task.spawn(function() out.c = f:await() end)
 	`)
 	h.expectEval(`return out.a .. "," .. out.b .. "," .. out.c`, "compartido,compartido,compartido")
 }
@@ -128,11 +128,11 @@ func TestFutureMultipleAwaitersWokenByOneSet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
-		nu.task.spawn(function() out.a = f:await() end)
-		nu.task.spawn(function() out.b = f:await() end)
-		nu.task.spawn(function() out.c = f:await() end)
-		nu.task.spawn(function()
+		local f = enu.task.future()
+		enu.task.spawn(function() out.a = f:await() end)
+		enu.task.spawn(function() out.b = f:await() end)
+		enu.task.spawn(function() out.c = f:await() end)
+		enu.task.spawn(function()
 			suspend_echo("x")     -- deja que los tres awaiters lleguen a esperar
 			f:set("uno-para-todos")
 		end)
@@ -151,18 +151,18 @@ func TestFutureAwaitAfterResolvedStillWorks(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		fut = nu.task.future()                  -- global: persiste entre evals
-		nu.task.spawn(function()
+		fut = enu.task.future()                  -- global: persiste entre evals
+		enu.task.spawn(function()
 			out.first = fut:await()             -- suspende hasta el set
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			suspend_echo("x")
 			fut:set("valor")
 		end)
 	`)
 	h.expectEval(`return out.first`, "valor")
 	// Un await posterior, con el future ya resuelto hace rato, sigue dando el valor.
-	h.eval(`nu.task.spawn(function() out.later = fut:await() end)`)
+	h.eval(`enu.task.spawn(function() out.later = fut:await() end)`)
 	h.expectEval(`return out.later`, "valor")
 }
 
@@ -170,12 +170,12 @@ func TestFutureAwaitAfterResolvedStillWorks(t *testing.T) {
 
 // TestFutureAwaitOutsideTask: 🔒 `Future:await` es ⏸; llamarla desde el chunk
 // principal (no una task) lanza `EINVAL` (§1.3), igual que `Task:await` o
-// `nu.task.sleep`.
+// `enu.task.sleep`.
 func TestFutureAwaitOutsideTask(t *testing.T) {
 	h := newHarness(t)
 
 	se := h.evalErr(`
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set(1)
 		return f:await()        -- fuera de task: prohibido aunque ya esté resuelto
 	`)
@@ -195,9 +195,9 @@ func TestFutureSetNilSignal(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set()                                  -- señal sin valor
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local v = f:await()
 			out.isnil = (v == nil)
 		end)
@@ -208,15 +208,15 @@ func TestFutureSetNilSignal(t *testing.T) {
 // TestFutureCarriesTable: el valor de un future puede ser cualquier LValue,
 // incluida una tabla (se entrega por referencia, como cualquier valor Lua bajo el
 // token). No hay copia ni serialización: el future no cruza estados (eso es
-// `nu.worker`, §13).
+// `enu.worker`, §13).
 func TestFutureCarriesTable(t *testing.T) {
 	h := newHarness(t)
 
 	h.eval(`
 		out = {}
-		local f = nu.task.future()
+		local f = enu.task.future()
 		f:set({ n = 7 })
-		nu.task.spawn(function() out.v = f:await().n end)
+		enu.task.spawn(function() out.v = f:await().n end)
 	`)
 	h.expectEval(`return out.v`, "7")
 }
@@ -229,8 +229,8 @@ func TestFutureBadHandle(t *testing.T) {
 	h := newHarness(t)
 
 	se := h.evalErr(`
-		local f = nu.task.future()
-		local t = nu.task.spawn(function() return 1 end)  -- userdata Task, no Future
+		local f = enu.task.future()
+		local t = enu.task.spawn(function() return 1 end)  -- userdata Task, no Future
 		return getmetatable(f).__index.set(t)
 	`)
 	if se.Code != CodeEINVAL {
@@ -249,11 +249,11 @@ func TestFutureNoRaceManyAwaiters(t *testing.T) {
 
 	h.eval(`
 		out = { vals = {} }
-		local f = nu.task.future()
+		local f = enu.task.future()
 		for i = 1, 50 do
-			nu.task.spawn(function() out.vals[i] = f:await() end)
+			enu.task.spawn(function() out.vals[i] = f:await() end)
 		end
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			suspend_echo("go")        -- deja que los 50 lleguen a esperar
 			f:set("v")
 		end)

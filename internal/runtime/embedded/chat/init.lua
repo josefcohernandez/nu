@@ -1,5 +1,5 @@
 -- Extensión oficial `chat` (S43): la **UI oficial del harness** — la cara
--- visible de nu, lo que el usuario ve al arrancar.
+-- visible de enu, lo que el usuario ve al arrancar.
 --
 -- Implementa el contrato de [chat.md](../../../../docs/chat.md): el LAYOUT
 -- (transcript desplazable + input multilínea + statusline, §1), el RENDER DEL
@@ -18,31 +18,31 @@
 -- namespace de eventos de esta extensión sería `chat:` (el del propio plugin,
 -- §4); en S43 no emite eventos propios (consume `agent:*` y `toolkit:focus`).
 --
--- chat SOLO tiene sentido con TTY interactivo (chat.md §8): necesita `nu.ui`
+-- chat SOLO tiene sentido con TTY interactivo (chat.md §8): necesita `enu.ui`
 -- (headless, G20, no existe). El `init.lua` solo CABLEA el módulo y arranca la UI
 -- si hay TTY; en headless deja el módulo accesible (para tests/inspección) pero NO
--- monta ninguna app. Así `nu -e` (headless) carga la extensión sin tocar `nu.ui`,
--- y un `nu` interactivo con `chat` activo abre el chat al emitirse `core:ready`.
+-- monta ninguna app. Así `enu -e` (headless) carga la extensión sin tocar `enu.ui`,
+-- y un `enu` interactivo con `chat` activo abre el chat al emitirse `core:ready`.
 
 local chat = require("chat")
 
--- Arranque automático en TTY (chat.md §8): solo si hay `nu.ui` (`nu.has("ui")`,
+-- Arranque automático en TTY (chat.md §8): solo si hay `enu.ui` (`enu.has("ui")`,
 -- api.md §9/G20). El chat se monta al `core:ready` —el último evento del arranque
 -- canónico (api.md §14), cuando todas las extensiones (incluido el `init.lua` del
 -- usuario, que puede remapear `chat.keys` o el theme) ya están cargadas—. En
 -- headless ni se suscribe: el módulo queda accesible por `require("chat")` para
 -- tests y scripts, pero no hay UI que montar.
-if nu.has("ui") then
-  nu.events.once("core:ready", function()
+if enu.has("ui") then
+  enu.events.once("core:ready", function()
     -- `chat.start` SUSPENDE (lee config, crea/reanuda la sesión), así que se lanza
     -- como task (el handler de un evento es síncrono, api.md §4). Falta de config
     -- (no hay modelo/provider) NO llega aquí: `chat.start` arranca DEGRADADO con una
     -- UI accionable (chat.md §8, ADR-017/G35). Este `pcall` solo atrapa fallos
     -- INESPERADOS, que se loguean (no hay UI donde pintarlos).
-    nu.task.spawn(function()
+    enu.task.spawn(function()
       local ok, err = pcall(chat.start)
       if not ok then
-        nu.log.error("chat: no se pudo arrancar: %s",
+        enu.log.error("chat: no se pudo arrancar: %s",
           (type(err) == "table" and err.message) or tostring(err))
       end
     end)

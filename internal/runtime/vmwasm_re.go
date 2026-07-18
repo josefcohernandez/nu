@@ -1,7 +1,7 @@
 package runtime
 
-// Catálogo de nu.re sobre el backend wasm (M13b, §10). Contraparte de re.go:
-// nu.re.compile(pattern) -> Re, con Re:match/find_all/replace. Un `Re` es un
+// Catálogo de enu.re sobre el backend wasm (M13b, §10). Contraparte de re.go:
+// enu.re.compile(pattern) -> Re, con Re:match/find_all/replace. Un `Re` es un
 // handle (C5) que envuelve un *regexp.Regexp (RE2, seguro para uso concurrente).
 // El trabajo es idéntico al backend gopher (stdlib regexp); sólo cambia el
 // marshaling de la frontera.
@@ -15,17 +15,17 @@ package runtime
 import (
 	"regexp"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 func registerReWasm(p *vmwasm.Pool) {
-	// nu.re._compile(pattern) -> Re (handle). El wrapper nu.re.compile lo envuelve.
+	// enu.re._compile(pattern) -> Re (handle). El wrapper enu.re.compile lo envuelve.
 	p.Register("re._compile", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		pattern, _ := args[0].(string)
 		re, err := regexp.Compile(pattern)
 		if err != nil {
 			// El mensaje de regexp.Compile nombra qué construye falla (§10).
-			return nil, &vmwasm.StructuredError{Code: "EINVAL", Message: "nu.re.compile: " + err.Error()}
+			return nil, &vmwasm.StructuredError{Code: "EINVAL", Message: "enu.re.compile: " + err.Error()}
 		}
 		return []any{inst.AllocHandle("Re", re)}, nil
 	})
@@ -75,13 +75,13 @@ func registerReWasm(p *vmwasm.Pool) {
 		return []any{re.ReplaceAllString(s, repl)}, nil
 	})
 
-	// Wrapper Lua: nu.re.compile devuelve el handle con un método `match` propio que
+	// Wrapper Lua: enu.re.compile devuelve el handle con un método `match` propio que
 	// fusiona (array + nombrados) la tabla mixta de capturas; find_all/replace/_match
 	// se despachan por la metatable genérica del handle.
-	p.AddPreludio(`
-nu.re = nu.re or {}
-function nu.re.compile(pattern)
-  local re = nu.re._compile(pattern)   -- handle {__id} con la metatable de handles
+	p.AddPreludioW(`
+enu.re = enu.re or {}
+function enu.re.compile(pattern)
+  local re = enu.re._compile(pattern)   -- handle {__id} con la metatable de handles
   re.match = function(self, s)
     local arr, named = self:_match(s)
     if arr == nil then return nil end
@@ -91,5 +91,5 @@ function nu.re.compile(pattern)
     return caps
   end
   return re
-end`)
+end`, "re._compile")
 }

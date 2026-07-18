@@ -1,0 +1,217 @@
+/* Render TTY de la prosa markdown de la wiki. Gramática visual del terminal:
+ * títulos subrayados con caracteres (═/─), citas con │ (nunca border-left CSS),
+ * bloques de código con fondo `border`, tablas que respiran, enlaces en `key`.
+ * Sin border-radius, sin sombras, sin gradientes. Lowercase SOLO en chrome; la
+ * prosa conserva su capitalización. */
+
+.markdown {
+  font-size: var(--fs-8);
+  line-height: 1.92;
+  color: var(--fg);
+  max-width: 68ch;
+}
+
+.markdown > *:first-child {
+  margin-top: 0;
+}
+
+/* ── Títulos ──────────────────────────────────────────────────────────────
+ * El subrayado son CARACTERES (═ para h1, ─ para h2), no un border: un ::after
+ * de bloque con una tira larga del carácter, recortada al ancho del título
+ * (width:max-content + overflow hidden). */
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  color: var(--bright);
+  font-weight: 600;
+}
+/* h1/h2 son inline-block (ancho = el del texto) con overflow hidden: el ::after
+ * lleva una tira larga de ═/─ posicionada en absoluto y recortada al ancho del
+ * título, de modo que el subrayado mide lo que mide el texto (no la columna). */
+.markdown h1,
+.markdown h2 {
+  display: inline-block;
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+}
+.markdown h1 {
+  font-size: var(--fs-10);
+  margin: 0 0 20px;
+  padding-bottom: 22px;
+}
+.markdown h2 {
+  font-size: var(--fs-8);
+  margin: 30px 0 12px;
+  padding-bottom: 16px;
+}
+.markdown h3 {
+  font-size: var(--fs-7);
+  margin: 24px 0 8px;
+}
+.markdown h4 {
+  font-size: var(--fs-6);
+  margin: 20px 0 6px;
+}
+.markdown h1::after,
+.markdown h2::after {
+  position: absolute;
+  left: 0;
+  color: var(--dim);
+  letter-spacing: -1px;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.markdown h1::after {
+  content: '════════════════════════════════════════════════════════════════════════════════════════════════';
+  bottom: 2px;
+  font-size: var(--fs-10);
+}
+.markdown h2::after {
+  content: '────────────────────────────────────────────────────────────────────────────────────────────────';
+  bottom: 2px;
+  font-size: var(--fs-8);
+}
+
+/* ── Párrafos y énfasis ─────────────────────────────────────────────────────
+ * EXCEPCIÓN AL "TODO MONO" (W-03): el cuerpo de la prosa —párrafos, ítems y
+ * citas— pasa a IBM Plex Sans. El mono es la identidad del terminal y se queda
+ * en el chrome, los títulos, el código y las tablas; pero estos son textos
+ * largos en español que se LEEN, y el monoespaciado los hace fatigosos. Sans a
+ * ~15px/1.7 da aire sin tocar la gramática visual del resto (el `code` inline
+ * de más abajo vuelve a mono explícitamente para no perder el contraste TTY). */
+.markdown p,
+.markdown li,
+.markdown blockquote {
+  font-family: var(--font-prose);
+  font-size: var(--fs-9);
+  line-height: 1.7;
+}
+.markdown p {
+  margin: 0 0 18px;
+}
+.markdown strong,
+.markdown b {
+  color: var(--bright);
+  font-weight: 600;
+}
+.markdown em,
+.markdown i {
+  font-style: italic;
+}
+
+/* ── Citas: prefijo │ en dim + cursiva. Nunca border-left. ─────────────────── */
+.markdown blockquote {
+  display: flex;
+  gap: 10px;
+  color: var(--dim);
+  font-style: italic;
+  margin: 0 0 22px;
+}
+.markdown blockquote::before {
+  content: '│';
+  flex: none;
+  color: var(--dim);
+  font-style: normal;
+}
+.markdown blockquote > * {
+  margin: 0;
+}
+.markdown blockquote > * + * {
+  margin-top: 10px;
+}
+
+/* ── Enlaces: color key, subrayado. ───────────────────────────────────────── */
+.markdown a {
+  color: var(--key);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Listas ───────────────────────────────────────────────────────────────── */
+.markdown ul,
+.markdown ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+.markdown li {
+  margin: 4px 0;
+}
+.markdown li::marker {
+  color: var(--dim);
+}
+
+/* ── Código ───────────────────────────────────────────────────────────────── */
+/* Inline: bright sobre fondo border. Fuerza mono: dentro de un <p>/<li> en sans
+ * (W-03), el code heredaría la sans; el código SIEMPRE es mono (identidad TTY). */
+.markdown :not(pre) > code {
+  background: var(--border);
+  color: var(--bright);
+  padding: 1px 5px;
+  font-size: 0.92em;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+/* Bloques Shiki (tema css-variables → fondo `border`, colores del theme). */
+.markdown pre {
+  background: var(--border);
+  padding: 14px 18px;
+  margin: 0 0 22px;
+  overflow-x: auto;
+  font-size: var(--fs-6);
+  line-height: 1.7;
+}
+.markdown pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* ── Tablas: header en dim, filas con borde inferior border; celdas que
+ * respiran (envuelven el texto para no desbordar el ancho de contenido). ──── */
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 22px;
+  font-size: var(--fs-5);
+  line-height: 1.9;
+}
+.markdown thead th {
+  color: var(--dim);
+  font-weight: 400;
+  text-align: left;
+}
+.markdown th,
+.markdown td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 14px 4px 0;
+  vertical-align: top;
+  word-break: break-word;
+}
+.markdown td code {
+  color: var(--key);
+}
+
+/* ── Reglas y demás ───────────────────────────────────────────────────────── */
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 26px 0;
+}
+.markdown img {
+  max-width: 100%;
+}
+
+/* ── Mermaid: el <pre> sirve de fallback sin JS; una vez renderizado contiene
+ * el SVG. Sin fondo de código para que el diagrama respire. ────────────────── */
+.markdown pre.mermaid {
+  background: none;
+  padding: 0;
+  overflow-x: auto;
+  text-align: center;
+  color: var(--dim);
+}
+.markdown pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}

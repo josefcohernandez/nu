@@ -3,11 +3,11 @@ package runtime
 // Tests de la extensión oficial `providers` (S36, embebida en
 // internal/runtime/embedded/providers). Es Lua sobre la API pública congelada
 // (Fase 8, ADR-003: el core NO sabe lo que es un provider), así que la prueba es
-// Go que arranca un Runtime con la extensión ACTIVADA por `nu.toml`
+// Go que arranca un Runtime con la extensión ACTIVADA por `enu.toml`
 // (`plugins.enabled = ["providers"]`, igual que el gating de S12) y ejercita el
 // contrato desde Lua, requiriendo el módulo con `require("providers")`.
 //
-// Blinda el contrato de [providers.md](../../docs/providers.md):
+// Blinda el contrato de [providers.md](../../docs/contracts/providers.md):
 //
 //   - **registro TOML (§1)**: un `providers.toml` de prueba se carga; `list()` y
 //     `resolve("proveedor/alias")` devuelven los modelos/configs correctos; la
@@ -45,14 +45,14 @@ func bootProviders(t *testing.T, providersToml string) *harness {
 
 // inTask envuelve un cuerpo Lua en una task que captura su resultado en la global
 // `out` y su error estructurado en `err_code` (las funciones del registro —list,
-// resolve— suspenden porque leen `providers.toml` con `nu.fs.read` ⏸, api.md §5,
+// resolve— suspenden porque leen `providers.toml` con `enu.fs.read` ⏸, api.md §5,
 // así que SOLO corren dentro de una task; es justamente cómo las llama el agente).
 // Tras `h.eval(inTask(...))`, el siguiente `eval` lee las globales (la task ya
 // progresó al soltar el token).
 func inTask(body string) string {
 	return `
 		out, err_code = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 ` + body + `
 			end)
@@ -191,7 +191,7 @@ func TestProvidersRegistroTOML(t *testing.T) {
 }
 
 // TestProvidersTOMLAusente: sin `providers.toml`, el registro está vacío pero no
-// es error (un nu sin modelos configurados arranca limpio). list() devuelve [].
+// es error (un enu sin modelos configurados arranca limpio). list() devuelve [].
 func TestProvidersTOMLAusente(t *testing.T) {
 	h := bootProviders(t, "")
 	h.eval(inTask(`out = tostring(#require("providers").list())`))
@@ -220,6 +220,30 @@ id = "m1"
 	h.expectEval(`return tostring(err_code)`, "EPROVIDER")
 }
 
+// TestProvidersTOMLSinBaseURL: un provider con `adapter` válido pero sin
+// `base_url` es registro inválido accionable (EPROVIDER) que nombra el provider
+// y el campo del TOML a rellenar (providers.md §1). Sin esta validación, el
+// `base_url` nil se propagaría a la ProviderConfig y reventaría con "attempt to
+// concatenate a nil value" en el primer turno del adaptador (A-15).
+func TestProvidersTOMLSinBaseURL(t *testing.T) {
+	toml := `
+[providers.roto]
+adapter = "stub"
+[[providers.roto.models]]
+id = "m1"
+`
+	h := bootProviders(t, toml)
+	h.eval(inTask(`
+		local ok, err = pcall(function() require("providers").list() end)
+		err_ok = ok
+		err_code = err and err.code
+		err_msg = err and err.message
+	`))
+	h.expectEval(`return tostring(err_ok)`, "false")
+	h.expectEval(`return tostring(err_code)`, "EPROVIDER")
+	h.expectEval(`return tostring(string.find(err_msg, "base_url", 1, true) ~= nil)`, "true")
+}
+
 // TestProvidersAdaptadorStub blinda el contrato del adaptador (providers.md §3)
 // contra una petición SIMULADA: el stub emite el stream canónico de Events
 // (§2.3) terminado por un `done` con el Message ensamblado. Es la mitad "un
@@ -238,7 +262,7 @@ func TestProvidersAdaptadorStub(t *testing.T) {
 	}
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("testco/big")
 			local req = {
@@ -279,7 +303,7 @@ func TestProvidersStubDegradacionDeclarada(t *testing.T) {
 	}
 	h.eval(`
 		err_code = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("testco/big")
 			local req = {
@@ -306,7 +330,7 @@ func TestProvidersStubCountTokens(t *testing.T) {
 	}
 	h.eval(`
 		count = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local p = require("providers")
 			local r = p.resolve("testco/big")
 			local req = {
@@ -338,4 +362,92 @@ func TestProvidersRegisterAdapterValida(t *testing.T) {
 			stream = function(req, provider) return function() return nil end end,
 		})
 		return "ok"`, "ok")
+}
+
+// TestProvidersSecretEnvVars blinda `secret_env_vars()` (providers.md §4, G55):
+// los NOMBRES —nunca los valores— de las `api_key_env` del registro,
+// deduplicados y en orden alfabético. Es la pieza de la que depende TODO el
+// recorte de secretos de agente.md §3: si esto lista mal (falta un nombre, o
+// devuelve un valor en vez de un nombre), el recorte de la tool `bash` no
+// protege nada.
+func TestProvidersSecretEnvVars(t *testing.T) {
+	// sampleProvidersToml declara `api_key_env = "TESTCO_API_KEY"` para
+	// `testco` y ningún `api_key_env` para `local` (Ollama-style): la lista
+	// debe traer solo el primero, una vez.
+	h := bootProviders(t, sampleProvidersToml)
+	h.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h.expectEval(`return tostring(err_code)`, "nil")
+	h.expectEval(`return tostring(out)`, "TESTCO_API_KEY")
+
+	// Nunca el VALOR, solo el nombre: aunque la variable esté exportada en el
+	// entorno del proceso `enu`, secret_env_vars() no la lee ni la expone.
+	t.Setenv("TESTCO_API_KEY", "secreto-no-debe-aparecer")
+	h.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h.expectEval(`return tostring(out)`, "TESTCO_API_KEY")
+
+	// providers.toml ausente -> lista vacía (no error): un enu recién arrancado
+	// sin providers configurados no tiene nada que recortar.
+	h2 := bootProviders(t, "")
+	h2.eval(inTask(`out = tostring(#require("providers").secret_env_vars())`))
+	h2.expectEval(`return tostring(out)`, "0")
+
+	// Deduplicación: dos providers que comparten el MISMO api_key_env (caso
+	// real: dos endpoints del mismo proveedor, p. ej. staging/prod) aparecen
+	// una sola vez.
+	tomlDup := `
+[providers.a]
+adapter     = "stub"
+base_url    = "https://a.example"
+api_key_env = "SHARED_KEY"
+[[providers.a.models]]
+id = "m1"
+
+[providers.b]
+adapter     = "stub"
+base_url    = "https://b.example"
+api_key_env = "SHARED_KEY"
+[[providers.b.models]]
+id = "m1"
+`
+	h3 := bootProviders(t, tomlDup)
+	h3.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h3.expectEval(`return tostring(out)`, "SHARED_KEY")
+
+	// Orden alfabético DETERMINISTA con DOS claves distintas: el registro se lee
+	// con `pairs` (sin orden estable), así que `secret_env_vars()` ordena con
+	// `table.sort` (providers/init.lua). Se declaran en orden NO alfabético
+	// (`ZKEY` antes que `AKEY`) para que solo el `table.sort` pueda producir la
+	// salida esperada: sin él, el orden dependería del hash de `pairs` y este
+	// aserto caería (o sería flaky). Blinda el sort, no solo la deduplicación.
+	tomlOrden := `
+[providers.z]
+adapter     = "stub"
+base_url    = "https://z.example"
+api_key_env = "ZKEY"
+[[providers.z.models]]
+id = "m1"
+
+[providers.a]
+adapter     = "stub"
+base_url    = "https://a.example"
+api_key_env = "AKEY"
+[[providers.a.models]]
+id = "m1"
+`
+	h4 := bootProviders(t, tomlOrden)
+	h4.eval(inTask(`
+		local vars = require("providers").secret_env_vars()
+		out = table.concat(vars, ",")
+	`))
+	h4.expectEval(`return tostring(err_code)`, "nil")
+	h4.expectEval(`return tostring(out)`, "AKEY,ZKEY")
 }

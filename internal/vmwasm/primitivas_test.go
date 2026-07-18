@@ -47,15 +47,15 @@ func TestPrimSincrona(t *testing.T) {
 			return []any{a + b}, nil
 		})
 	}, `
-		nu.task.spawn(function()
-			out = tostring(nu.sys.suma(3, 4))
+		enu.task.spawn(function()
+			out = tostring(enu.sys.suma(3, 4))
 		end)`)
 	if out != "7" {
 		t.Fatalf("got %q", out)
 	}
 }
 
-// M09.2: una primitiva SUSPENDENTE real — nu.fs.read leyendo un fichero de disco.
+// M09.2: una primitiva SUSPENDENTE real — enu.fs.read leyendo un fichero de disco.
 func TestPrimFsRead(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hola.txt")
@@ -71,8 +71,8 @@ func TestPrimFsRead(t *testing.T) {
 			return []any{string(data)}, nil
 		})
 	}, `
-		nu.task.spawn(function()
-			out = nu.fs.read("`+filepath.ToSlash(path)+`")
+		enu.task.spawn(function()
+			out = enu.fs.read("`+filepath.ToSlash(path)+`")
 		end)`)
 	if out != "contenido de prueba" {
 		t.Fatalf("got %q", out)
@@ -92,18 +92,18 @@ func TestPrimSuspendenteNoBloquea(t *testing.T) {
 	}, `
 		local traza = {}
 		out = ""
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			traza[#traza+1] = "A-pide-lento"
-			local r = nu.test.lento()          -- ⏸ 50ms
+			local r = enu.test.lento()          -- ⏸ 50ms
 			traza[#traza+1] = "A-recibe:" .. r
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- B corre sus tramos rápidos MIENTRAS A espera en la primitiva lenta
-			nu.task.sleep(5);  traza[#traza+1] = "B-5"
-			nu.task.sleep(5);  traza[#traza+1] = "B-10"
+			enu.task.sleep(5);  traza[#traza+1] = "B-5"
+			enu.task.sleep(5);  traza[#traza+1] = "B-10"
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(100)
+		enu.task.spawn(function()
+			enu.task.sleep(100)
 			out = table.concat(traza, ",")
 		end)`)
 	// B-5 y B-10 (a 5 y 10ms) ocurren ANTES de que A reciba (a ~50ms):
@@ -119,8 +119,8 @@ func TestPrimSuspendenteError(t *testing.T) {
 			return nil, &StructuredError{Code: "ENOENT", Message: "no existe"}
 		})
 	}, `
-		nu.task.spawn(function()
-			local ok, e = pcall(function() return nu.fs.read("x") end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() return enu.fs.read("x") end)
 			out = tostring(ok) .. ":" .. tostring(e.code) .. ":" .. tostring(e.message)
 		end)`)
 	if out != "false:ENOENT:no existe" {

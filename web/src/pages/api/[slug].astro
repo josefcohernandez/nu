@@ -1,0 +1,15 @@
+---
+// Wrapper ES de la referencia (/api/<slug>). Resuelve getStaticPaths contra la
+// colección `referencia` y delega en el componente compartido ApiPage (pantalla
+// 13a, parametrizado por idioma). El gemelo EN vive en pages/en/api/[slug].astro.
+import { getCollection } from 'astro:content';
+import ApiPage from '../../components/pages/ApiPage.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('referencia');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+---
+<ApiPage entry={entry} lang="es" />

@@ -1,6 +1,6 @@
 -- Extensión oficial `mesh`: la malla de agentes (contrato: docs/malla.md).
 --
--- Nace de la Ronda 8 de pseudocódigo ("kubernetes de agentes"): nodos `nu`
+-- Nace de la Ronda 8 de pseudocódigo ("kubernetes de agentes"): nodos `enu`
 -- headless que ejecutan trabajos declarativos (specs Role+Job) sobre ramas de
 -- git — claim por CAS de refs, worktree por job, presupuesto duro, denegaciones
 -- como dato (G40) y torneo de forks (G39). Todo Lua puro sobre la API pública
@@ -16,4 +16,4 @@
 
 require("mesh")
 
-nu.log.info("mesh: extensión cargada (malla.md; el nodo es tuyo: require(\"mesh\"))")
+enu.log.info("mesh: extensión cargada (malla.md; el nodo es tuyo: require(\"mesh\"))")

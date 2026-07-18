@@ -2,9 +2,9 @@
 --
 -- QUÉ ES. Un widget FOCUSABLE (toolkit S42) que muestra una línea de consulta y
 -- una lista filtrada de candidatos; se teclea para filtrar (difuso, vía
--- `nu.search.fuzzy`, api.md §11 — la primitiva caliente del picker), `↑/↓` mueven
+-- `enu.search.fuzzy`, api.md §11 — la primitiva caliente del picker), `↑/↓` mueven
 -- la selección, `enter` elige, `esc` cancela. Lo usan:
---   - las menciones `@` (P26): candidatos = `nu.search.files` del repo; al elegir,
+--   - las menciones `@` (P26): candidatos = `enu.search.files` del repo; al elegir,
 --     la ruta se inyecta en el editor (el agente decide leerla, chat.md §3);
 --   - el autocompletado de `/` (P29): candidatos = nombres de comando.
 --
@@ -28,7 +28,7 @@ end
 
 -- Picker:_refilter() recalcula la lista visible a partir de `query`. Sin consulta
 -- muestra el principio de los candidatos; con consulta, el ranking difuso
--- (`nu.search.fuzzy` devuelve {index, score} ordenado, api.md §11). Acota a
+-- (`enu.search.fuzzy` devuelve {index, score} ordenado, api.md §11). Acota a
 -- `max_rows*` para no medir/pintar de más en repos enormes.
 function Picker:_refilter()
   local cands = self.candidates
@@ -38,7 +38,7 @@ function Picker:_refilter()
       filtered[i] = cands[i]
     end
   else
-    local ok, res = pcall(nu.search.fuzzy, self.query, cands, { max = self.max_list })
+    local ok, res = pcall(enu.search.fuzzy, self.query, cands, { max = self.max_list })
     if ok and type(res) == "table" then
       for _, r in ipairs(res) do
         filtered[#filtered + 1] = cands[r.index]
@@ -89,7 +89,7 @@ function Picker:on_key(ev)
 end
 
 -- Picker:compose(w, h) -> Block. Título + consulta + filas (la seleccionada
--- resaltada) + ayuda. Cada línea recortada al ancho (`nu.text.truncate`).
+-- resaltada) + ayuda. Cada línea recortada al ancho (`enu.text.truncate`).
 function Picker:compose(w, _h)
   if w <= 0 then return nil end
   local th = resolve_theme(self)
@@ -104,27 +104,27 @@ function Picker:compose(w, _h)
   -- línea de consulta con un prompt de búsqueda y un contador de resultados.
   lines[#lines + 1] = {
     { text = "⌕ ", style = accent },
-    { text = nu.text.truncate(self.query, math.max(0, w - 12)) },
+    { text = enu.text.truncate(self.query, math.max(0, w - 12)) },
     { text = string.format("   (%d)", #self.filtered), style = dim },
   }
   local n = math.min(#self.filtered, self.max_rows)
   for i = 1, n do
     if i == self.sel then
-      local txt = nu.text.truncate("› " .. tostring(self.filtered[i]), w)
+      local txt = enu.text.truncate("› " .. tostring(self.filtered[i]), w)
       -- rellena la fila seleccionada hasta el ancho para que el fondo sea continuo.
-      local pad = w - nu.text.width(txt)
+      local pad = w - enu.text.width(txt)
       local row = { { text = txt, style = sel } }
       if pad > 0 then row[#row + 1] = { text = string.rep(" ", pad), style = sel_fill } end
       lines[#lines + 1] = row
     else
-      lines[#lines + 1] = { { text = nu.text.truncate("  " .. tostring(self.filtered[i]), w) } }
+      lines[#lines + 1] = { { text = enu.text.truncate("  " .. tostring(self.filtered[i]), w) } }
     end
   end
   if #self.filtered == 0 then
     lines[#lines + 1] = { { text = "(sin coincidencias)", style = dim } }
   end
-  lines[#lines + 1] = { { text = nu.text.truncate("↑↓ mover · enter elegir · esc cancelar", w), style = dim } }
-  return nu.ui.block(lines)
+  lines[#lines + 1] = { { text = enu.text.truncate("↑↓ mover · enter elegir · esc cancelar", w), style = dim } }
+  return enu.ui.block(lines)
 end
 
 -- chat.picker.new{ title, candidates, on_select(value), on_cancel?, query?,

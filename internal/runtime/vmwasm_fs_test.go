@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b: nu.fs sobre wasm (§5). Paridad con fs.go: read/write round-trip,
+// Tests de M13b: enu.fs sobre wasm (§5). Paridad con fs.go: read/write round-trip,
 // write atómico y exclusivo (EEXIST), stat inexistente→nil, list, mkdir/remove
 // idempotentes, tmpdir de sesión, cwd (la única no-⏸). Las primitivas ⏸ corren en
 // una task y el driver (RunTasks) las lleva a término.
@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
-// wasmFsRun registra nu.fs sobre una Instance, evalúa `setup` (que crea tasks) y
+// wasmFsRun registra enu.fs sobre una Instance, evalúa `setup` (que crea tasks) y
 // conduce el bucle; devuelve la global `out`.
 func wasmFsRun(t *testing.T, setup string) string {
 	t.Helper()
@@ -46,9 +46,9 @@ func TestFsWasmWriteRead(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.ToSlash(filepath.Join(dir, "hola.txt"))
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			nu.fs.write("`+path+`", "contenido")
-			out = nu.fs.read("`+path+`")
+		enu.task.spawn(function()
+			enu.fs.write("`+path+`", "contenido")
+			out = enu.fs.read("`+path+`")
 		end)`)
 	if out != "contenido" {
 		t.Fatalf("write/read: got %q", out)
@@ -60,10 +60,10 @@ func TestFsWasmWriteExclusive(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.ToSlash(filepath.Join(dir, "lock"))
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			nu.fs.write("`+path+`", "1", { exclusive = true })   -- crea
+		enu.task.spawn(function()
+			enu.fs.write("`+path+`", "1", { exclusive = true })   -- crea
 			local ok, e = pcall(function()
-				nu.fs.write("`+path+`", "2", { exclusive = true }) -- ya existe
+				enu.fs.write("`+path+`", "2", { exclusive = true }) -- ya existe
 			end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
 		end)`)
@@ -77,8 +77,8 @@ func TestFsWasmStatInexistente(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.ToSlash(filepath.Join(dir, "noexiste"))
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			out = tostring(nu.fs.stat("`+path+`"))
+		enu.task.spawn(function()
+			out = tostring(enu.fs.stat("`+path+`"))
 		end)`)
 	if out != "nil" {
 		t.Fatalf("stat inexistente: got %q", out)
@@ -93,8 +93,8 @@ func TestFsWasmStat(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			local s = nu.fs.stat("`+filepath.ToSlash(path)+`")
+		enu.task.spawn(function()
+			local s = enu.fs.stat("`+filepath.ToSlash(path)+`")
 			out = tostring(s.size) .. ":" .. tostring(s.is_dir)
 		end)`)
 	if out != "5:false" {
@@ -108,8 +108,8 @@ func TestFsWasmList(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644)
 	_ = os.Mkdir(filepath.Join(dir, "sub"), 0o755)
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			local es = nu.fs.list("`+filepath.ToSlash(dir)+`")
+		enu.task.spawn(function()
+			local es = enu.fs.list("`+filepath.ToSlash(dir)+`")
 			local n, dirs = 0, 0
 			for _, e in ipairs(es) do n = n + 1; if e.is_dir then dirs = dirs + 1 end end
 			out = tostring(n) .. ":" .. tostring(dirs)
@@ -124,12 +124,12 @@ func TestFsWasmMkdirRemove(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.ToSlash(filepath.Join(dir, "a", "b", "c"))
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			nu.fs.mkdir("`+nested+`")
-			local existe = (nu.fs.stat("`+nested+`") ~= nil)
-			nu.fs.remove("`+nested+`")
-			nu.fs.remove("`+nested+`")   -- idempotente: no-op, no lanza
-			out = tostring(existe) .. ":" .. tostring(nu.fs.stat("`+nested+`") == nil)
+		enu.task.spawn(function()
+			enu.fs.mkdir("`+nested+`")
+			local existe = (enu.fs.stat("`+nested+`") ~= nil)
+			enu.fs.remove("`+nested+`")
+			enu.fs.remove("`+nested+`")   -- idempotente: no-op, no lanza
+			out = tostring(existe) .. ":" .. tostring(enu.fs.stat("`+nested+`") == nil)
 		end)`)
 	if out != "true:true" {
 		t.Fatalf("mkdir/remove: got %q", out)
@@ -139,9 +139,9 @@ func TestFsWasmMkdirRemove(t *testing.T) {
 // M13b.fs.7: tmpdir de sesión — se crea una vez y se reutiliza.
 func TestFsWasmTmpdir(t *testing.T) {
 	out := wasmFsRun(t, `
-		nu.task.spawn(function()
-			local a = nu.fs.tmpdir()
-			local b = nu.fs.tmpdir()
+		enu.task.spawn(function()
+			local a = enu.fs.tmpdir()
+			local b = enu.fs.tmpdir()
 			out = tostring(a == b and #a > 0)
 		end)`)
 	if out != "true" {
@@ -151,7 +151,7 @@ func TestFsWasmTmpdir(t *testing.T) {
 
 // M13b.fs.8: cwd — la única no-⏸ (se puede llamar fuera de una task).
 func TestFsWasmCwd(t *testing.T) {
-	out := wasmFsRun(t, `out = tostring(#nu.fs.cwd() > 0)`)
+	out := wasmFsRun(t, `out = tostring(#enu.fs.cwd() > 0)`)
 	if out != "true" {
 		t.Fatalf("cwd: got %q", out)
 	}

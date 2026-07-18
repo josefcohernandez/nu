@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b: nu.re sobre wasm (§10). Paridad con re.go: compile→EINVAL en
+// Tests de M13b: enu.re sobre wasm (§10). Paridad con re.go: compile→EINVAL en
 // patrón inválido, match (parte array 1-based + grupos con nombre), find_all
 // (rangos de byte 1-based), replace. Ejercita handles (C5) con un tipo real (Re)
 // y el punto de extensión AddPreludio (el wrapper Lua de match).
@@ -8,7 +8,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 func wasmReInst(t *testing.T) *vmwasm.Instance {
@@ -31,7 +31,7 @@ func wasmReInst(t *testing.T) *vmwasm.Instance {
 func TestReWasmMatchArray(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local re = nu.re.compile("([0-9]+)-([a-z]+)")
+		local re = enu.re.compile("([0-9]+)-([a-z]+)")
 		local c = re:match("42-abc")
 		return c[1] .. "|" .. c[2] .. "|" .. c[3]`)
 	if out != "42-abc|42|abc" {
@@ -43,7 +43,7 @@ func TestReWasmMatchArray(t *testing.T) {
 func TestReWasmMatchNombrado(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local re = nu.re.compile("(?P<anio>[0-9][0-9][0-9][0-9])-(?P<mes>[0-9][0-9])")
+		local re = enu.re.compile("(?P<anio>[0-9][0-9][0-9][0-9])-(?P<mes>[0-9][0-9])")
 		local c = re:match("2026-07")
 		return c.anio .. "/" .. c.mes .. " (array: " .. c[1] .. ")"`)
 	if out != "2026/07 (array: 2026-07)" {
@@ -55,7 +55,7 @@ func TestReWasmMatchNombrado(t *testing.T) {
 func TestReWasmMatchSinCoincidencia(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local re = nu.re.compile("xyz")
+		local re = enu.re.compile("xyz")
 		return tostring(re:match("abc"))`)
 	if out != "nil" {
 		t.Fatalf("sin coincidencia: got %q", out)
@@ -66,7 +66,7 @@ func TestReWasmMatchSinCoincidencia(t *testing.T) {
 func TestReWasmFindAll(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local re = nu.re.compile("a+")
+		local re = enu.re.compile("a+")
 		local s = "baaxay"
 		local rs = re:find_all(s)
 		-- dos coincidencias: "aa" (2..3) y "a" (5..5)
@@ -82,7 +82,7 @@ func TestReWasmFindAll(t *testing.T) {
 func TestReWasmReplace(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local re = nu.re.compile("([a-z]+)@([a-z]+)")
+		local re = enu.re.compile("([a-z]+)@([a-z]+)")
 		return re:replace("user@host", "$2.$1")`)
 	if out != "host.user" {
 		t.Fatalf("replace: got %q", out)
@@ -93,7 +93,7 @@ func TestReWasmReplace(t *testing.T) {
 func TestReWasmCompileInvalido(t *testing.T) {
 	inst := wasmReInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.re.compile("(sin cerrar") end)
+		local ok, e = pcall(function() return enu.re.compile("(sin cerrar") end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("compile inválido: got %q", out)

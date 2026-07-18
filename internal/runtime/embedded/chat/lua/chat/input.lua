@@ -249,7 +249,7 @@ end
 
 -- compose(w, h) -> Block (api.md §9.2). Pinta TODAS las líneas (un Block
 -- multilínea). Si el texto está vacío y el editor no tiene foco, un placeholder
--- atenuado (theme "dim", G22). Cada línea se trunca al ancho `w` (`nu.text.truncate`,
+-- atenuado (theme "dim", G22). Cada línea se trunca al ancho `w` (`enu.text.truncate`,
 -- graphemes correctos). El caret real lo coloca la app con `Region:cursor`.
 function Input:compose(w, _h)
   local th = resolve_theme(self)
@@ -263,19 +263,19 @@ function Input:compose(w, _h)
   -- pista no se veía nunca; el cursor real (Region:cursor) cae sobre el inicio del
   -- placeholder atenuado, que es justo lo que se espera de un prompt vacío.
   if self:is_empty() and self.placeholder then
-    local txt = nu.text.truncate(self.placeholder, w)
-    return nu.ui.block({ { { text = txt, style = th:style({ fg = "dim" }) } } })
+    local txt = enu.text.truncate(self.placeholder, w)
+    return enu.ui.block({ { { text = txt, style = th:style({ fg = "dim" }) } } })
   end
 
   local lines = {}
   for _, line in ipairs(self.lines) do
     local shown = line
     if w > 0 then
-      shown = nu.text.truncate(shown, w)
+      shown = enu.text.truncate(shown, w)
     end
     lines[#lines + 1] = { { text = shown } }
   end
-  return nu.ui.block(lines)
+  return enu.ui.block(lines)
 end
 
 -- content_height(w) -> integer: nº de líneas que ocupa el editor (para que el chat
@@ -290,7 +290,7 @@ end
 -- texto a la izquierda del caret en su línea; `caret_row` = fila (0-based) del
 -- caret dentro del Block del editor. La app suma su posición absoluta.
 function Input:caret_col()
-  return nu.text.width(cur(self):sub(1, self.col))
+  return enu.text.width(cur(self):sub(1, self.col))
 end
 
 function Input:caret_row()

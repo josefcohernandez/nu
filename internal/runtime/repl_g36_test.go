@@ -3,7 +3,7 @@ package runtime
 // G36: el repl CEDE la pantalla al chat. El conjunto oficial de producto (ADR-015)
 // activa chat Y repl; antes ambos auto-montaban una app a pantalla completa en
 // `core:ready` y se solapaban (salir del chat dejaba el REPL debajo). Ahora el repl
-// solo auto-monta su UI si el chat NO está activo (lo comprueba con `nu.plugin.list`,
+// solo auto-monta su UI si el chat NO está activo (lo comprueba con `enu.plugin.list`,
 // sin depender de chat —activable SOLO, G21—).
 
 import (
@@ -28,7 +28,7 @@ func bootWith(t *testing.T, enabled string) *harness {
 // nil); el chat es quien posee la pantalla.
 func TestG36ReplCedeAlChat(t *testing.T) {
 	// providers.toml para que el chat arranque (modelo resoluble); aun degradado, el
-	// plugin `chat` está activo en nu.plugin.list, que es lo que mira el repl.
+	// plugin `chat` está activo en enu.plugin.list, que es lo que mira el repl.
 	cfg := t.TempDir()
 	writeNuToml(t, cfg,
 		"[plugins]\nenabled = [\"toolkit\", \"providers\", \"sessions\", \"agent\", \"chat\", \"repl\"]\n")

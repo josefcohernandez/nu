@@ -8,7 +8,7 @@
 -- respuesta, agente.md §5; el permiso denegado es el que produce el error
 -- accionable de CP-10).
 --
--- Los handlers corren como parte de la task del turno y SUSPENDEN (nu.fs ⏸,
+-- Los handlers corren como parte de la task del turno y SUSPENDEN (enu.fs ⏸,
 -- api.md §5) sin bloquear nada. Un error lanzado (p. ej. ENOENT) lo convierte el
 -- loop en un tool_result is_error que el modelo ve (agente.md §3).
 
@@ -29,9 +29,9 @@ agent.tool{
     if type(args) ~= "table" or type(args.path) ~= "string" then
       error({ code = "EINVAL", message = "read_file requiere `path` (string)" })
     end
-    -- nu.fs.read lanza estructurado (ENOENT, EACCES...) que el loop traduce a
+    -- enu.fs.read lanza estructurado (ENOENT, EACCES...) que el loop traduce a
     -- tool_result is_error. Devuelve el contenido como texto.
-    return nu.fs.read(args.path)
+    return enu.fs.read(args.path)
   end,
 }
 
@@ -55,7 +55,7 @@ agent.tool{
     if type(args) ~= "table" or type(args.path) ~= "string" or type(args.content) ~= "string" then
       error({ code = "EINVAL", message = "write_file requiere `path` y `content` (string)" })
     end
-    nu.fs.write(args.path, args.content)
+    enu.fs.write(args.path, args.content)
     return string.format("escrito %d bytes en %s", #args.content, args.path)
   end,
 }

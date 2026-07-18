@@ -19,7 +19,7 @@ import (
 // goroutine de fondo.
 func withEcho(h *harness) {
 	// suspend_echo expresado en Lua sobre wasm: suspende de verdad con
-	// nu.task.sleep(0) (una ida y vuelta real por el driver Go) y devuelve su
+	// enu.task.sleep(0) (una ida y vuelta real por el driver Go) y devuelve su
 	// argumento. Validaciones: sólo dentro de una task (⏸) y sólo string/number.
 	// __current es el id de la task en curso (nil fuera de toda task), la señal que
 	// usa el propio scheduler.
@@ -27,7 +27,7 @@ func withEcho(h *harness) {
   if __current == nil then error({ code = "EINVAL", message = "suspend_echo solo puede llamarse dentro de una task" }) end
   local t = type(x)
   if t ~= "string" and t ~= "number" then error({ code = "EINVAL", message = "suspend_echo espera string o number" }) end
-  nu.task.sleep(0)
+  enu.task.sleep(0)
   return x
 end`)
 }
@@ -41,10 +41,10 @@ func TestSpawnAwaitAcrossSuspension(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local producer = nu.task.spawn(function()
+		local producer = enu.task.spawn(function()
 			return suspend_echo("hola")
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			out.v = producer:await()
 		end)
 	`)
@@ -61,9 +61,9 @@ func TestAwaitInTailPosition(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local p = nu.task.spawn(function() return suspend_echo("cola") end) -- tail ⏸
-		local q = nu.task.spawn(function() return p:await() end)            -- tail await
-		nu.task.spawn(function() out.v = q:await() end)
+		local p = enu.task.spawn(function() return suspend_echo("cola") end) -- tail ⏸
+		local q = enu.task.spawn(function() return p:await() end)            -- tail await
+		enu.task.spawn(function() out.v = q:await() end)
 	`)
 	h.expectEval(`return out.v`, "cola")
 }
@@ -76,11 +76,11 @@ func TestAwaitMultipleResults(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local p = nu.task.spawn(function()
+		local p = enu.task.spawn(function()
 			suspend_echo("x")        -- fuerza una suspensión real antes de devolver
 			return 1, 2, 3
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local a, b, c = p:await()
 			out.a, out.b, out.c = a, b, c
 		end)
@@ -96,8 +96,8 @@ func TestAwaitNonSuspendingProducer(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local p = nu.task.spawn(function() return 42 end)
-		nu.task.spawn(function() out.v = p:await() end)
+		local p = enu.task.spawn(function() return 42 end)
+		enu.task.spawn(function() out.v = p:await() end)
 	`)
 	h.expectEval(`return out.v`, "42")
 }
@@ -112,11 +112,11 @@ func TestAwaitErrorCatchableByPcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local p = nu.task.spawn(function()
+		local p = enu.task.spawn(function()
 			suspend_echo("x")        -- suspende, luego falla
 			error({ code = "EINVAL", message = "boom" })
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function() return p:await() end)
 			out.ok = ok
 			out.code = e.code
@@ -137,7 +137,7 @@ func TestPcallCatchesErrorAfterSuspension(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				suspend_echo("a")
 				error({ code = "EIO", message = "disco" })
@@ -150,12 +150,12 @@ func TestPcallCatchesErrorAfterSuspension(t *testing.T) {
 }
 
 // TestAwaitOutsideTask: `await` es ⏸; llamarla fuera de una task es un error
-// (§1.3). El chunk de `nu -e` corre en el estado principal, no en una task.
+// (§1.3). El chunk de `enu -e` corre en el estado principal, no en una task.
 func TestAwaitOutsideTask(t *testing.T) {
 	h := newHarness(t)
 
 	se := h.evalErr(`
-		local p = nu.task.spawn(function() return 1 end)
+		local p = enu.task.spawn(function() return 1 end)
 		return p:await()
 	`)
 	if se.Code != CodeEINVAL {
@@ -183,7 +183,7 @@ func TestSelfAwaitRejected(t *testing.T) {
 	h := newHarness(t)
 
 	h.eval(`
-		handle = nu.task.spawn(function()
+		handle = enu.task.spawn(function()
 			return handle:await()
 		end)
 	`)
@@ -207,8 +207,8 @@ func TestSpawnArgsPassed(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		local p = nu.task.spawn(function(a, b) return a + b end, 20, 22)
-		nu.task.spawn(function() out.v = p:await() end)
+		local p = enu.task.spawn(function(a, b) return a + b end, 20, 22)
+		enu.task.spawn(function() out.v = p:await() end)
 	`)
 	h.expectEval(`return out.v`, "42")
 }
@@ -226,11 +226,11 @@ func TestManyConcurrentSuspensions(t *testing.T) {
 		count = 0
 		local tasks = {}
 		for i = 1, 50 do
-			tasks[i] = nu.task.spawn(function()
+			tasks[i] = enu.task.spawn(function()
 				return suspend_echo(i)   -- cada task espera su propio i
 			end)
 		end
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			for i = 1, 50 do
 				sum = sum + tasks[i]:await()
 				count = count + 1
@@ -247,7 +247,7 @@ func TestUnhandledTaskErrorLogged(t *testing.T) {
 	h := newHarness(t)
 
 	h.eval(`
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			error({ code = "EINVAL", message = "nadie me espera" })
 		end)
 	`)
@@ -304,9 +304,9 @@ func TestRuntimeReusableAcrossEvals(t *testing.T) {
 	h := newHarness(t)
 	withEcho(h)
 
-	h.eval(`r1 = nil; nu.task.spawn(function() r1 = suspend_echo("a") end)`)
+	h.eval(`r1 = nil; enu.task.spawn(function() r1 = suspend_echo("a") end)`)
 	h.expectEval(`return r1`, "a")
-	h.eval(`r2 = nil; nu.task.spawn(function() r2 = suspend_echo("b") end)`)
+	h.eval(`r2 = nil; enu.task.spawn(function() r2 = suspend_echo("b") end)`)
 	h.expectEval(`return r2`, "b")
 }
 
@@ -319,8 +319,8 @@ func TestSpawnFromWithinTask(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local inner = nu.task.spawn(function() return suspend_echo("anidada") end)
+		enu.task.spawn(function()
+			local inner = enu.task.spawn(function() return suspend_echo("anidada") end)
 			out.v = inner:await()
 		end)
 	`)

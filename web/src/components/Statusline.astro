@@ -1,0 +1,123 @@
+---
+// Statusline: una sola, abajo, fija, en todas las páginas internas. Izquierda =
+// contexto (id="enu-status-left", que el teclado convierte en prompt tras ':').
+// Derecha = teclas disponibles. Chrome 10.5–11px lowercase.
+//
+// En <768px se muestra la versión táctil: `[≡] índice · [/] buscar · [q]
+// portada` con targets grandes (≥48px).
+//
+// Props:
+//   left: texto de contexto (p. ej. 'docs/core/filosofia.md · 8% · 1/15').
+//   keys: teclas disponibles a la derecha, [{ k: 'j/k', label: 'desplazar' }, …].
+//         `i18n` es la clave del diccionario para que el cliente traduzca la
+//         etiqueta al cambiar de idioma (data-i18n).
+import { i18n, type Lang } from '../lib/i18n';
+
+interface KeyHint {
+  k: string;
+  label: string;
+  i18n?: string;
+}
+interface Props {
+  left?: string;
+  keys?: KeyHint[];
+  lang?: Lang;
+}
+const { left = '', keys = [], lang = 'es' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const t = i18n[lang]; // etiquetas táctiles en el idioma de la página (el swap es en cliente)
+---
+<footer class="statusline">
+  <div class="sl-desktop">
+    <span id="enu-status-left" class="left">{left}</span>
+    <span class="right">
+      {keys.map((h, i) => (
+        <>
+          {i > 0 && <span class="sep">·</span>}
+          <span class="hint"><span class="brk">[</span><b>{h.k}</b><span class="brk">]</span> <span data-i18n={h.i18n}>{h.label}</span></span>
+        </>
+      ))}
+    </span>
+  </div>
+  <nav class="sl-touch">
+    <button type="button" class="tbtn" data-touch="index"><span class="brk">[</span><b>≡</b><span class="brk">]</span> <span data-i18n="mIndex">{t.mIndex}</span></button>
+    <span class="sep">·</span>
+    <button type="button" class="tbtn" data-touch="search"><span class="brk">[</span><b>/</b><span class="brk">]</span> <span data-i18n="kSearch">{t.kSearch}</span></button>
+    <span class="sep">·</span>
+    <a class="tbtn" href={base}><span class="brk">[</span><b>q</b><span class="brk">]</span> <span data-i18n="kBack">{t.kBack}</span></a>
+  </nav>
+</footer>
+
+<style>
+  .statusline {
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    font-size: var(--fs-1);
+    text-transform: lowercase;
+  }
+  .sl-desktop {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 24px;
+    gap: 16px;
+  }
+  .left {
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .right {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    color: var(--dim);
+    flex: none;
+  }
+  .sep {
+    color: var(--dim);
+  }
+  .brk {
+    color: var(--dim);
+  }
+  .hint b,
+  .tbtn b {
+    color: var(--key);
+    font-weight: 600;
+  }
+  .sl-touch {
+    display: none;
+  }
+  .tbtn {
+    background: none;
+    border: none;
+    color: var(--fg);
+    font: inherit;
+    text-transform: lowercase;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  @media (max-width: 767px) {
+    .sl-desktop {
+      display: none;
+    }
+    .sl-touch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      font-size: var(--fs-4);
+    }
+    .sl-touch .tbtn {
+      padding: 6px 4px;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+    }
+  }
+</style>

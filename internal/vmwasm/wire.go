@@ -7,7 +7,7 @@ package vmwasm
 //   - **byte-seguro (G11)**: los strings cruzan TAL CUAL, sin re-codificar. Un
 //     tool_result con bytes no-UTF-8 (salida de un `grep` binario) debe viajar
 //     intacto; JSON lo rompería. Aquí un string es longitud + bytes crudos.
-//   - **distingue null (G11)**: el sentinel `nu.json.NULL` cruza como su propio
+//   - **distingue null (G11)**: el sentinel `enu.json.NULL` cruza como su propio
 //     tag, sin colisionar con nil (que borraría una clave de tabla).
 //
 // Es un TLV compacto (tag + payload), simétrico con el codec Lua del preludio
@@ -32,14 +32,14 @@ const (
 	wArray  byte = 6 // secuencia 1..n: u32 count + n valores
 	wMap    byte = 7 // tabla clave→valor: u32 count + n pares (clave, valor)
 	wHandle byte = 8 // userdata opaco (C5, M10): u32 índice
-	wNull   byte = 9 // sentinel nu.json.NULL (G11)
+	wNull   byte = 9 // sentinel enu.json.NULL (G11)
 )
 
 // Handle es un userdata opaco cruzando la frontera como índice (C5). Su despacho
 // de métodos lo cablea M10; en M05 sólo viaja de ida y vuelta sin perder identidad.
 type Handle uint32
 
-// Null es el valor Go que representa el sentinel nu.json.NULL en el wire.
+// Null es el valor Go que representa el sentinel enu.json.NULL en el wire.
 type Null struct{}
 
 // NullValue es la instancia única de Null (comparable por igualdad).

@@ -1,7 +1,7 @@
 package vmwasm
 
 // Tests de M11: el binding de UI sobre la frontera wasm. Blindan el MECANISMO
-// (api.md §9): nu.ui.* como primitivas host, Region/Block como handles opacos
+// (api.md §9): enu.ui.* como primitivas host, Region/Block como handles opacos
 // (C5, sobre M10), y la pila de input + resolución de secuencias en el preludio
 // (como el bus de eventos). El compositor real (compositor.go, VM-agnóstico) se
 // enchufa a la interfaz UIBackend en M13; aquí un backend de grabación prueba que
@@ -123,10 +123,10 @@ func evalUI(t *testing.T, inst *Instance, chunk string) string {
 
 // --- headless -----------------------------------------------------------------
 
-// M11.1: sin backend de UI, nu.ui NO existe y nu.has("ui") es false (G20).
+// M11.1: sin backend de UI, enu.ui NO existe y enu.has("ui") es false (G20).
 func TestUIHeadless(t *testing.T) {
 	inst := newInstance(t) // sin SetUIBackend
-	out, _, err := inst.Eval(`return tostring(nu.ui) .. ":" .. tostring(nu.has("ui"))`)
+	out, _, err := inst.Eval(`return tostring(enu.ui) .. ":" .. tostring(enu.has("ui"))`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,13 +135,13 @@ func TestUIHeadless(t *testing.T) {
 	}
 }
 
-// M11.2: con backend, nu.has("ui") es true y size/caps cruzan.
+// M11.2: con backend, enu.has("ui") es true y size/caps cruzan.
 func TestUISizeCaps(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
-		local s = nu.ui.size()
-		local c = nu.ui.caps()
-		out = tostring(nu.has("ui")) .. ":" .. s.w .. "x" .. s.h .. ":" .. tostring(c.colors)`)
+		local s = enu.ui.size()
+		local c = enu.ui.caps()
+		out = tostring(enu.has("ui")) .. ":" .. s.w .. "x" .. s.h .. ":" .. tostring(c.colors)`)
 	if out != "true:80x24:256" {
 		t.Fatalf("size/caps: got %q", out)
 	}
@@ -149,12 +149,12 @@ func TestUISizeCaps(t *testing.T) {
 
 // --- Region como handle -------------------------------------------------------
 
-// M11.3: nu.ui.region(opts) da un handle cuyos métodos se despachan al backend.
+// M11.3: enu.ui.region(opts) da un handle cuyos métodos se despachan al backend.
 func TestUIRegionMetodos(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	evalUI(t, inst, `
-		local r = nu.ui.region({ x = 1, y = 2, w = 10, h = 5 })
+		local r = enu.ui.region({ x = 1, y = 2, w = 10, h = 5 })
 		r:move(3, 4)
 		r:resize(20, 8)
 		r:raise()
@@ -177,8 +177,8 @@ func TestUIRegionIdentidad(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	evalUI(t, inst, `
-		local a = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
-		local b = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local a = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local b = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
 		a:move(1, 1)
 		b:move(9, 9)
 		out = "ok"`)
@@ -189,14 +189,14 @@ func TestUIRegionIdentidad(t *testing.T) {
 
 // M11.5: Region:destroy destruye la región en el backend y es IDEMPOTENTE; un método
 // sobre la región ya destruida da EINVAL "ya destruida" —PARIDAD con el backend gopher
-// (ui.go, checkRegion/regionDestroy), no ECLOSED—. El envoltorio Lua de nu.ui.region
+// (ui.go, checkRegion/regionDestroy), no ECLOSED—. El envoltorio Lua de enu.ui.region
 // (host.go, preludioInput) lleva la aliveness: la Region muerta sigue siendo un handle
 // válido que responde el error de uso accionable, en vez de un ECLOSED del handle crudo.
 func TestUIRegionDestroyEINVAL(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	out := evalUI(t, inst, `
-		local r = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
 		r:destroy()
 		r:destroy()   -- idempotente (§9.1): destruir dos veces es inocuo
 		local ok, e = pcall(function() return r:move(1, 1) end)
@@ -211,11 +211,11 @@ func TestUIRegionDestroyEINVAL(t *testing.T) {
 
 // --- Block y blit -------------------------------------------------------------
 
-// M11.6: nu.ui.block(lines) da un Block con .width/.height (api.md §9.2).
+// M11.6: enu.ui.block(lines) da un Block con .width/.height (api.md §9.2).
 func TestUIBlockDims(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
-		local b = nu.ui.block({ "hola", "mundo!" })
+		local b = enu.ui.block({ "hola", "mundo!" })
 		out = tostring(b.width) .. "x" .. tostring(b.height)`)
 	if out != "6x2" {
 		t.Fatalf("block dims: got %q (esperado 6x2)", out)
@@ -228,8 +228,8 @@ func TestUIBlit(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	evalUI(t, inst, `
-		local r = nu.ui.region({ x = 0, y = 0, w = 20, h = 10 })
-		local b = nu.ui.block({ "abcde", "fg" })
+		local r = enu.ui.region({ x = 0, y = 0, w = 20, h = 10 })
+		local b = enu.ui.block({ "abcde", "fg" })
 		r:blit(2, -3, b)   -- offset negativo (viewport, G28): lo interpreta el compositor real
 		out = "ok"`)
 	got := fmt.Sprint(u.regions[0].log)
@@ -243,8 +243,8 @@ func TestUICursorUltimoGana(t *testing.T) {
 	u := &recUI{w: 80, h: 24}
 	inst := uiInst(t, u)
 	evalUI(t, inst, `
-		local a = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
-		local b = nu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local a = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
+		local b = enu.ui.region({ x = 0, y = 0, w = 5, h = 5 })
 		a:cursor(1, 1)
 		b:cursor(7, 7)   -- gana esta
 		out = "ok"`)
@@ -262,9 +262,9 @@ func TestInputPilaConsumo(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local traza = {}
-		nu.ui.on_input(function(ev) traza[#traza+1] = "bajo"; return true end)   -- consume
-		nu.ui.on_input(function(ev) traza[#traza+1] = "medio"; return false end) -- deja pasar
-		nu.ui.on_input(function(ev) traza[#traza+1] = "alto"; return false end)  -- deja pasar
+		enu.ui.on_input(function(ev) traza[#traza+1] = "bajo"; return true end)   -- consume
+		enu.ui.on_input(function(ev) traza[#traza+1] = "medio"; return false end) -- deja pasar
+		enu.ui.on_input(function(ev) traza[#traza+1] = "alto"; return false end)  -- deja pasar
 		local c = __ui_dispatch_input({ type = "key", key = "a" })
 		out = table.concat(traza, ",") .. ":" .. tostring(c)`)
 	// alto y medio no consumen; bajo sí. Orden de arriba a abajo.
@@ -278,7 +278,7 @@ func TestInputPop(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local n = 0
-		local h = nu.ui.on_input(function(ev) n = n + 1; return true end)
+		local h = enu.ui.on_input(function(ev) n = n + 1; return true end)
 		__ui_dispatch_input({ type = "key", key = "a" })
 		h:pop()
 		local c = __ui_dispatch_input({ type = "key", key = "a" })  -- ya no hay handler
@@ -295,7 +295,7 @@ func TestKeymapAcorde(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local hit = false
-		nu.ui.keymap("ctrl+k", function() hit = true end)
+		enu.ui.keymap("ctrl+k", function() hit = true end)
 		local c1 = __ui_dispatch_input({ type = "key", key = "k", mods = { ctrl = true } })  -- dispara
 		local c2 = __ui_dispatch_input({ type = "key", key = "k" })                           -- sin ctrl: no
 		out = tostring(hit) .. ":" .. tostring(c1) .. ":" .. tostring(c2)`)
@@ -310,8 +310,8 @@ func TestKeymapCede(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local traza = {}
-		nu.ui.on_input(function(ev) traza[#traza+1] = "abajo"; return true end)
-		nu.ui.keymap("esc", function() traza[#traza+1] = "keymap"; return false end)  -- cede
+		enu.ui.on_input(function(ev) traza[#traza+1] = "abajo"; return true end)
+		enu.ui.keymap("esc", function() traza[#traza+1] = "keymap"; return false end)  -- cede
 		local c = __ui_dispatch_input({ type = "key", key = "esc" })
 		out = table.concat(traza, ",") .. ":" .. tostring(c)`)
 	// el keymap corre pero cede; el on_input de abajo lo consume.
@@ -325,7 +325,7 @@ func TestKeymapSecuencia(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local hits = 0
-		nu.ui.keymap("g g", function() hits = hits + 1 end)
+		enu.ui.keymap("g g", function() hits = hits + 1 end)
 		local c1 = __ui_dispatch_input({ type = "key", key = "g" })  -- parcial, consume
 		local c2 = __ui_dispatch_input({ type = "key", key = "g" })  -- completa, dispara
 		out = tostring(hits) .. ":" .. tostring(c1) .. ":" .. tostring(c2)`)
@@ -339,7 +339,7 @@ func TestKeymapTimeout(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	out := evalUI(t, inst, `
 		local hits = 0
-		nu.ui.keymap("g g", function() hits = hits + 1 end)
+		enu.ui.keymap("g g", function() hits = hits + 1 end)
 		__ui_dispatch_input({ type = "key", key = "g" })  -- parcial
 		__ui_timeout()                                    -- caduca el prefijo
 		__ui_dispatch_input({ type = "key", key = "g" })  -- empieza de nuevo, no completa
@@ -354,7 +354,7 @@ func TestFeedInputGo(t *testing.T) {
 	inst := uiInst(t, &recUI{w: 80, h: 24})
 	if _, lerr, err := inst.Eval(`
 		got_key = nil
-		nu.ui.on_input(function(ev) got_key = ev.key; return true end)`); err != nil || lerr != "" {
+		enu.ui.on_input(function(ev) got_key = ev.key; return true end)`); err != nil || lerr != "" {
 		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
 	}
 	consumed, err := inst.FeedInput(map[string]any{"type": "key", "key": "x"})

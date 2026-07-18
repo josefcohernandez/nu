@@ -1,13 +1,13 @@
 package runtime
 
-// Tests de M13b: los codecs nu.json/toml/yaml sobre el backend wasm. Blindan la
+// Tests de M13b: los codecs enu.json/toml/yaml sobre el backend wasm. Blindan la
 // paridad con §12 (round-trip, G11 UTF-8 estricto, NULL, tabla vacía → objeto,
 // array-de-tablas TOML) y la mejora de Lua 5.4 (integer vs float preservados).
 
 import (
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // wasmCodecInst crea una Instance wasm con el catálogo de codecs registrado.
@@ -41,8 +41,8 @@ func TestCodecsWasmJSONRoundTrip(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
 		local orig = { nombre = "nu", tags = { "a", "b" }, activo = true, meta = { n = 3 } }
-		local s = nu.json.encode(orig)
-		local back = nu.json.decode(s)
+		local s = enu.json.encode(orig)
+		local back = enu.json.decode(s)
 		return back.nombre .. ":" .. back.tags[2] .. ":" .. tostring(back.activo) .. ":" .. tostring(back.meta.n)`)
 	if out != "nu:b:true:3" {
 		t.Fatalf("round-trip JSON: got %q", out)
@@ -53,21 +53,21 @@ func TestCodecsWasmJSONRoundTrip(t *testing.T) {
 func TestCodecsWasmJSONIntVsFloat(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
-		local back = nu.json.decode('{ "i": 42, "f": 3.5 }')
+		local back = enu.json.decode('{ "i": 42, "f": 3.5 }')
 		return math.type(back.i) .. "," .. math.type(back.f)`)
 	if out != "integer,float" {
 		t.Fatalf("int/float en JSON: got %q (esperado integer,float)", out)
 	}
 }
 
-// M13b.3: el sentinel NULL sobrevive el round-trip (null → nu.json.NULL → null),
+// M13b.3: el sentinel NULL sobrevive el round-trip (null → enu.json.NULL → null),
 // sin perder la clave (a diferencia de nil, que la borraría).
 func TestCodecsWasmJSONNull(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
-		local back = nu.json.decode('{ "a": null, "b": 1 }')
-		local esNull = (back.a == nu.json.NULL)
-		local s = nu.json.encode(back)
+		local back = enu.json.decode('{ "a": null, "b": 1 }')
+		local esNull = (back.a == enu.json.NULL)
+		local s = enu.json.encode(back)
 		-- el null sobrevive: re-encodear vuelve a poner "a":null
 		return tostring(esNull) .. ":" .. tostring(s:find('"a":null') ~= nil)`)
 	if out != "true:true" {
@@ -80,7 +80,7 @@ func TestCodecsWasmJSONUTF8Estricto(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
 		local malo = string.char(0xff, 0xfe)
-		local ok, e = pcall(function() return nu.json.encode({ x = malo }) end)
+		local ok, e = pcall(function() return enu.json.encode({ x = malo }) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("UTF-8 estricto: got %q", out)
@@ -90,7 +90,7 @@ func TestCodecsWasmJSONUTF8Estricto(t *testing.T) {
 // M13b.5: una tabla VACÍA encodea como objeto {} (§12), no como [].
 func TestCodecsWasmJSONTablaVacia(t *testing.T) {
 	inst := wasmCodecInst(t)
-	out := evalWasm(t, inst, `return nu.json.encode({})`)
+	out := evalWasm(t, inst, `return enu.json.encode({})`)
 	if out != "{}" {
 		t.Fatalf("tabla vacía: got %q (esperado {})", out)
 	}
@@ -100,7 +100,7 @@ func TestCodecsWasmJSONTablaVacia(t *testing.T) {
 func TestCodecsWasmJSONNoFinito(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.json.encode({ x = 1/0 }) end)
+		local ok, e = pcall(function() return enu.json.encode({ x = 1/0 }) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("no finito: got %q", out)
@@ -119,9 +119,9 @@ host = "a"
 [[server]]
 host = "b"
 ]=]
-		local t = nu.toml.decode(doc)
-		local s = nu.toml.encode(t)
-		local back = nu.toml.decode(s)
+		local t = enu.toml.decode(doc)
+		local s = enu.toml.encode(t)
+		local back = enu.toml.decode(s)
 		return back.title .. ":" .. back.server[1].host .. ":" .. back.server[2].host`)
 	if out != "demo:a:b" {
 		t.Fatalf("TOML array-de-tablas: got %q", out)
@@ -132,7 +132,7 @@ host = "b"
 func TestCodecsWasmTOMLRaizInvalida(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.toml.encode({ 1, 2, 3 }) end)
+		local ok, e = pcall(function() return enu.toml.encode({ 1, 2, 3 }) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("TOML raíz array: got %q", out)
@@ -144,7 +144,7 @@ func TestCodecsWasmYAML(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
 		local doc = "name: skill-x\ntags:\n  - alpha\n  - beta\n"
-		local y = nu.yaml.decode(doc)
+		local y = enu.yaml.decode(doc)
 		return y.name .. ":" .. y.tags[1] .. ":" .. y.tags[2]`)
 	if out != "skill-x:alpha:beta" {
 		t.Fatalf("YAML: got %q", out)
@@ -155,7 +155,7 @@ func TestCodecsWasmYAML(t *testing.T) {
 func TestCodecsWasmJSONInvalido(t *testing.T) {
 	inst := wasmCodecInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.json.decode('{ roto') end)
+		local ok, e = pcall(function() return enu.json.decode('{ roto') end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("JSON inválido: got %q", out)

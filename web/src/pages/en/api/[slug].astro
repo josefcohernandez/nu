@@ -1,0 +1,14 @@
+---
+// Wrapper EN de la referencia (/en/api/<slug>). Igual que el ES pero contra la
+// colección `referencia_en` (la instantánea traducida) y con lang="en" (W-04).
+import { getCollection } from 'astro:content';
+import ApiPage from '../../../components/pages/ApiPage.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('referencia_en');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+---
+<ApiPage entry={entry} lang="en" />

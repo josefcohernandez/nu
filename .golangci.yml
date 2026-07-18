@@ -6,9 +6,9 @@
 # globals a propósito (las constantes de versión en nu.go, el embeddedFS de
 # embed.go)—. Crece solo por adición y con justificación, igual que la API (§4).
 #
-# El workflow corre esto con `only-new-issues: true`, así que no bloquea por deuda
-# preexistente en las ~33k líneas ya escritas: solo marca hallazgos en código que
-# un PR toca.
+# El workflow ejecuta este conjunto sobre todo el repositorio: cualquier hallazgo
+# bloquea la CI. El baseline se mantiene en cero también al actualizar el linter
+# fijado por el workflow (ADR-021).
 version: "2"
 
 linters:

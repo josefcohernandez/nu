@@ -1,6 +1,6 @@
 package runtime
 
-// Tests 🔒 de `nu.plugin.reload` (S13, api.md §14). Lógica clave a blindar
+// Tests 🔒 de `enu.plugin.reload` (S13, api.md §14). Lógica clave a blindar
 // (inventario 🔒, G2 — "reload no deja handlers huérfanos"):
 //
 //   - tras `reload`, las suscripciones/timers VIEJOS del plugin ya NO disparan;
@@ -12,7 +12,7 @@ package runtime
 //   - el etiquetado es por dueño: recargar A no suelta los handles de B;
 //   - `Sub:cancel()`/`Timer:stop()` a mano no dejan basura en el registro (sin fuga).
 //
-// `reload` es ⏸: los snippets la invocan dentro de una `nu.task.spawn(...)` (como
+// `reload` es ⏸: los snippets la invocan dentro de una `enu.task.spawn(...)` (como
 // el resto de funciones suspendientes). `EvalString` espera (waitIdle) a que la
 // task termine antes de devolver, así que el efecto del reload es observable tras
 // `h.eval(...)`.
@@ -23,12 +23,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // reloadSpawn envuelve `body` en una task y devuelve un snippet que la lanza. Es
-// el azúcar para ejercitar `nu.plugin.reload` (⏸) desde un `eval` síncrono.
+// el azúcar para ejercitar `enu.plugin.reload` (⏸) desde un `eval` síncrono.
 func reloadSpawn(body string) string {
-	return "nu.task.spawn(function()\n" + body + "\nend)"
+	return "enu.task.spawn(function()\n" + body + "\nend)"
 }
 
 // TestReloadNoDejaHandlersHuerfanos (🔒, G2): un plugin registra en su init.lua una
@@ -45,26 +46,26 @@ func TestReloadNoDejaHandlersHuerfanos(t *testing.T) {
 	// solo `emit` invocaría a todas las acumuladas.
 	initLua := `
 _recibidos = _recibidos or 0
-nu.events.on("p:tic", function() _recibidos = _recibidos + 1 end)
+enu.events.on("p:tic", function() _recibidos = _recibidos + 1 end)
 _timers = (_timers or 0) + 1
-nu.task.every(1000, function() end)
+enu.task.every(1000, function() end)
 `
 	writePlugin(t, root, "P", "1.0", nil, initLua)
 	h := newBootedHarness(t, root, cfg)
 
 	// Tras el arranque: un emit invoca la ÚNICA suscripción del init original.
-	h.eval(`nu.events.emit("p:tic")`)
+	h.eval(`enu.events.emit("p:tic")`)
 	h.expectEval(`return _recibidos`, "1")
 
 	// Recarga el plugin DOS veces. Si las suscripciones viejas quedaran huérfanas,
 	// tras dos reloads habría tres suscripciones y un emit sumaría 3.
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
 
 	// _recibidos sigue en 1 (el reload no re-emite "p:tic"); un emit nuevo debe
 	// sumar exactamente 1, no 3: solo vive la suscripción del último init.
 	h.expectEval(`return _recibidos`, "1")
-	h.eval(`nu.events.emit("p:tic")`)
+	h.eval(`enu.events.emit("p:tic")`)
 	h.expectEval(`return _recibidos`, "2")
 
 	// El init corrió 3 veces (arranque + 2 reloads): cada vez creó una suscripción
@@ -90,9 +91,9 @@ func TestReloadEmiteUnload(t *testing.T) {
 	// SU registro al descargarse P.
 	h.eval(`
 _unload_visto = nil
-nu.events.on("core:plugin.unload", function(ev) _unload_visto = ev.name; _marca = nil end)
+enu.events.on("core:plugin.unload", function(ev) _unload_visto = ev.name; _marca = nil end)
 `)
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
 
 	// El handler corrió con el nombre correcto, y limpió su registro.
 	h.expectEval(`return _unload_visto`, "P")
@@ -125,7 +126,7 @@ func TestReloadVaciaCacheRequire(t *testing.T) {
 	if err := os.WriteFile(modPath, []byte(`return { v = "v2" }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
 	h.expectEval(`return _valor`, "v2")
 }
 
@@ -135,17 +136,17 @@ func TestReloadVaciaCacheRequire(t *testing.T) {
 func TestReloadEtiquetadoPorDueno(t *testing.T) {
 	root := t.TempDir()
 	cfg := t.TempDir()
-	writePlugin(t, root, "A", "1.0", nil, `nu.events.on("ev", function() _a = (_a or 0) + 1 end)`)
-	writePlugin(t, root, "B", "1.0", nil, `nu.events.on("ev", function() _b = (_b or 0) + 1 end)`)
+	writePlugin(t, root, "A", "1.0", nil, `enu.events.on("ev", function() _a = (_a or 0) + 1 end)`)
+	writePlugin(t, root, "B", "1.0", nil, `enu.events.on("ev", function() _b = (_b or 0) + 1 end)`)
 	h := newBootedHarness(t, root, cfg)
 
 	// Recarga B: su suscripción se suelta y se vuelve a crear; la de A queda intacta.
-	h.eval(reloadSpawn(`nu.plugin.reload("B")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("B")`))
 
 	// Un emit debe invocar A (intacta) y B (re-creada): cada una una vez. Si reload
 	// hubiera soltado la de A, _a no se incrementaría; si hubiera dejado huérfana la
 	// vieja de B, _b sería 2.
-	h.eval(`_a = 0; _b = 0; nu.events.emit("ev")`)
+	h.eval(`_a = 0; _b = 0; enu.events.emit("ev")`)
 	h.expectEval(`return _a`, "1")
 	h.expectEval(`return _b`, "1")
 
@@ -167,8 +168,8 @@ func TestReloadCancelStopSinFuga(t *testing.T) {
 	// El init crea una Sub y un Timer y los guarda en globales para cancelarlos
 	// luego desde el chunk del usuario.
 	writePlugin(t, root, "P", "1.0", nil, `
-_sub = nu.events.on("x", function() end)
-_timer = nu.task.every(1000, function() end)
+_sub = enu.events.on("x", function() end)
+_timer = enu.task.every(1000, function() end)
 `)
 	h := newBootedHarness(t, root, cfg)
 
@@ -189,7 +190,7 @@ _timer = nu.task.every(1000, function() end)
 	}
 }
 
-// TestReloadOnceAutoCancelSinFuga (🔒, G2): un `nu.events.once` que se DISPARA se
+// TestReloadOnceAutoCancelSinFuga (🔒, G2): un `enu.events.once` que se DISPARA se
 // auto-cancela, y esa auto-cancelación debe sacarlo del registro de handles por
 // dueño igual que lo hace el `cancel` a mano —si no, un dueño de vida larga (aquí
 // "user") que use `once` repetidamente acumularía handles muertos en
@@ -207,25 +208,25 @@ func TestReloadOnceAutoCancelSinFuga(t *testing.T) {
 	h := newBootedHarness(t, root, cfg)
 
 	// Caso 1: un `once` que se dispara se desregistra del registro de su dueño.
-	h.eval(`nu.events.once("u:tic", function() _visto = (_visto or 0) + 1 end)`)
+	h.eval(`enu.events.once("u:tic", function() _visto = (_visto or 0) + 1 end)`)
 	if got := countOwnerHandles(h, "user"); got != 1 {
 		t.Fatalf("tras registrar el once debe haber 1 handle de user; hay %d", got)
 	}
-	h.eval(`nu.events.emit("u:tic")`)
+	h.eval(`enu.events.emit("u:tic")`)
 	h.expectEval(`return _visto`, "1")
 	if got := countOwnerHandles(h, "user"); got != 0 {
 		t.Fatalf("tras dispararse el once, el registro de user debe quedar a 0 (sin fuga); hay %d", got)
 	}
 
 	// Un segundo emit no lo re-ejecuta (once consumido) y no reintroduce fuga.
-	h.eval(`nu.events.emit("u:tic")`)
+	h.eval(`enu.events.emit("u:tic")`)
 	h.expectEval(`return _visto`, "1")
 	if got := countOwnerHandles(h, "user"); got != 0 {
 		t.Fatalf("el registro de user debe seguir a 0 tras un segundo emit; hay %d", got)
 	}
 
 	// Caso 2: un `once` NO disparado y cancelado a mano tampoco fuga.
-	h.eval(`_s = nu.events.once("u:noviene", function() end)`)
+	h.eval(`_s = enu.events.once("u:noviene", function() end)`)
 	if got := countOwnerHandles(h, "user"); got != 1 {
 		t.Fatalf("el once sin disparar debe estar registrado; hay %d", got)
 	}
@@ -246,8 +247,8 @@ func TestReloadOnceDisparadoAntesDeReload(t *testing.T) {
 	// El init registra un `once` y un `on` persistente. El `once` se consume con un
 	// emit antes del reload; el `on` permanece.
 	writePlugin(t, root, "P", "1.0", nil, `
-nu.events.once("p:una", function() _una = (_una or 0) + 1 end)
-nu.events.on("p:siempre", function() end)
+enu.events.once("p:una", function() _una = (_una or 0) + 1 end)
+enu.events.on("p:siempre", function() end)
 `)
 	h := newBootedHarness(t, root, cfg)
 
@@ -257,7 +258,7 @@ nu.events.on("p:siempre", function() end)
 	}
 
 	// Dispara el `once`: se consume y se auto-desregistra; queda solo el `on`.
-	h.eval(`nu.events.emit("p:una")`)
+	h.eval(`enu.events.emit("p:una")`)
 	h.expectEval(`return _una`, "1")
 	if got := countOwnerHandles(h, "P"); got != 1 {
 		t.Fatalf("tras dispararse el once debe quedar 1 handle de P (el on); hay %d", got)
@@ -265,13 +266,13 @@ nu.events.on("p:siempre", function() end)
 
 	// Recarga: no debe haber doble-libre del once ya consumido. El init re-ejecutado
 	// vuelve a crear 2 handles (once + on), no acumula los viejos.
-	h.eval(reloadSpawn(`nu.plugin.reload("P")`))
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
 	if got := countOwnerHandles(h, "P"); got != 2 {
 		t.Fatalf("tras el reload, P debe tener 2 handles del init re-ejecutado; hay %d", got)
 	}
 
 	// El `once` re-creado sigue funcionando: un emit lo dispara una vez más.
-	h.eval(`nu.events.emit("p:una")`)
+	h.eval(`enu.events.emit("p:una")`)
 	h.expectEval(`return _una`, "2")
 }
 
@@ -288,8 +289,8 @@ func TestReloadDesconocido(t *testing.T) {
 	// `eval` espera (waitIdle) a que la task termine, así que `_err` ya está puesto.
 	h.eval(`
 _err = nil
-nu.task.spawn(function()
-  local ok, e = pcall(function() nu.plugin.reload("fantasma") end)
+enu.task.spawn(function()
+  local ok, e = pcall(function() enu.plugin.reload("fantasma") end)
   _err = e
 end)
 `)
@@ -303,7 +304,7 @@ end)
 	}
 }
 
-// TestReloadFueraDeTask (🔒): `nu.plugin.reload` es ⏸; llamarla fuera de una task
+// TestReloadFueraDeTask (🔒): `enu.plugin.reload` es ⏸; llamarla fuera de una task
 // (en el chunk principal) es `EINVAL`, como el resto de suspendientes (§1.3).
 func TestReloadFueraDeTask(t *testing.T) {
 	root := t.TempDir()
@@ -311,12 +312,96 @@ func TestReloadFueraDeTask(t *testing.T) {
 	writePlugin(t, root, "P", "1.0", nil, "")
 	h := newBootedHarness(t, root, cfg)
 
-	se := h.evalErr(`nu.plugin.reload("P")`)
+	se := h.evalErr(`enu.plugin.reload("P")`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("código: got %q, want EINVAL", se.Code)
 	}
 	if !strings.Contains(se.Message, "task") {
 		t.Fatalf("el mensaje debe explicar que es ⏸ (solo en task): %q", se.Message)
+	}
+}
+
+// TestReloadMataProcesosDelPlugin (G2, 🔒): un `enu.proc.spawn` del `init.lua` de
+// un plugin NO sobrevive a recargarlo. El registro Lua del preludio solo conoce
+// subs y timers; los procesos viven en el registro Go por dueño, que el reload
+// también libera —sin esto, el proceso quedaba huérfano (con sus pipes) hasta
+// Runtime.Close, contra el contrato explícito de proc.go—.
+func TestReloadMataProcesosDelPlugin(t *testing.T) {
+	root := t.TempDir()
+	cfg := t.TempDir()
+	writePlugin(t, root, "P", "1.0", nil, `enu.proc.spawn({ "sleep", "100" })`)
+	h := newBootedHarness(t, root, cfg)
+
+	snapshot := func() (int, int) {
+		h.rt.sched.mu.Lock()
+		defer h.rt.sched.mu.Unlock()
+		pid := 0
+		for p := range h.rt.sched.procs {
+			pid = p.cmd.Process.Pid
+		}
+		return len(h.rt.sched.procs), pid
+	}
+	n, oldPid := snapshot()
+	if n != 1 || oldPid == 0 {
+		t.Fatalf("tras el boot debe haber 1 proc del init de P (hay %d)", n)
+	}
+
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
+
+	// El init re-ejecutado lanza OTRO sleep; el viejo debe morir (SIGKILL del
+	// release por dueño) y salir del mapa de vivos. El reaper de fondo recoge el
+	// zombi, así que pidAlive(oldPid) acaba en false.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		n, newPid := snapshot()
+		if n == 1 && newPid != oldPid && !pidAlive(oldPid) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("el proc del plugin sobrevivió al reload: procs=%d, viejo vivo=%v", n, pidAlive(oldPid))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestReloadParaWatchersDelPlugin (G2, 🔒): un `enu.fs.watch` del `init.lua` de un
+// plugin se corta al recargarlo — goroutine y fd de fsnotify incluidos —, y el
+// watcher viejo sale del mapa de vivos del scheduler (antes sobrevivía a reload
+// Y a Runtime.Close, emitiendo a un evento ya sin suscriptores).
+func TestReloadParaWatchersDelPlugin(t *testing.T) {
+	root := t.TempDir()
+	cfg := t.TempDir()
+	watched := t.TempDir()
+	writePlugin(t, root, "P", "1.0", nil, `enu.fs.watch("`+watched+`", function() end)`)
+	h := newBootedHarness(t, root, cfg)
+
+	oldW := func() *wasmWatcher {
+		h.rt.sched.mu.Lock()
+		defer h.rt.sched.mu.Unlock()
+		for w := range h.rt.sched.watchers {
+			return w
+		}
+		return nil
+	}()
+	if oldW == nil {
+		t.Fatal("tras el boot debe haber 1 watcher del init de P")
+	}
+
+	h.eval(reloadSpawn(`enu.plugin.reload("P")`))
+
+	// El viejo quedó parado (stopCh cerrado) y fuera del mapa; el init
+	// re-ejecutado registró uno nuevo.
+	select {
+	case <-oldW.stopCh:
+	default:
+		t.Fatal("el watcher viejo sigue corriendo tras el reload")
+	}
+	h.rt.sched.mu.Lock()
+	_, oldTracked := h.rt.sched.watchers[oldW]
+	n := len(h.rt.sched.watchers)
+	h.rt.sched.mu.Unlock()
+	if oldTracked || n != 1 {
+		t.Fatalf("mapa de watchers tras reload: viejo dentro=%v, total=%d (want fuera y 1)", oldTracked, n)
 	}
 }
 

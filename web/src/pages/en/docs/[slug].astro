@@ -1,0 +1,37 @@
+---
+// Wrapper EN de la wiki (/en/docs/<slug>). Idéntico al ES salvo que resuelve
+// getStaticPaths contra las colecciones EN (wiki_en/empezar_en/extensiones_en) y
+// delega en WikiPage con lang="en". El orden y los grupos los da el mismo
+// docmap (DOCS): son idénticos en ambos idiomas (W-04).
+import { getCollection } from 'astro:content';
+import WikiPage from '../../../components/pages/WikiPage.astro';
+import { DOCS } from '../../../lib/docmap';
+
+export async function getStaticPaths() {
+  const [wiki, empezar, extensiones] = await Promise.all([
+    getCollection('wiki_en'),
+    getCollection('empezar_en'),
+    getCollection('extensiones_en'),
+  ]);
+  // Se reusan las MISMAS claves de colección del docmap (wiki/empezar/
+  // extensiones): solo cambia la fuente EN de la que salen las entradas.
+  const porId = new Map<string, any>();
+  for (const e of wiki) porId.set(`wiki:${e.id}`, e);
+  for (const e of empezar) porId.set(`empezar:${e.id}`, e);
+  for (const e of extensiones) porId.set(`extensiones:${e.id}`, e);
+
+  return DOCS.map((doc, i) => ({
+    params: { slug: doc.slug },
+    props: {
+      doc,
+      entry: porId.get(`${doc.collection}:${doc.slug}`),
+      index: i,
+      prev: i > 0 ? DOCS[i - 1] : null,
+      next: i < DOCS.length - 1 ? DOCS[i + 1] : null,
+    },
+  }));
+}
+
+const { doc, entry, index, prev, next } = Astro.props;
+---
+<WikiPage doc={doc} entry={entry} index={index} prev={prev} next={next} lang="en" />

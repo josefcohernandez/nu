@@ -1,18 +1,18 @@
 package runtime
 
-// Tests de la activación de extensiones embebidas gobernada por `nu.toml` (S12,
+// Tests de la activación de extensiones embebidas gobernada por `enu.toml` (S12,
 // api.md §14, ADR-010). La lógica clave a blindar (table-driven donde aplica):
 //
-//   - una extensión embebida NO se carga salvo que `nu.toml` `plugins.enabled` la
+//   - una extensión embebida NO se carga salvo que `enu.toml` `plugins.enabled` la
 //     nombre (INACTIVA por defecto, ADR-010);
-//   - activarla por `nu.toml` la materializa y la carga con `source="builtin"`;
+//   - activarla por `enu.toml` la materializa y la carga con `source="builtin"`;
 //   - un `plugins.enabled` que nombra algo inexistente es un error accionable que
-//     NOMBRA la línea de `nu.toml`;
+//     NOMBRA la línea de `enu.toml`;
 //   - un directorio de usuario del mismo nombre SUSTITUYE a la embebida (gana
 //     usuario, `source="user"`; no coexisten, §14);
-//   - `nu.toml` cablea el presupuesto del watchdog y las rutas extra de plugins.
+//   - `enu.toml` cablea el presupuesto del watchdog y las rutas extra de plugins.
 //
-// El andamiaje escribe un `nu.toml` real en el `config.dir` (un `t.TempDir`) y
+// El andamiaje escribe un `enu.toml` real en el `config.dir` (un `t.TempDir`) y
 // arranca un Runtime apuntando ahí, igual que lo haría `main`. La extensión
 // embebida bajo prueba es el STUB `example` (internal/runtime/embedded/example):
 // una fixture trivial e independiente de las extensiones oficiales reales (Fase 8,
@@ -27,19 +27,19 @@ import (
 	"time"
 )
 
-// writeNuToml escribe `nu.toml` en `configDir` con el contenido dado.
+// writeNuToml escribe `enu.toml` en `configDir` con el contenido dado.
 func writeNuToml(t *testing.T, configDir, content string) {
 	t.Helper()
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("mkdir configDir: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(configDir, nuTomlName), []byte(content), 0o644); err != nil {
-		t.Fatalf("write nu.toml: %v", err)
+		t.Fatalf("write enu.toml: %v", err)
 	}
 }
 
 // bootWithToml construye un Runtime con `pluginDir` (puede estar vacío) y un
-// `configDir` que contiene el `nu.toml` dado, y lo arranca. Falla si `Boot` da
+// `configDir` que contiene el `enu.toml` dado, y lo arranca. Falla si `Boot` da
 // error (los tests de error usan bootTomlExpectErr). data_dir es propio (temporal):
 // ahí se materializan las embebidas.
 func bootWithToml(t *testing.T, pluginDir, configDir string, opts ...Option) *harness {
@@ -57,34 +57,34 @@ func bootWithToml(t *testing.T, pluginDir, configDir string, opts ...Option) *ha
 	return &harness{t: t, rt: rt}
 }
 
-// listSource devuelve el `source` con que `name` aparece en `nu.plugin.list()`, o
+// listSource devuelve el `source` con que `name` aparece en `enu.plugin.list()`, o
 // "" si no está cargado. Es la observación que blinda el gating desde el lado del
 // autor de extensiones (Definition of Done §2: snippet Lua).
 func listSource(h *harness, name string) string {
 	h.t.Helper()
 	code := `
 		local out = ""
-		for _, p in ipairs(nu.plugin.list()) do
+		for _, p in ipairs(enu.plugin.list()) do
 			if p.name == "` + name + `" then out = p.source end
 		end
 		return out`
 	return h.eval(code)[0]
 }
 
-// TestEmbebidaInactivaPorDefecto (ADR-010): sin `nu.toml`, o con uno que no la
+// TestEmbebidaInactivaPorDefecto (ADR-010): sin `enu.toml`, o con uno que no la
 // nombra, la extensión embebida `example` NO se carga.
 func TestEmbebidaInactivaPorDefecto(t *testing.T) {
-	t.Run("sin nu.toml", func(t *testing.T) {
+	t.Run("sin enu.toml", func(t *testing.T) {
 		cfg := t.TempDir()
 		h := bootWithToml(t, "", cfg)
 		if src := listSource(h, "example"); src != "" {
-			t.Fatalf("la embebida no debía cargarse sin nu.toml; source=%q", src)
+			t.Fatalf("la embebida no debía cargarse sin enu.toml; source=%q", src)
 		}
 		if got := h.eval(`return _example_embedded_cargada == true`)[0]; got != "false" {
 			t.Fatalf("el init.lua de la embebida no debía correr; got %q", got)
 		}
 	})
-	t.Run("nu.toml que no la nombra", func(t *testing.T) {
+	t.Run("enu.toml que no la nombra", func(t *testing.T) {
 		cfg := t.TempDir()
 		writeNuToml(t, cfg, "[plugins]\nenabled = [\"otra\"]\n")
 		// "otra" no existe → error; este subtest solo comprueba que sin nombrarla no
@@ -107,7 +107,7 @@ func TestEmbebidaActivadaPorToml(t *testing.T) {
 	h := bootWithToml(t, "", cfg)
 
 	if src := listSource(h, "example"); src != "builtin" {
-		t.Fatalf(`nu.plugin.list() debía mostrar example con source="builtin"; got %q`, src)
+		t.Fatalf(`enu.plugin.list() debía mostrar example con source="builtin"; got %q`, src)
 	}
 	// El init.lua de la embebida corrió de verdad (huella global + línea de log).
 	if got := h.eval(`return _example_embedded_cargada == true`)[0]; got != "true" {
@@ -139,7 +139,7 @@ func TestUsuarioSustituyeEmbebida(t *testing.T) {
 	// Una sola entrada "example" en la lista: no coexisten.
 	count := h.eval(`
 		local n = 0
-		for _, p in ipairs(nu.plugin.list()) do if p.name == "example" then n = n + 1 end end
+		for _, p in ipairs(enu.plugin.list()) do if p.name == "example" then n = n + 1 end end
 		return n`)[0]
 	if count != "1" {
 		t.Fatalf("debía haber UNA sola entrada example (no coexisten); got %q", count)
@@ -148,7 +148,7 @@ func TestUsuarioSustituyeEmbebida(t *testing.T) {
 
 // TestEnabledInexistenteEsErrorAccionable (§14): activar algo que no existe ni
 // embebido ni en disco es un error de arranque accionable que NOMBRA la línea de
-// `nu.toml` (`plugins.enabled`).
+// `enu.toml` (`plugins.enabled`).
 func TestEnabledInexistenteEsErrorAccionable(t *testing.T) {
 	cfg := t.TempDir()
 	writeNuToml(t, cfg, "[plugins]\nenabled = [\"fantasma\"]\n")
@@ -166,7 +166,7 @@ func TestEnabledInexistenteEsErrorAccionable(t *testing.T) {
 	if se.Code != CodeEINVAL {
 		t.Fatalf("code: got %q, want EINVAL", se.Code)
 	}
-	// Accionable: nombra la extensión y la línea de nu.toml que lo arregla.
+	// Accionable: nombra la extensión y la línea de enu.toml que lo arregla.
 	for _, want := range []string{"fantasma", "plugins.enabled", nuTomlName} {
 		if !strings.Contains(se.Message, want) {
 			t.Errorf("el mensaje debe nombrar %q (accionable); mensaje: %q", want, se.Message)
@@ -174,7 +174,7 @@ func TestEnabledInexistenteEsErrorAccionable(t *testing.T) {
 	}
 }
 
-// TestNuTomlMalFormadoEsError: un `nu.toml` ilegible para TOML es un error de
+// TestNuTomlMalFormadoEsError: un `enu.toml` ilegible para TOML es un error de
 // arranque accionable que nombra la ruta (aplazado desde New a Boot).
 func TestNuTomlMalFormadoEsError(t *testing.T) {
 	cfg := t.TempDir()
@@ -184,7 +184,7 @@ func TestNuTomlMalFormadoEsError(t *testing.T) {
 	t.Cleanup(rt.Close)
 	err := rt.Boot()
 	if err == nil {
-		t.Fatal("se esperaba error por nu.toml mal formado, Boot terminó bien")
+		t.Fatal("se esperaba error por enu.toml mal formado, Boot terminó bien")
 	}
 	se, ok := err.(*StructuredError)
 	if !ok {
@@ -198,7 +198,7 @@ func TestNuTomlMalFormadoEsError(t *testing.T) {
 	}
 }
 
-// TestNuTomlCablearWatchdog: `watchdog.slice_budget_ms` de `nu.toml` se aplica al
+// TestNuTomlCablearWatchdog: `watchdog.slice_budget_ms` de `enu.toml` se aplica al
 // scheduler (un budget pequeño corta un bucle de CPU puro con EBUDGET). Confirma el
 // cableado del gancho `WithSliceBudget` desde la config de disco.
 func TestNuTomlCablearWatchdog(t *testing.T) {
@@ -212,25 +212,25 @@ func TestNuTomlCablearWatchdog(t *testing.T) {
 		t.Fatalf("Boot falló: %v", err)
 	}
 	if got := rt.sched.budget; got != 50*time.Millisecond {
-		t.Fatalf("el budget de nu.toml debía aplicarse; got %v, want 50ms", got)
+		t.Fatalf("el budget de enu.toml debía aplicarse; got %v, want 50ms", got)
 	}
 	h := &harness{t: t, rt: rt}
 	// Un bucle de CPU puro en una task se aborta con EBUDGET (no se cuelga). El
 	// `await` solo suspende dentro de una task, así que la observación va en otra.
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function() while true do end end)
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function() while true do end end)
 			local ok, err = pcall(function() victim:await() end)
 			out.code = err and err.code
 		end)`)
 	if got := h.eval(`return out.code`)[0]; got != "EBUDGET" {
-		t.Fatalf("se esperaba EBUDGET por el budget de nu.toml; got %q", got)
+		t.Fatalf("se esperaba EBUDGET por el budget de enu.toml; got %q", got)
 	}
 }
 
 // TestWithSliceBudgetTienePrecedenciaSobreToml: la Option explícita gana sobre
-// `nu.toml` (un test que fija su budget no lo pisa la config de disco).
+// `enu.toml` (un test que fija su budget no lo pisa la config de disco).
 func TestWithSliceBudgetTienePrecedenciaSobreToml(t *testing.T) {
 	cfg := t.TempDir()
 	writeNuToml(t, cfg, "[watchdog]\nslice_budget_ms = 50\n")
@@ -241,27 +241,27 @@ func TestWithSliceBudgetTienePrecedenciaSobreToml(t *testing.T) {
 		t.Fatalf("Boot falló: %v", err)
 	}
 	if got := rt.sched.budget; got != 0 {
-		t.Fatalf("WithSliceBudget(0) debía ganar sobre nu.toml; got %v, want 0", got)
+		t.Fatalf("WithSliceBudget(0) debía ganar sobre enu.toml; got %v, want 0", got)
 	}
 }
 
-// TestNuTomlCablearRutasPlugins: `plugins.dirs` de `nu.toml` se suma a las rutas de
-// descubrimiento (un plugin de un dir nombrado solo en nu.toml se carga).
+// TestNuTomlCablearRutasPlugins: `plugins.dirs` de `enu.toml` se suma a las rutas de
+// descubrimiento (un plugin de un dir nombrado solo en enu.toml se carga).
 func TestNuTomlCablearRutasPlugins(t *testing.T) {
 	cfg := t.TempDir()
 	extraRoot := t.TempDir()
 	writePlugin(t, extraRoot, "desde_toml", "1.0", nil, "_desde_toml = true")
-	// El dir va SOLO en nu.toml, no por WithPluginDir.
+	// El dir va SOLO en enu.toml, no por WithPluginDir.
 	writeNuToml(t, cfg, "[plugins]\ndirs = [\""+filepath.ToSlash(extraRoot)+"\"]\n")
 
 	h := bootWithToml(t, "", cfg)
 	if got := h.eval(`return _desde_toml == true`)[0]; got != "true" {
-		t.Fatalf("el plugin del dir de nu.toml debía cargarse; got %q", got)
+		t.Fatalf("el plugin del dir de enu.toml debía cargarse; got %q", got)
 	}
 }
 
 // TestEmbebidaActivadaListadaComoBuiltin: snippet Lua de la Definition of Done
-// (§2): `nu.plugin.list()` refleja la embebida activada con source="builtin" y
+// (§2): `enu.plugin.list()` refleja la embebida activada con source="builtin" y
 // enabled=true.
 func TestEmbebidaActivadaListadaComoBuiltin(t *testing.T) {
 	cfg := t.TempDir()
@@ -269,7 +269,7 @@ func TestEmbebidaActivadaListadaComoBuiltin(t *testing.T) {
 	h := bootWithToml(t, "", cfg)
 
 	got := h.eval(`
-		for _, p in ipairs(nu.plugin.list()) do
+		for _, p in ipairs(enu.plugin.list()) do
 			if p.name == "example" then
 				return tostring(p.source) .. "," .. tostring(p.enabled)
 			end

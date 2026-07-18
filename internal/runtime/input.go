@@ -1,6 +1,6 @@
 package runtime
 
-// Tipos de evento de input de `nu.ui` (api.md §9.3). La pila de input, el despacho
+// Tipos de evento de input de `enu.ui` (api.md §9.3). La pila de input, el despacho
 // y la resolución de secuencias/keymaps viven en el preludio Lua del backend wasm
 // (internal/vmwasm/ui.go); del lado Go sólo sobreviven estos tipos, que el parser de
 // bytes del terminal (`decodeInput`, tty.go) produce y el driver de TTY (driver.go)
@@ -15,7 +15,7 @@ type modSet struct {
 // inputEvent es un evento de entrada ya normalizado que el driver de TTY (o un test)
 // construye desde los bytes del terminal (`decodeInput`, tty.go): `{type, key?, mods?,
 // x?, y?, text?, path?}`. Para un paste de imagen (G30) el driver materializa los
-// bytes a `nu.fs.tmpdir` y entrega el evento con `path` (y `pasteIsText=false`) en vez
+// bytes a `enu.fs.tmpdir` y entrega el evento con `path` (y `pasteIsText=false`) en vez
 // de `text` —los bytes binarios nunca cruzan a Lua—.
 type inputEvent struct {
 	typ  string // "key" | "mouse" | "paste" | "focus"
@@ -25,7 +25,7 @@ type inputEvent struct {
 	hasX bool   // el evento trae coordenadas (mouse)
 
 	// Paste (§9.3, G30). `text` para un pegado de texto. Para una imagen, el driver
-	// la materializa a `nu.fs.tmpdir` y entrega `path` con `pasteIsText=false`.
+	// la materializa a `enu.fs.tmpdir` y entrega `path` con `pasteIsText=false`.
 	text        string
 	path        string
 	pasteIsText bool

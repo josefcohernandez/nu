@@ -4,7 +4,7 @@ Guía para asistentes de IA que trabajen en este repositorio.
 
 ## Qué es este proyecto
 
-`nu` es **un runtime de Lua orientado a terminal cuya killer app es un coding
+`enu` es **un runtime de Lua orientado a terminal cuya killer app es un coding
 harness**: un único binario Go con un kernel mínimo donde todo lo demás —
 incluido el propio agente — son extensiones Lua.
 
@@ -16,7 +16,7 @@ decisiones): **no crees ficheros de código Go o Lua salvo que se pida
 explícitamente**; el pseudocódigo ilustrativo vive dentro de los `.md`.
 
 **Excepción — fase de construcción:** cuando la tarea sea *implementar* el
-kernel, se rige por [docs/implementacion.md](docs/implementacion.md) y su
+kernel, se rige por [docs/plan/implementacion.md](docs/plan/implementacion.md) y su
 **protocolo de sesión** (una feature por sesión, puntero, checkpoints, tests).
 Eso *es* "pedirlo explícitamente": ahí sí se escribe código. El default "no
 código" sigue valiendo para todo lo demás. Cómo operar en esa fase: la sección
@@ -28,7 +28,7 @@ código" sigue valiendo para todo lo demás. Cómo operar en esa fase: la secci�
   Escribe en español, con el mismo registro: prosa densa pero precisa, frases
   que justifican el *porqué* de cada decisión, no solo el *qué*.
 - Los **identificadores de la API son en inglés y `snake_case`**
-  (`nu.fs.read`, `nu.task.spawn`); la prosa que los rodea, en español.
+  (`enu.fs.read`, `enu.task.spawn`); la prosa que los rodea, en español.
 - Tono: afirmativo y razonado. Cada decisión se acompaña de su motivación y,
   cuando aplica, de las alternativas descartadas. Imita la voz de los
   documentos existentes antes de añadir nada.
@@ -39,27 +39,45 @@ Todo vive en `docs/`. Orden de lectura sugerido (y dependencias conceptuales):
 
 | Documento | Rol |
 |---|---|
-| `docs/filosofia.md` | Principios fundacionales y "lo que nu no es". El *porqué* del proyecto. |
-| `docs/arquitectura.md` | Vista estática: las capas, el inventario de primitivas del kernel. |
-| `docs/modelo-ejecucion.md` | Vista dinámica: concurrencia, comunicación, limitaciones (con diagramas mermaid). |
-| `docs/api.md` | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
-| `docs/adr.md` | Registro de decisiones técnicas (Architecture Decision Records). |
-| `docs/providers.md` | Contrato de la extensión oficial de providers (registro TOML + adaptadores Lua). |
-| `docs/agente.md` | Contrato de la extensión oficial `agent` (motor headless: turno, tools, permisos, subagentes). |
-| `docs/sesiones.md` | Contrato de persistencia: JSONL append-only. |
-| `docs/chat.md` | Contrato de la extensión oficial `chat` (la UI). |
-| `docs/guia-plugins.md` | Sabiduría práctica para autores de plugins + checklist. |
-| `docs/pseudocodigo.md` | **El ejercicio de validación**: rondas de pseudocódigo que torturan la API. |
-| `docs/problemas.md` | Grietas que la v1 *necesita* cerradas (hallazgos G##, con estado). |
-| `docs/pospuesto.md` | Lo que se decidió no decidir todavía (P##), cada uno con su *disparador* de reapertura. |
-| `docs/implementacion.md` | Plan de construcción incremental: una feature por sesión (S##), ordenado por dependencias del kernel. |
+| `docs/core/filosofia.md` | Principios fundacionales y "lo que enu no es". El *porqué* del proyecto. |
+| `docs/core/arquitectura.md` | Vista estática: las capas, el inventario de primitivas del kernel. |
+| `docs/core/modelo-ejecucion.md` | Vista dinámica: concurrencia, comunicación, limitaciones (con diagramas mermaid). |
+| `docs/contracts/api.md` | **La API v1 del core — la "superficie sagrada".** Firmas y semánticas. |
+| `docs/decisions/adr/` | Decisiones técnicas (ADR): un fichero por decisión (`adr-NNN-<slug>.md`) + índice. |
+| `docs/contracts/providers.md` | Contrato de la extensión oficial de providers (registro TOML + adaptadores Lua). |
+| `docs/contracts/agente.md` | Contrato de la extensión oficial `agent` (motor headless: turno, tools, permisos, subagentes). |
+| `docs/contracts/sesiones.md` | Contrato de persistencia: JSONL append-only. |
+| `docs/contracts/chat.md` | Contrato de la extensión oficial `chat` (la UI). |
+| `docs/contracts/guia-plugins.md` | Sabiduría práctica para autores de plugins + checklist. |
+| `docs/contracts/malla.md` | Contrato de la extensión oficial `mesh` (borrador v0.1; su §11 sigue abierta). |
+| `docs/validation/` | **El ejercicio de validación**: una ronda de pseudocódigo por fichero (`ronda-N-<slug>.md`) + índice. |
+| `docs/findings/` | Grietas que la v1 *necesita* cerradas: un fichero por hallazgo (`gNN-<slug>.md`) + índice con el estado vivo. |
+| `docs/postponed/pospuesto.md` | Lo que se decidió no decidir todavía (P##), cada uno con su *disparador* de reapertura. |
+| `docs/plan/implementacion.md` | Plan de construcción incremental: una feature por sesión (S##), ordenado por dependencias del kernel. |
+| `docs/plan/estado.md` | **El estado vivo del plan**: puntero ▶, tablero de fases y bitácora append-only. |
+| `docs/worklog/` | Bitácora operativa: un fichero por sesión (`sNN-<slug>.md`) con las decisiones por debajo del umbral de `G##`. |
+| `docs/ops/release.md` | Runbook operativo para cortar una release estable (los *steps* que ADR-013 deja fuera). |
 
-`README.md` es el índice de entrada con el mismo orden de lectura.
+Además, dos carpetas por tipo de artefacto: `docs/audits/` (informes de
+auditoría fechados y cerrados) y `docs/archive/` (planes ya ejecutados que solo
+conservan valor histórico, como la migración de la VM). Nada de lo que hay ahí
+gobierna el diseño actual.
+
+Convenciones de la estructura (desde 2026-07-17): carpetas en inglés, ficheros
+en español; los registros van a **un fichero por entrada** y el `README.md`
+índice de cada carpeta concentra el estado vivo (contadores, tablas); **todo
+`.md` de `docs/` lleva frontmatter YAML** (claves en inglés, valores en
+español) con `type`/`status`/`id` y los campos de su tipo — al crear o cerrar
+una entrada, frontmatter y texto deben quedar cuadrados. El detalle del
+esquema: [docs/README.md](docs/README.md) §«Frontmatter».
+
+`README.md` es el índice de entrada con el mismo orden de lectura;
+[docs/README.md](docs/README.md) es el mapa por capas de `docs/`.
 
 ## Las ideas centrales que NUNCA debes contradecir
 
-Antes de proponer cualquier cosa, interiorízalas (detalle en `docs/filosofia.md`
-y `docs/adr.md`):
+Antes de proponer cualquier cosa, interiorízalas (detalle en `docs/core/filosofia.md`
+y `docs/decisions/adr/README.md`):
 
 1. **El core no sabe lo que es un agente.** Modelo Emacs/Textadept, no Neovim:
    kernel diminuto de primitivas + intérprete Lua. Agente, MCP, chat, comandos
@@ -75,8 +93,8 @@ y `docs/adr.md`):
    highlighting, streaming HTTP) es primitiva Go, paralela por dentro. CPU
    ardiendo en Lua = señal de que falta una primitiva o de que el trabajo va a
    un worker.
-4. **La API del core es sagrada** (`docs/api.md`): pequeña, aburrida, **crece
-   solo por adición**; `nu.version.api` se incrementa con cada adición. Romper
+4. **La API del core es sagrada** (`docs/contracts/api.md`): pequeña, aburrida, **crece
+   solo por adición**; `enu.version.api` se incrementa con cada adición. Romper
    una firma rompe el mundo.
 5. **Modelo de concurrencia "del navegador"** (ADR-004): estado Lua principal
    single-threaded con event loop (async por corrutinas, await implícito) +
@@ -88,11 +106,11 @@ y `docs/adr.md`):
    extensiones oficiales embebidas con `go:embed` pero **inactivas por defecto**
    (ADR-010).
 
-## Convenciones de la API (al editar `docs/api.md` o contratos)
+## Convenciones de la API (al editar `docs/contracts/api.md` o contratos)
 
-- Namespace global `nu` con submódulos; `require` reservado para módulos de
+- Namespace global `enu` con submódulos; `require` reservado para módulos de
   plugins. Identificadores en inglés, `snake_case`.
-- Notación de firmas: `nu.mod.fn(arg: tipo, opts?: tabla) -> tipo`.
+- Notación de firmas: `enu.mod.fn(arg: tipo, opts?: tabla) -> tipo`.
 - Marcadores: **⏸ suspende** (solo dentro de una task) y **[W]** (disponible en
   workers). Úsalos consistentemente.
 - Async por funciones suspendientes (estilo secuencial), no callbacks ni
@@ -111,29 +129,36 @@ y `docs/adr.md`):
 
 Este es el corazón del proyecto y debes respetarlo:
 
-1. **Validación por pseudocódigo** (`docs/pseudocodigo.md`). Se escriben
+1. **Validación por pseudocódigo** (`docs/validation/`, una ronda por
+   fichero). Se escriben
    escenarios reales usando **solo** lo especificado en los contratos. Cada
    punto donde el código no se puede escribir es un **hallazgo**. Las rondas
    acumuladas hasta hoy: Ronda 1 (H1-H3), Ronda 2 "caminos feos" (F1-F5),
    Rondas 3-4 "zonas sin torturar" (G1-G16), Ronda 5 "orquestación por un
    tercero" (G27). Revisiones de coherencia añadieron G17-G23, G26.
 
-2. **Registro de problemas** (`docs/problemas.md`). Las grietas que la v1 *sí*
+2. **Registro de problemas** (`docs/findings/`, un fichero por hallazgo
+   `gNN-<slug>.md`). Las grietas que la v1 *sí*
    necesita cerradas se numeran `G##` y se resuelven **una a una**: se discuten
    opciones, se decide, se aplica la resolución a *todos* los documentos
-   afectados, y la entrada pasa a **RESUELTO** con descripción de la
-   resolución. Estado actual: **25/25 resueltas** (+ G27).
+   afectados, y la entrada pasa a **RESUELTO** (en su texto y en su
+   frontmatter). El estado vivo (contador y abiertas) está en la **cabecera de
+   `docs/findings/README.md`** — consúltala ahí, no aquí.
 
-3. **Decisiones pospuestas** (`docs/pospuesto.md`). Lo que se decide *no*
+3. **Decisiones pospuestas** (`docs/postponed/pospuesto.md`). Lo que se decide *no*
    decidir todavía se numera `P##` y **siempre lleva un disparador**: la señal
    concreta que indica que toca reabrirlo. Nada está rechazado; está esperando.
    Cuando un `P##` se reabre y se decide, sale de aquí y entra en el ADR.
 
-4. **ADR** (`docs/adr.md`). Formato ligero: contexto → decisión →
+4. **ADR** (`docs/decisions/adr/`, un fichero por decisión
+   `adr-NNN-<slug>.md`). Formato ligero: contexto → decisión →
    consecuencias. **Las entradas nunca se reescriben**: si una decisión cambia,
-   se añade una nueva que la *reemplaza* (supersede), y la vieja se marca
-   "Reemplazada por ADR-NNN". Estados: Aceptada · Propuesta · Abierta ·
-   Reemplazada. Hay diez ADRs (ADR-001…ADR-010).
+   se añade una nueva que la *reemplaza* (supersede), y en la vieja solo se
+   marca el estado ("Reemplazada por ADR-NNN", y `superseded_by` en su
+   frontmatter). Estados: Aceptada · Propuesta · Abierta ·
+   Reemplazada. El número y estado de cada ADR viven en **su propio fichero**
+   (con índice en `docs/decisions/adr/README.md`) — consúltalos ahí, no aquí
+   (la cifra escrita aquí ya se desfasó una vez).
 
 **Reglas de oro del flujo:**
 
@@ -143,12 +168,20 @@ Este es el corazón del proyecto y debes respetarlo:
   `chat.md`, `guia-plugins.md`). La mayoría de hallazgos G17-G23 nacieron
   justo de contratos que presuponían API inexistente.
 - **Respeta los enlaces cruzados.** Los documentos se referencian entre sí con
-  rutas relativas (`[api.md](api.md) §3`) y por número de hallazgo/ADR. Al
-  resolver algo, deja el rastro: enlaza el cambio desde `problemas.md` y cita
+  rutas relativas (`[api.md](docs/contracts/api.md) §3`) y por número de hallazgo/ADR. Al
+  resolver algo, deja el rastro: enlaza el cambio desde el fichero del
+  hallazgo en `docs/findings/` y cita
   el `G##`/`F##`/`P##`/`ADR-NNN` que lo motiva.
+- **La web publica la Capa 1; la trazabilidad se mantiene en la fuente.** Una
+  sección de un contrato que no debe aparecer en la web de docs se envuelve
+  entre `<!-- enu:interno -->` y `<!-- /enu:interno -->`; el resto de la
+  trazabilidad (`(G##)`, `(P##)`, `> ✅ …`) se queda en `docs/` —sigue siendo la
+  fuente de verdad— y la web la limpia en build. Alta o baja de páginas de la
+  wiki: `/alta-wiki`. Detalle en [docs/README.md](docs/README.md)
+  §«Publicación web».
 - No inventes API para tapar un hallazgo sin antes comprobar que el patrón se
   repite y que no se compone con lo existente. Varios "hallazgos" se cierran
-  demostrando que ya eran expresables (semáforo con `nu.task.future`, etc.).
+  demostrando que ya eran expresables (semáforo con `enu.task.future`, etc.).
 - Antes de añadir una primitiva al core, pregúntate si es **vocabulario de
   producto** (entonces va a una extensión) o si la división "Lua decide, Go
   ejecuta" la justifica por rendimiento.
@@ -156,25 +189,31 @@ Este es el corazón del proyecto y debes respetarlo:
 ## Cuando implementes (fase de construcción)
 
 Si la tarea es construir el kernel (no diseñar), **el plan manda**:
-[docs/implementacion.md](docs/implementacion.md). No improvises el orden ni
+[docs/plan/implementacion.md](docs/plan/implementacion.md). No improvises el orden ni
 juntes features: una sesión = una feature. El estado vive en el repo, no en tu
 memoria. Protocolo, sin saltarte pasos:
 
-1. **Antes de tocar nada**, abre `docs/implementacion.md` y lee el **puntero ▶**
+1. **Antes de tocar nada**, abre `docs/plan/estado.md` y lee el **puntero ▶**
    ("Próxima sesión") y la **última fila de la bitácora**. Eso es dónde seguir y
-   en qué estado quedó. Implementa **solo** esa sesión; respeta el grafo de
+   en qué estado quedó; el detalle de la sesión (enunciado, dependencias,
+   fase) está en `docs/plan/implementacion.md`. Implementa **solo** esa
+   sesión; respeta el grafo de
    dependencias (no abras una sesión cuyas dependencias no estén cerradas).
 2. **Tests — la lógica clave no se skippea.** Si la sesión está en el
    **inventario 🔒** (§"Política de tests" del plan), lleva tests unitarios Go
    exhaustivos de sus casos límite, **obligatorios**, nombrando el `G##` que
    blindan. Si es un wrapper fino, basta el snippet Lua + el checkpoint; no
    inventes tests de código ajeno. Toda sesión deja `go build ./...` verde.
-3. **La API del core es sagrada.** Implementas [api.md](api.md), no lo amplías.
+3. **La API del core es sagrada.** Implementas [api.md](docs/contracts/api.md), no lo amplías.
    Si descubres que la API no basta, **párate**: es un hallazgo `G##` que se
-   resuelve primero en los documentos (problemas.md → api.md → contratos) y solo
+   resuelve primero en los documentos (findings → api.md → contratos) y solo
    *después* se implementa. El código nunca corrige la espec por la vía de hecho.
-4. **Al terminar, en el mismo commit que la feature:** avanza el puntero ▶,
-   marca el tablero si cerraste una fase, y añade fila a la bitácora. Si cierras
+4. **Al terminar, en el mismo commit que la feature:** en `docs/plan/estado.md`,
+   avanza el puntero ▶,
+   marca el tablero si cerraste una fase, y añade fila a la bitácora. Las
+   decisiones operativas y desviaciones que no llegan a `G##` se registran
+   creando `docs/worklog/sNN-<slug>.md` (un fichero por sesión, con su fila en
+   el índice `docs/worklog/README.md`). Si cierras
    una fase, ejecuta antes su **checkpoint de integración (🔎)**; si falla, no
    avances el puntero. Un commit que toca código sin mover el puntero es una
    sesión a medias.
@@ -184,11 +223,39 @@ El plan tiene todo el detalle (las 45 sesiones, los 11 checkpoints, el
 inventario 🔒 y los hitos de veto). Esta sección solo garantiza que lo
 **consultes y lo sigas** aunque arranques sin más contexto que este fichero.
 
+## Agentes y skills del flujo
+
+El flujo de arriba está mecanizado en [.claude/README.md](.claude/README.md)
+(el mapa): skills `/planificar-sesion`, `/sesion`, `/hallazgo`, `/ronda`,
+`/juicio` y `/mutacion`, y los agentes clean-room (jueces, verificador,
+auditor, escenarista BDD). Ante una tarea de desarrollo, consulta el mapa y
+usa la skill que corresponda en vez de improvisar el protocolo. Las reglas de
+no-contaminación de los jueces (qué reciben y qué herramientas tienen) no se
+relajan.
+
 ## Convenciones de Git
 
-- **Rama de trabajo:** desarrolla en la rama indicada por la tarea (p. ej.
-  `claude/...`); créala localmente si no existe. Nunca empujes a otra rama sin
+- **Modelo de ramas (desde 2026-07-14):** `develop` es la rama de integración
+  y la **rama por defecto** del repo — ahí aterriza todo el trabajo y de ahí
+  salen las versiones *no estables*. `main` queda reservada para **versiones
+  estables**: solo recibe merges desde `develop` cuando se corta una estable,
+  nunca trabajo directo.
+- **Worktree de trabajo (desde 2026-07-15):** cada tarea nueva se trabaja en
+  **un worktree y una rama nuevos**, nunca directamente en el directorio
+  principal del repo — así varias tareas conviven sin pisarse el árbol de
+  trabajo. Al arrancar la tarea, crea el worktree con la herramienta
+  **`EnterWorktree`** (nómbralo como la rama de la tarea, p. ej.
+  `claude/<tema>`): lo deja en `.claude/worktrees/` con una rama nueva **desde
+  `origin/develop`** y mueve la sesión dentro. Como la herramienta bautiza la
+  rama con un nombre autogenerado (`worktree-...`), renómbrala acto seguido a
+  la convención: `git branch -m claude/<tema>`. Nunca empujes a otra rama sin
   permiso explícito.
+- **Limpieza post-merge (siempre, sin excepción):** cuando la rama se fusiona
+  en `develop`, elimina el worktree y la rama — `ExitWorktree(remove)` si la
+  sesión sigue dentro, o `git worktree remove` más el borrado de la rama local
+  y remota si no — y deja el repo en su **estado de reposo**: el checkout
+  principal en `develop` actualizado (`git switch develop && git pull
+  --ff-only`) y ninguna rama local ya fusionada viva (`git branch -d <rama>`).
 - **Mensajes de commit en español**, descriptivos y referenciando el hallazgo
   cuando aplique. Estilo observado en el historial:
   - `Resuelve G27: nu.task.all alinea resultados con inputs (Promise.all)`
@@ -204,10 +271,10 @@ inventario 🔒 y los hitos de veto). Esta sección solo garantiza que lo
 
 ## Glosario de prefijos de seguimiento
 
-- **ADR-NNN** — decisión técnica registrada (en `adr.md`).
-- **G##** — grieta/hallazgo que la v1 necesita cerrar (en `problemas.md`).
+- **ADR-NNN** — decisión técnica registrada (su fichero en `docs/decisions/adr/`).
+- **G##** — grieta/hallazgo que la v1 necesita cerrar (su fichero en `docs/findings/`).
 - **H##, F##** — hallazgos de las rondas 1 y 2 de pseudocódigo (ya resueltos e
   integrados en la API).
-- **P##** — discusión pospuesta con su disparador (en `pospuesto.md`).
+- **P##** — discusión pospuesta con su disparador (en `docs/postponed/pospuesto.md`).
 - **§N** — referencia a una sección numerada dentro de un documento.
 - **⏸** — función suspendiente (solo en task). **[W]** — disponible en workers.

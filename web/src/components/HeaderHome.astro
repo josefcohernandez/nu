@@ -1,0 +1,68 @@
+---
+// Header de la portada (solo /). Wordmark a la izquierda; a la derecha los
+// pickers `theme: [enu] dracula gruvbox solarized` y `lang: [es] en` como TEXTO
+// plano clicable (activo entre corchetes en key weight 600, resto dim). El
+// script de teclado (initKeyboard) cablea los clicks y el estado activo.
+import Wordmark from './Wordmark.astro';
+
+const themes = ['enu', 'dracula', 'gruvbox', 'solarized'];
+const langs = ['es', 'en'];
+---
+<header class="home-header">
+  <Wordmark />
+  <div class="pickers">
+    <span class="group">
+      <span class="lbl">theme:</span>
+      {themes.map((t) => (
+        <span
+          data-theme-pick={t}
+          style={t === 'enu'
+            ? 'color:var(--key);font-weight:600'
+            : 'color:var(--dim);font-weight:400'}
+        >{t === 'enu' ? `[${t}]` : t}</span>
+      ))}
+    </span>
+    <span class="group">
+      <span class="lbl">lang:</span>
+      {langs.map((l) => (
+        <span
+          data-lang-pick={l}
+          style={l === 'es'
+            ? 'color:var(--key);font-weight:600'
+            : 'color:var(--dim);font-weight:400'}
+        >{l === 'es' ? `[${l}]` : l}</span>
+      ))}
+    </span>
+  </div>
+</header>
+
+<style>
+  .home-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: var(--fs-2);
+  }
+  .pickers {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+  .group {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .lbl {
+    color: var(--dim);
+  }
+  /* En móvil el header entero se oculta: lo sustituye el m-header de la portada
+     (wordmark + versión) y los pickers bajan al footer. */
+  @media (max-width: 767px) {
+    .home-header {
+      display: none;
+    }
+  }
+</style>

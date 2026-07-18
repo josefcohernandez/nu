@@ -1,7 +1,7 @@
 package runtime
 
 // Tests de P24: inyección de skills (índice en el system prompt + tool `skill`
-// bajo demanda), inyección de `nu.md` del repo, y la puerta TOFU (§11.2) que
+// bajo demanda), inyección de `enu.md` del repo, y la puerta TOFU (§11.2) que
 // gobierna el contenido del REPO (el del usuario es siempre de confianza).
 
 import (
@@ -25,7 +25,7 @@ func writeSkill(t *testing.T, dir, name, desc, body string) {
 }
 
 // bootAgentP24 arranca el agente con cfg/repo CONOCIDOS, una skill de usuario en
-// cfg/skills y una skill de repo + nu.md en un dir de repo aparte. Devuelve el
+// cfg/skills y una skill de repo + enu.md en un dir de repo aparte. Devuelve el
 // harness y la ruta del repo (para pasarla como cwd y como clave de trust).
 func bootAgentP24(t *testing.T) (*harness, string) {
 	t.Helper()
@@ -40,10 +40,10 @@ func bootAgentP24(t *testing.T) (*harness, string) {
 	}
 	// skill del USUARIO (siempre de confianza).
 	writeSkill(t, filepath.Join(cfg, "skills"), "userskill", "skill del usuario", "CUERPO-USER")
-	// skill del REPO + nu.md (tras TOFU).
-	writeSkill(t, filepath.Join(repo, ".nu", "skills"), "repoanalyzer", "analiza el repo", "CUERPO-REPO")
-	if err := os.WriteFile(filepath.Join(repo, "nu.md"), []byte("Regla del proyecto: usar pnpm."), 0o644); err != nil {
-		t.Fatalf("write nu.md: %v", err)
+	// skill del REPO + enu.md (tras TOFU).
+	writeSkill(t, filepath.Join(repo, ".enu", "skills"), "repoanalyzer", "analiza el repo", "CUERPO-REPO")
+	if err := os.WriteFile(filepath.Join(repo, "enu.md"), []byte("Regla del proyecto: usar pnpm."), 0o644); err != nil {
+		t.Fatalf("write enu.md: %v", err)
 	}
 
 	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(false))
@@ -55,18 +55,18 @@ func bootAgentP24(t *testing.T) (*harness, string) {
 }
 
 // TestSkillsIndexTOFU (P24/§6/§11.2): el índice de skills incluye SIEMPRE las del
-// usuario; las del repo y el nu.md SOLO tras confiar en el repo (TOFU).
+// usuario; las del repo y el enu.md SOLO tras confiar en el repo (TOFU).
 func TestSkillsIndexTOFU(t *testing.T) {
 	h, repo := bootAgentP24(t)
 	h.eval(`
 		out, errc = nil, nil
 		REPO = ` + quote(repo) + `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerToolStub + `
 				local s = agent.session{ model = "test/m", cwd = REPO, no_store = true }
-				-- sin TOFU: solo skill de usuario, sin repo ni nu.md.
+				-- sin TOFU: solo skill de usuario, sin repo ni enu.md.
 				SYS1 = s:_assemble_system()
 				LIST1 = #agent.skills.list(REPO)
 				-- confiamos en el repo (lo que haría el TOFU de la UI).
@@ -81,7 +81,7 @@ func TestSkillsIndexTOFU(t *testing.T) {
 	h.expectEval(`return tostring(out)`, "done")
 	h.expectEval(`return tostring(errc)`, "nil")
 
-	// sin confianza: userskill sí, repoanalyzer/nu.md no.
+	// sin confianza: userskill sí, repoanalyzer/enu.md no.
 	sys1 := h.eval(`return SYS1`)[0]
 	if !strings.Contains(sys1, "userskill") {
 		t.Errorf("SYS1 debía incluir la skill de usuario:\n%s", sys1)
@@ -91,7 +91,7 @@ func TestSkillsIndexTOFU(t *testing.T) {
 	}
 	h.expectEval(`return tostring(LIST1)`, "1") // solo la de usuario
 
-	// con confianza: aparecen las del repo y el nu.md.
+	// con confianza: aparecen las del repo y el enu.md.
 	sys2 := h.eval(`return SYS2`)[0]
 	for _, want := range []string{"userskill", "repoanalyzer", "pnpm"} {
 		if !strings.Contains(sys2, want) {
@@ -108,7 +108,7 @@ func TestSkillToolLoad(t *testing.T) {
 	h.eval(`
 		out, errc = nil, nil
 		REPO = ` + quote(repo) + `
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerToolStub + `

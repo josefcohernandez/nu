@@ -4,7 +4,7 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-// `nu.text` — render y procesado de texto (api.md §10, sesión S22, inventario
+// `enu.text` — render y procesado de texto (api.md §10, sesión S22, inventario
 // 🔒). En S22 se implementan las tres primitivas fundacionales del layout:
 // `width` (la lógica 🔒, base de TODO el cálculo de tamaños), `wrap` (word-wrap a
 // un Block) y `truncate` (recorte con elipsis). `markdown`/`highlight`/`diff`/
@@ -81,7 +81,11 @@ func wrapParagraph(p string, width int) []string {
 	curW := 0
 	for _, word := range words {
 		ww := uniseg.StringWidth(word)
-		if curW == 0 {
+		// La línea en curso está vacía solo si `cur` lo está: una palabra de
+		// anchura 0 (un zero-width space suelto, un control char) deja curW en 0
+		// con la línea YA ocupada, y usar curW como centinela la sobreescribía
+		// (contenido borrado en silencio; lo cazó FuzzWrapText).
+		if cur == "" {
 			// Primera palabra de la línea. Si no cabe, se parte; el último trozo queda
 			// como línea en curso para que la siguiente palabra pueda acompañarlo.
 			if ww > width {
@@ -154,7 +158,11 @@ func splitWide(word string, width int) []string {
 		var cluster string
 		cluster, rest, _, state = uniseg.FirstGraphemeClusterInString(rest, state)
 		cw := uniseg.StringWidth(cluster)
-		if curW > 0 && curW+cw > width {
+		// "Pieza no vacía" es cur != "", no curW > 0: una pieza que solo acumula
+		// clusters de anchura 0 (un ZWJ huérfano) dejaba curW en 0 y el siguiente
+		// cluster ancho se le pegaba, excediendo `width` con 2+ graphemes en la
+		// pieza (lo cazó FuzzWrapText con "‍孡" y width=1).
+		if cur != "" && curW+cw > width {
 			parts = append(parts, cur)
 			cur, curW = "", 0
 		}

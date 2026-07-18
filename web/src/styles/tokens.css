@@ -1,0 +1,120 @@
+/* Design tokens — los 4 themes como paletas de terminal.
+ *
+ * Cada theme define 8+1 tokens (--bg --fg --bright --dim --border --key --c2
+ * --c3 --c4). Valores EXACTOS de la tabla del handoff (coinciden con
+ * bootPalettes del prototipo). Default: enu. El cambio de theme es instantáneo
+ * (sin transition). Se aplican bajo html[data-theme="…"]; un script inline en
+ * el <head> fija el atributo antes del primer paint (sin flash).
+ *
+ * ACCESIBILIDAD (W-02): --fg y --dim son TEXTO de lectura, no adorno. --dim
+ * pinta la statusline (10.5px), las citas markdown, los metadatos y los
+ * footers; a ese tamaño WCAG 2.1 §1.4.3 exige 4.5:1 sin excepción. Por eso
+ * ambos deben mantener contraste AA (≥4.5:1) contra --bg en los 4 themes. No
+ * es opcional: `npm run check:contraste` (scripts/check-contraste.mjs) lo
+ * vigila en el build y rompe si un token de lectura baja de AA. Al retocar la
+ * paleta, sube el token conservando su matiz hasta que el check quede verde. */
+
+/* enu (default, cian) — vale también sin atributo por si el script no corre. */
+html,
+html[data-theme='enu'] {
+  --bg: #0a1416;
+  --fg: #a9bfc4;
+  --bright: #e8f4f6;
+  --dim: #63848b; /* W-02: subido de #4e686e (3.1:1) a AA sobre --bg (≈4.6:1), mismo matiz. */
+  --border: #16292d;
+  --key: #4fcadb;
+  --c2: #7fc8a8;
+  --c3: #4fcadb;
+  --c4: #c9a06a;
+}
+
+html[data-theme='dracula'] {
+  --bg: #282a36;
+  --fg: #f8f8f2;
+  --bright: #ffffff;
+  --dim: #8592b8; /* W-02: subido de #6272a4 (3.0:1) a AA sobre --bg (≈4.6:1), mismo matiz. */
+  --border: #3b3d51;
+  --key: #ff79c6;
+  --c2: #50fa7b;
+  --c3: #8be9fd;
+  --c4: #f1fa8c;
+}
+
+html[data-theme='gruvbox'] {
+  --bg: #282828;
+  --fg: #ebdbb2;
+  --bright: #fbf1c7;
+  --dim: #a89984;
+  --border: #3c3836;
+  --key: #fe8019;
+  --c2: #b8bb26;
+  --c3: #8ec07c;
+  --c4: #fabd2f;
+}
+
+html[data-theme='solarized'] {
+  --bg: #fdf6e3;
+  --fg: #5f737b; /* W-02: subido de #657b83 (4.1:1) a AA sobre --bg (≈4.6:1), mismo matiz. */
+  --bright: #073642;
+  --dim: #637275; /* W-02: subido de #7d8e91 (3.2:1) a AA sobre --bg (≈4.6:1), mismo matiz. */
+  --border: #eee8d5;
+  --key: #2aa198;
+  --c2: #859900;
+  --c3: #268bd2;
+  --c4: #cb4b16;
+}
+
+/* Familia para el CUERPO de la prosa de docs (W-03). Excepción deliberada al
+ * dogma "todo mono": el mono ES el terminal y se queda en el chrome (statusline,
+ * títulos, código, tablas, prompt, ═/─); pero un párrafo denso en español se
+ * lee, no se teclea, y el monoespaciado fatiga en textos largos. IBM Plex Sans
+ * es la humanista hermana de la mono ya presente (misma familia tipográfica,
+ * self-hosted). Se aplica SOLO a p/li/blockquote de la prosa; el `code` inline
+ * dentro de ellos vuelve a mono explícitamente. Pila con fallbacks humanistas
+ * del sistema por si la web-font no carga. */
+html {
+  --font-prose: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+/* Escala tipográfica (W-05). Antes había font-size literales sembrados a mano por
+ * todo el CSS (10.5 / 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 / 15 / 20 / 24 / 40).
+ * No era slop sino lo contrario —demasiado ajuste manual—, pero frágil: dos
+ * superficies hermanas acababan a 12.5 y 13 sin motivo y nadie lo notaba.
+ *
+ * Criterio: un peldaño por CADA tamaño que ya existía, mapeado EXACTO (esta
+ * consolidación no cambia ni un píxel el aspecto; solo centraliza la constante
+ * dispersa y deja a la vista los valores que solo existen por inercia). De menor
+ * a mayor. El rol indicado es el mayoritario, no una regla dura. Añadir un
+ * tamaño nuevo = añadir un peldaño aquí, no un literal en una hoja de página. */
+html {
+  --fs-1: 10.5px; /* metadatos / notas de carril: la letra más pequeña */
+  --fs-2: 11px;   /* footers, labels, hints de statusline, subbar, cta */
+  --fs-3: 11.5px; /* carriles § de la derecha (toc/rail) */
+  --fs-4: 12px;   /* chrome menor: prompt, feedback, drawer-head, cierres */
+  --fs-5: 12.5px; /* sidebars, tablas, prev/next, resultados de búsqueda */
+  --fs-6: 13px;   /* cuerpos mono densos, bloques de código, intros */
+  --fs-7: 13.5px; /* cuerpo de plugins, h3 markdown, títulos de paso */
+  --fs-8: 14px;   /* cuerpo base, lead, h2 markdown */
+  --fs-9: 15px;   /* cuerpo de PROSA en sans (W-03) */
+  --fs-10: 20px;  /* títulos de sección / h1 de página */
+  --fs-11: 24px;  /* slogan (móvil) */
+  --fs-12: 40px;  /* slogan (desktop) */
+}
+
+/* Mapeo del resaltado de sintaxis (Shiki, tema css-variables) a los tokens del
+ * theme activo: keywords → key, strings → c2, comentarios → dim, texto → fg,
+ * fondo del bloque → border. Así el código cambia de color con el theme. */
+html {
+  --astro-code-foreground: var(--fg);
+  --astro-code-background: var(--border);
+  --astro-code-token-constant: var(--c3);
+  --astro-code-token-string: var(--c2);
+  --astro-code-token-string-expression: var(--c2);
+  --astro-code-token-comment: var(--dim);
+  --astro-code-token-keyword: var(--key);
+  --astro-code-token-function: var(--bright);
+  --astro-code-token-parameter: var(--fg);
+  --astro-code-token-punctuation: var(--dim);
+  --astro-code-token-link: var(--key);
+}

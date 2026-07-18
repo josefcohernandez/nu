@@ -5,7 +5,7 @@
 -- Eventos, ejecuta tool calls y re-pide hasta `done` sin tools), el registro de
 -- TOOLS, los PERMISOS (con error accionable al denegar), los HOOKS-MIDDLEWARE
 -- (`request.pre`/`tool.pre`/`tool.post`/`permission`, registro PROPIO de la
--- extensión, NO el bus `nu.events`) y los eventos `agent:*` (sí en el bus).
+-- extensión, NO el bus `enu.events`) y los eventos `agent:*` (sí en el bus).
 --
 -- ADR-003: el core NO sabe lo que es un agente; todo es Lua puro sobre la API
 -- pública congelada ([api.md](../../../../docs/api.md)) y sobre las extensiones
@@ -28,3 +28,7 @@ local agent = require("agent")
 -- permiso ni en headless. Las que mutan el disco quedan en el default "ask"
 -- (deny en headless sin respuesta), así el permiso denegado muerde solo a ellas.
 require("agent.tools_fs")
+
+-- Tool `bash`: ejecuta comandos de shell. Recorta por defecto los secretos del
+-- provider del entorno del hijo (G55, agente.md §3, SEC-04).
+require("agent.tools_bash")

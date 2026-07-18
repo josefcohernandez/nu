@@ -43,8 +43,8 @@ func TestWatchdogCutsPureCPULoop(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function()
 				while true do end          -- CPU pura: nunca suspende
 				out.despues = true         -- NO debe ejecutarse
 			end)
@@ -69,8 +69,8 @@ func TestWatchdogNotCapturableByPcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function()
 				local ok, err = pcall(function() while true do end end)
 				out.pcall_volvio = true    -- NO debe ejecutarse: el aborto no es capturable
 				out.pcall_ok = ok
@@ -91,8 +91,8 @@ func TestWatchdogNotCapturableByNestedPcallAndXpcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function()
 				xpcall(function()
 					pcall(function()
 						pcall(function() while true do end end)
@@ -119,17 +119,17 @@ func TestWatchdogNotCapturableByNestedPcallAndXpcall(t *testing.T) {
 // --- 🔒 Corren los cleanup de la task abortada por watchdog ---
 
 // TestWatchdogRunsCleanups: 🔒 una task abortada por el watchdog corre sus
-// `nu.task.cleanup` (en LIFO), igual que una cancelada (S08): el aborto por
+// `enu.task.cleanup` (en LIFO), igual que una cancelada (S08): el aborto por
 // presupuesto reusa `runCleanups`.
 func TestWatchdogRunsCleanups(t *testing.T) {
 	h := newHarnessBudget(t, wdBudget)
 
 	h.eval(`
 		out = { orden = {} }
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() table.insert(out.orden, "primero") end)
-				nu.task.cleanup(function() table.insert(out.orden, "segundo") end)
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() table.insert(out.orden, "primero") end)
+				enu.task.cleanup(function() table.insert(out.orden, "segundo") end)
 				while true do end          -- el watchdog corta aquí
 			end)
 			pcall(function() victim:await() end)
@@ -151,8 +151,8 @@ func TestWatchdogAwaitObservesEBUDGET(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function() while true do end end)
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function() while true do end end)
 			local ok, err = pcall(function() victim:await() end)
 			out.ok = ok                  -- false
 			out.code = err and err.code  -- EBUDGET
@@ -177,14 +177,14 @@ func TestWatchdogDoesNotFreezeLoop(t *testing.T) {
 
 	h.eval(`
 		out = { ticks = 0, abortada = false }
-		nu.task.spawn(function()
-			local timer = nu.task.every(10, function() out.ticks = out.ticks + 1 end)
-			local victim = nu.task.spawn(function() while true do end end)
+		enu.task.spawn(function()
+			local timer = enu.task.every(10, function() out.ticks = out.ticks + 1 end)
+			local victim = enu.task.spawn(function() while true do end end)
 			pcall(function() victim:await() end)
 			out.abortada = true
 			out.ticks_al_abortar = out.ticks
 			-- Deja correr al every un poco más para confirmar que sigue vivo tras el corte.
-			nu.task.sleep(60)
+			enu.task.sleep(60)
 			out.ticks_despues = out.ticks
 			timer:stop()
 		end)
@@ -209,13 +209,13 @@ func TestWatchdogNoFalsePositiveOnSuspendingWork(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function()
 				for i = 1, 10 do
 					-- tramo de CPU trivial, muy por debajo del budget
 					local x = 0
 					for j = 1, 1000 do x = x + j end
-					nu.task.sleep(5)   -- ⏸: reinicia el slice
+					enu.task.sleep(5)   -- ⏸: reinicia el slice
 				end
 				return "ok"
 			end)
@@ -233,8 +233,8 @@ func TestWatchdogNoFalsePositiveOnFastTask(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function() return 42 end)
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function() return 42 end)
 			out.res = victim:await()
 		end)
 	`)
@@ -251,13 +251,13 @@ func TestWatchdogNoFalsePositiveOnFastTask(t *testing.T) {
 
 // TestWatchdogEmitsMisbehaved: el gancho interno `emitMisbehaved` deja constancia
 // del corte por watchdog (hasta S10, en el log; S10 lo cableará a
-// `nu.events.emit("core:plugin.misbehaved", ...)`). Comprobamos la línea.
+// `enu.events.emit("core:plugin.misbehaved", ...)`). Comprobamos la línea.
 func TestWatchdogEmitsMisbehaved(t *testing.T) {
 	h := newHarnessBudget(t, wdBudget)
 
 	h.eval(`
-		nu.task.spawn(function()
-			local victim = nu.task.spawn(function() while true do end end)
+		enu.task.spawn(function()
+			local victim = enu.task.spawn(function() while true do end end)
 			pcall(function() victim:await() end)
 		end)
 	`)

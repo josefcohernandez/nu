@@ -15,7 +15,7 @@
 -- aceptar requieren escribir `agent.toml` y un editor de patrón: su superficie
 -- excede S43 (el agente S39 no expone aún la edición de política en caliente);
 -- v1 ofrece una/denegar, muestra el patrón propuesto, y documenta «siempre» como
--- mejora (claude_decisions.md S43). El contrato del modal (un widget focusable que
+-- mejora (docs/decisiones-implementacion.md S43). El contrato del modal (un widget focusable que
 -- responde al ask) queda ejercido.
 --
 -- THEME (G22, chat.md §7): el realce del diálogo usa colores semánticos (accent
@@ -65,7 +65,7 @@ local function args_summary(args)
   for k, v in pairs(args) do
     local sv
     if type(v) == "table" then
-      local ok, j = pcall(nu.json.encode, v)
+      local ok, j = pcall(enu.json.encode, v)
       sv = ok and j or "<tabla>"
     else
       sv = tostring(v)
@@ -134,16 +134,16 @@ function Dialog:compose(w, _h)
 
   local lines = {}
   -- el título lo pinta el marco (toolkit.box); aquí va el contenido.
-  lines[#lines + 1] = line({ { text = nu.text.truncate("Tool: " .. tostring(self.tool), w), style = warn } })
+  lines[#lines + 1] = line({ { text = enu.text.truncate("Tool: " .. tostring(self.tool), w), style = warn } })
   for _, l in ipairs(split_lines(args_summary(self.args))) do
-    lines[#lines + 1] = line({ { text = nu.text.truncate(l, w) } })
+    lines[#lines + 1] = line({ { text = enu.text.truncate(l, w) } })
   end
   if self.suggested then
-    lines[#lines + 1] = line({ { text = nu.text.truncate("Patrón sugerido: " .. tostring(self.suggested), w), style = dim } })
+    lines[#lines + 1] = line({ { text = enu.text.truncate("Patrón sugerido: " .. tostring(self.suggested), w), style = dim } })
   end
-  lines[#lines + 1] = line({ { text = nu.text.truncate(
+  lines[#lines + 1] = line({ { text = enu.text.truncate(
     "[a] una vez   [s] siempre (sesión)   [g] siempre (global)   [d] denegar", w), style = dim } })
-  return nu.ui.block(lines)
+  return enu.ui.block(lines)
 end
 
 -- chat.permission.new{ tool, args, suggested?, on_respond } -> Dialog. Un modal

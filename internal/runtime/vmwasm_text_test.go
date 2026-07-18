@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b/M13c: nu.text sobre wasm (§10). width/truncate (M13b, no producen
+// Tests de M13b/M13c: enu.text sobre wasm (§10). width/truncate (M13b, no producen
 // Block) y wrap/markdown/highlight/diff (M13c, producen Blocks como handle con
 // .width/.height). El render fino de cada uno ya está blindado en los tests gopher
 // (markdown_test/highlight_test/diff_test); aquí un smoke de dimensiones y la paridad
@@ -9,7 +9,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 func wasmTextInst(t *testing.T) *vmwasm.Instance {
@@ -32,7 +32,7 @@ func wasmTextInst(t *testing.T) *vmwasm.Instance {
 func TestTextWasmWidth(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		return tostring(nu.text.width("abc")) .. ":" .. tostring(nu.text.width("日本"))`)
+		return tostring(enu.text.width("abc")) .. ":" .. tostring(enu.text.width("日本"))`)
 	// "abc" = 3 celdas; "日本" = 2 caracteres wide = 4 celdas.
 	if out != "3:4" {
 		t.Fatalf("width: got %q (esperado 3:4)", out)
@@ -43,9 +43,9 @@ func TestTextWasmWidth(t *testing.T) {
 func TestTextWasmTruncate(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local cabe = nu.text.truncate("hola", 10)
-		local corta = nu.text.truncate("hola mundo", 6, { ellipsis = "…" })
-		return cabe .. "|" .. corta .. "|" .. tostring(nu.text.width(corta) <= 6)`)
+		local cabe = enu.text.truncate("hola", 10)
+		local corta = enu.text.truncate("hola mundo", 6, { ellipsis = "…" })
+		return cabe .. "|" .. corta .. "|" .. tostring(enu.text.width(corta) <= 6)`)
 	// "hola" cabe entero; "hola mundo" recortado a <=6 celdas con elipsis.
 	if got := out; got[:5] != "hola|" || got[len(got)-4:] != "true" {
 		t.Fatalf("truncate: got %q", out)
@@ -56,7 +56,7 @@ func TestTextWasmTruncate(t *testing.T) {
 func TestTextWasmTruncateInvalido(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.text.truncate("x", -1) end)
+		local ok, e = pcall(function() return enu.text.truncate("x", -1) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("truncate inválido: got %q", out)
@@ -67,7 +67,7 @@ func TestTextWasmTruncateInvalido(t *testing.T) {
 func TestTextWasmWrap(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local b = nu.text.wrap("hola mundo largo del todo", 6)
+		local b = enu.text.wrap("hola mundo largo del todo", 6)
 		return tostring(b.width <= 6) .. ":" .. tostring(b.height > 1)`)
 	if out != "true:true" {
 		t.Fatalf("wrap: got %q (esperado true:true)", out)
@@ -78,7 +78,7 @@ func TestTextWasmWrap(t *testing.T) {
 func TestTextWasmWrapInvalido(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.text.wrap("x", 0) end)
+		local ok, e = pcall(function() return enu.text.wrap("x", 0) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("wrap inválido: got %q", out)
@@ -89,7 +89,7 @@ func TestTextWasmWrapInvalido(t *testing.T) {
 func TestTextWasmMarkdown(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local b = nu.text.markdown("# Título\n\nun párrafo con varias palabras sueltas", { width = 12 })
+		local b = enu.text.markdown("# Título\n\nun párrafo con varias palabras sueltas", { width = 12 })
 		return tostring(b.width <= 12) .. ":" .. tostring(b.height >= 2)`)
 	if out != "true:true" {
 		t.Fatalf("markdown: got %q (esperado true:true)", out)
@@ -100,7 +100,7 @@ func TestTextWasmMarkdown(t *testing.T) {
 func TestTextWasmMarkdownInvalido(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local ok, e = pcall(function() return nu.text.markdown("x", {}) end)
+		local ok, e = pcall(function() return enu.text.markdown("x", {}) end)
 		return tostring(ok) .. ":" .. tostring(e.code)`)
 	if out != "false:EINVAL" {
 		t.Fatalf("markdown sin width: got %q", out)
@@ -112,8 +112,8 @@ func TestTextWasmMarkdownInvalido(t *testing.T) {
 func TestTextWasmHighlight(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local b = nu.text.highlight("local x = 1\nreturn x", "lua")
-		local plano = nu.text.highlight("línea1\nlínea2", "desconocido-xyz")
+		local b = enu.text.highlight("local x = 1\nreturn x", "lua")
+		local plano = enu.text.highlight("línea1\nlínea2", "desconocido-xyz")
 		return b.height .. ":" .. plano.height`)
 	if out != "2:2" {
 		t.Fatalf("highlight: got %q (esperado 2:2)", out)
@@ -125,7 +125,7 @@ func TestTextWasmHighlight(t *testing.T) {
 func TestTextWasmDiff(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local r = nu.text.diff("a\nb\nc", "a\nB\nc", { render = true })
+		local r = enu.text.diff("a\nb\nc", "a\nB\nc", { render = true })
 		local first = r.hunks[1]
 		return #r.hunks .. ":" .. tostring(r.block ~= nil) .. ":" ..
 		       tostring(r.block.height > 0) .. ":" .. first.lines[1].kind`)
@@ -138,7 +138,7 @@ func TestTextWasmDiff(t *testing.T) {
 func TestTextWasmDiffSinCambios(t *testing.T) {
 	inst := wasmTextInst(t)
 	out := evalWasm(t, inst, `
-		local r = nu.text.diff("x", "x")
+		local r = enu.text.diff("x", "x")
 		return #r.hunks .. ":" .. tostring(r.block)`)
 	if out != "0:nil" {
 		t.Fatalf("diff sin cambios: got %q (esperado 0:nil)", out)

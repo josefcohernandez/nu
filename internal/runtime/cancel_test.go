@@ -15,12 +15,12 @@ import (
 //     abortada (no entrega resultado).
 //   - Los errores NORMALES de §1.4 SIGUEN siendo capturables por `pcall`/`xpcall`
 //     (no rompimos `pcall`).
-//   - Orden **LIFO** de `nu.task.cleanup` y que corre en los TRES finales: éxito,
+//   - Orden **LIFO** de `enu.task.cleanup` y que corre en los TRES finales: éxito,
 //     error y aborto.
 //   - `ECANCELED` **solo observable**: `Task:await` de una task cancelada entrega
 //     `ECANCELED`, que el awaiter SÍ captura con `pcall` (es observación, no el
 //     aborto).
-//   - `nu.task.cleanup` fuera de task → `EINVAL`.
+//   - `enu.task.cleanup` fuera de task → `EINVAL`.
 //
 // Patrón de coordinación determinista: la "víctima" señala con un `future` que ya
 // está dentro de su ⏸ (suspendida), el "cancelador" hace `cancel` y luego
@@ -28,10 +28,10 @@ import (
 // `expectEval` posterior lee. Periodos de sleep cortos y holgados; sin flaky bajo
 // `-race -count=4`.
 
-// --- Snippet que ejercita Task:cancel y nu.task.cleanup (Definition of Done §2) ---
+// --- Snippet que ejercita Task:cancel y enu.task.cleanup (Definition of Done §2) ---
 
 // TestCancelCleanupSnippet: el camino que ejercita `Task:cancel` y
-// `nu.task.cleanup` desde el lado del autor de extensiones. Una task registra un
+// `enu.task.cleanup` desde el lado del autor de extensiones. Una task registra un
 // cleanup y se cuelga en un `sleep` largo; otra la cancela; el cleanup corre y la
 // observación del desenlace es `ECANCELED`. Prueba de humo de S08.
 func TestCancelCleanupSnippet(t *testing.T) {
@@ -39,16 +39,16 @@ func TestCancelCleanupSnippet(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() out.cleaned = true end)
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() out.cleaned = true end)
 				ready:set(true)             -- ya estoy a punto de suspenderme
-				nu.task.sleep(10000)        -- cuelga hasta que me cancelen
+				enu.task.sleep(10000)        -- cuelga hasta que me cancelen
 				out.despues = true          -- NO debe ejecutarse
 			end)
 			ready:await()                 -- espera a que la víctima esté lista
-			nu.task.sleep(1)              -- cédele el turno para que entre en el sleep
+			enu.task.sleep(1)              -- cédele el turno para que entre en el sleep
 			victim:cancel()
 			local ok, err = pcall(function() victim:await() end)
 			out.await_ok = ok            -- false: await observa ECANCELED (capturable)
@@ -73,20 +73,20 @@ func TestCancelNotCapturableByPcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() out.cleaned = true end)
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() out.cleaned = true end)
 				local ok, err = pcall(function()
 					ready:set(true)
-					nu.task.sleep(10000)   -- aquí llega el aborto
+					enu.task.sleep(10000)   -- aquí llega el aborto
 				end)
 				-- Si llegamos aquí, el pcall ATRAPÓ el aborto: prohibido (§1.3).
 				out.tras_pcall = true
 				out.pcall_ok = ok
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			pcall(function() victim:await() end)  -- drena el ECANCELED observado
 		end)
@@ -104,15 +104,15 @@ func TestCancelNotCapturableByNestedPcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() out.cleaned = true end)
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() out.cleaned = true end)
 				pcall(function()
 					pcall(function()
 						pcall(function()
 							ready:set(true)
-							nu.task.sleep(10000)
+							enu.task.sleep(10000)
 						end)
 						out.nivel2 = true  -- prohibido
 					end)
@@ -121,7 +121,7 @@ func TestCancelNotCapturableByNestedPcall(t *testing.T) {
 				out.nivel0 = true          -- prohibido
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			pcall(function() victim:await() end)
 		end)
@@ -141,13 +141,13 @@ func TestCancelNotCapturableByXpcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() out.cleaned = true end)
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() out.cleaned = true end)
 				xpcall(function()
 					ready:set(true)
-					nu.task.sleep(10000)
+					enu.task.sleep(10000)
 				end, function(e)
 					out.handler_corrio = true  -- prohibido: el aborto no pasa por errfn
 					return e
@@ -155,7 +155,7 @@ func TestCancelNotCapturableByXpcall(t *testing.T) {
 				out.tras_xpcall = true         -- prohibido
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			pcall(function() victim:await() end)
 		end)
@@ -181,7 +181,7 @@ func TestNormalErrorsStillCapturableByPcall(t *testing.T) {
 
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			-- error estructurado del core: capturable, code intacto.
 			local ok, err = pcall(function() boom_einval() end)
 			out.struct_ok = ok
@@ -215,10 +215,10 @@ func TestCleanupLIFOOrder(t *testing.T) {
 
 	h.eval(`
 		order = {}
-		nu.task.spawn(function()
-			nu.task.cleanup(function() order[#order+1] = "1" end)
-			nu.task.cleanup(function() order[#order+1] = "2" end)
-			nu.task.cleanup(function() order[#order+1] = "3" end)
+		enu.task.spawn(function()
+			enu.task.cleanup(function() order[#order+1] = "1" end)
+			enu.task.cleanup(function() order[#order+1] = "2" end)
+			enu.task.cleanup(function() order[#order+1] = "3" end)
 		end)
 	`)
 	h.expectEval(`return table.concat(order, ",")`, "3,2,1")
@@ -229,8 +229,8 @@ func TestCleanupRunsOnSuccess(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			nu.task.cleanup(function() out.ran = true end)
+		enu.task.spawn(function()
+			enu.task.cleanup(function() out.ran = true end)
 			return 42
 		end)
 	`)
@@ -243,8 +243,8 @@ func TestCleanupRunsOnError(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			nu.task.cleanup(function() out.ran = true end)
+		enu.task.spawn(function()
+			enu.task.cleanup(function() out.ran = true end)
 			error("la task peta")
 		end)
 	`)
@@ -258,15 +258,15 @@ func TestCleanupRunsOnAbort(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
-				nu.task.cleanup(function() out.ran = true end)
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
+				enu.task.cleanup(function() out.ran = true end)
 				ready:set(true)
-				nu.task.sleep(10000)
+				enu.task.sleep(10000)
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			pcall(function() victim:await() end)
 		end)
@@ -285,14 +285,14 @@ func TestAwaitObservesECANCELED(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
 				ready:set(true)
-				nu.task.sleep(10000)
+				enu.task.sleep(10000)
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			local ok, err = pcall(function() victim:await() end)
 			out.ok = ok
@@ -305,16 +305,16 @@ func TestAwaitObservesECANCELED(t *testing.T) {
 	h.expectEval(`return tostring(out.awaiter_sigue)`, "true")
 }
 
-// --- 🔒 nu.task.cleanup fuera de task → EINVAL ---
+// --- 🔒 enu.task.cleanup fuera de task → EINVAL ---
 
 // TestCleanupOutsideTaskEINVAL: 🔒 registrar un cleanup en el chunk principal (no
 // es una task) lanza `EINVAL`. La cancelación misma no tiene a qué atarse fuera
 // de una task.
 func TestCleanupOutsideTaskEINVAL(t *testing.T) {
 	h := newHarness(t)
-	se := h.evalErr(`nu.task.cleanup(function() end)`)
+	se := h.evalErr(`enu.task.cleanup(function() end)`)
 	if se.Code != CodeEINVAL {
-		t.Fatalf("nu.task.cleanup fuera de task: code got %q, want EINVAL", se.Code)
+		t.Fatalf("enu.task.cleanup fuera de task: code got %q, want EINVAL", se.Code)
 	}
 }
 
@@ -327,8 +327,8 @@ func TestCancelAlreadyDoneIsNoop(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local done = nu.task.spawn(function() return "valor" end)
+		enu.task.spawn(function()
+			local done = enu.task.spawn(function() return "valor" end)
 			done:await()          -- ya terminó
 			done:cancel()         -- no-op
 			out.v = done:await()  -- sigue dando el valor original
@@ -343,14 +343,14 @@ func TestCancelTwiceIsIdempotent(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			local ready = nu.task.future()
-			local victim = nu.task.spawn(function()
+		enu.task.spawn(function()
+			local ready = enu.task.future()
+			local victim = enu.task.spawn(function()
 				ready:set(true)
-				nu.task.sleep(10000)
+				enu.task.sleep(10000)
 			end)
 			ready:await()
-			nu.task.sleep(1)
+			enu.task.sleep(1)
 			victim:cancel()
 			victim:cancel()   -- segunda vez: idempotente
 			local ok, err = pcall(function() victim:await() end)
@@ -366,8 +366,8 @@ func TestCancelTwiceIsIdempotent(t *testing.T) {
 func TestCancelBadHandleEINVAL(t *testing.T) {
 	h := newHarness(t)
 	se := h.evalErr(`
-		local mt = getmetatable(nu.task.spawn(function() end))
-		mt.__index.cancel(nu.task.future())  -- userdata, pero no una Task
+		local mt = getmetatable(enu.task.spawn(function() end))
+		mt.__index.cancel(enu.task.future())  -- userdata, pero no una Task
 	`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("Task:cancel con handle inválido: code got %q, want EINVAL", se.Code)
@@ -381,16 +381,16 @@ func TestCleanupErrorIsolated(t *testing.T) {
 	h := newHarness(t)
 	h.eval(`
 		out = {}
-		nu.task.spawn(function()
-			nu.task.cleanup(function() out.ok_cleanup = true end)
-			nu.task.cleanup(function() error("cleanup roto") end)
+		enu.task.spawn(function()
+			enu.task.cleanup(function() out.ok_cleanup = true end)
+			enu.task.cleanup(function() error("cleanup roto") end)
 		end)
 	`)
 	h.expectEval(`return tostring(out.ok_cleanup)`, "true")
 
 	var found bool
 	for _, line := range h.logLines() {
-		if strings.Contains(line, "nu.task.cleanup") {
+		if strings.Contains(line, "enu.task.cleanup") {
 			found = true
 		}
 	}

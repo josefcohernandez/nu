@@ -3,27 +3,27 @@ package runtime
 // Tests de la extensión oficial `repl` (S44, embebida en
 // internal/runtime/embedded/repl). Es un **REPL de Lua** sobre la API pública
 // congelada (Fase 8, ADR-003: el core NO sabe lo que es un REPL), así que la
-// prueba es Go que arranca un Runtime con la extensión ACTIVADA por `nu.toml`
+// prueba es Go que arranca un Runtime con la extensión ACTIVADA por `enu.toml`
 // (`plugins.enabled = ["repl"]`, igual que el gating de S12) y ejercita el
 // contrato desde Lua, requiriendo el módulo con `require("repl")`.
 //
-// Blinda el contrato de [arquitectura.md](../../docs/arquitectura.md)
+// Blinda el contrato de [arquitectura.md](../../docs/core/arquitectura.md)
 // §"Distribución" (G21):
 //
-//   - **ACTIVABLE SOLO** (G21, el criterio de hecho de S44): `nu` con SOLO `repl`
+//   - **ACTIVABLE SOLO** (G21, el criterio de hecho de S44): `enu` con SOLO `repl`
 //     en `plugins.enabled` (sin el harness: ni agent, ni chat, ni toolkit) carga el
 //     repl (source="builtin") y evalúa Lua. Es la prueba de que el runtime sirve
 //     sin el agente.
 //   - **EVALÚA Lua arbitrario con la API pública**: `repl.eval` compila con
 //     `load` (que el sandbox de S01 NO retiró —memoria, no disco—) y
 //     ejecuta: expresiones (`1+1`→2), sentencias (`x=5`), llamadas a la API
-//     (`nu.version.api`), errores (capturados, no tumban el repl) e incompletitud
+//     (`enu.version.api`), errores (capturados, no tumban el repl) e incompletitud
 //     (multilínea). NO hizo falta una primitiva nueva (corolario de completitud
-//     satisfecho; APILevel sigue en 2).
+//     satisfecho; el REPL no toca APILevel).
 //   - **código ⏸ vía task** (`eval_in_task`): una línea que llama a una función
-//     suspendiente del core (`nu.fs.read`) se evalúa dentro de una task.
+//     suspendiente del core (`enu.fs.read`) se evalúa dentro de una task.
 //
-// La parte INTERACTIVA (leer teclas del TTY) necesita `nu.ui` (G20): un test la
+// La parte INTERACTIVA (leer teclas del TTY) necesita `enu.ui` (G20): un test la
 // fuerza con `WithForceUI(true)`+`WithUISize` (como toolkit/chat) y comprueba que
 // la UI se monta, pinta el banner y, al enviar una línea, evalúa y muestra el
 // resultado en la rejilla del compositor. Lo PROBADO de verdad es la lógica de
@@ -36,7 +36,7 @@ import (
 	"testing"
 )
 
-// bootRepl arranca un Runtime con SOLO la extensión `repl` activada por nu.toml
+// bootRepl arranca un Runtime con SOLO la extensión `repl` activada por enu.toml
 // (sin el harness: la prueba de "activable solo", G21). Headless por defecto (sin
 // UI): ejercita la lógica de eval. Devuelve el harness.
 func bootRepl(t *testing.T) *harness {
@@ -53,7 +53,7 @@ func bootRepl(t *testing.T) *harness {
 }
 
 // bootReplUI arranca un Runtime con `repl` + `toolkit` activados (el repl usa el
-// toolkit para su UI), `nu.ui` forzada (headless, G20) y un tamaño conocido, ya
+// toolkit para su UI), `enu.ui` forzada (headless, G20) y un tamaño conocido, ya
 // con Boot hecho. Para el test del driver interactivo.
 func bootReplUI(t *testing.T, w, h int) *harness {
 	t.Helper()
@@ -174,21 +174,21 @@ func TestReplEvalSentencia(t *testing.T) {
 }
 
 // TestReplEvalLlamadaAPI: una llamada a la API pública NO suspendiente se evalúa
-// directamente y devuelve su valor. nu.version.api → "2" (el nivel actual).
+// directamente y devuelve su valor. enu.version.api → el nivel actual.
 func TestReplEvalLlamadaAPI(t *testing.T) {
 	h := bootRepl(t)
 	h.expectEval(`
 		local repl = require("repl")
-		local r = repl.eval("nu.version.api")
+		local r = repl.eval("enu.version.api")
 		assert(r.ok, "ok")
-		assert(r.values[1] == nu.version.api, "el valor es el de la API")
-		assert(r.display == tostring(nu.version.api), "display got "..tostring(r.display))
+		assert(r.values[1] == enu.version.api, "el valor es el de la API")
+		assert(r.display == tostring(enu.version.api), "display got "..tostring(r.display))
 		return "ok"`, "ok")
 
-	// otra primitiva no-⏸: nu.text.width (CPU puro, §10).
+	// otra primitiva no-⏸: enu.text.width (CPU puro, §10).
 	h.expectEval(`
 		local repl = require("repl")
-		local r = repl.eval('nu.text.width("hola")')
+		local r = repl.eval('enu.text.width("hola")')
 		assert(r.ok and r.values[1] == 4, "width hola==4 got "..tostring(r.display))
 		return "ok"`, "ok")
 }
@@ -277,7 +277,7 @@ func TestReplEvalIncompleta(t *testing.T) {
 }
 
 // TestReplEvalEnTask (código ⏸): una línea que llama a una función SUSPENDIENTE del
-// core (nu.fs.read) se evalúa dentro de una task vía eval_in_task. Es lo que permite
+// core (enu.fs.read) se evalúa dentro de una task vía eval_in_task. Es lo que permite
 // al REPL usar TODA la API pública, no solo la no-⏸.
 func TestReplEvalEnTask(t *testing.T) {
 	h := bootRepl(t)
@@ -290,7 +290,7 @@ func TestReplEvalEnTask(t *testing.T) {
 	h.expectEval(`
 		REPL_OUT = nil
 		local repl = require("repl")
-		repl.eval_in_task('nu.fs.read([[` + p + `]])', function(result)
+		repl.eval_in_task('enu.fs.read([[` + p + `]])', function(result)
 			REPL_OUT = result
 		end)`)
 	// la task ya progresó (soltó el token); leemos el resultado.
@@ -304,7 +304,7 @@ func TestReplEvalEnTask(t *testing.T) {
 	h.expectEval(`
 		REPL_ERR = nil
 		local repl = require("repl")
-		repl.eval_in_task('nu.fs.read([[/no/existe/jamas]])', function(result)
+		repl.eval_in_task('enu.fs.read([[/no/existe/jamas]])', function(result)
 			REPL_ERR = result
 		end)`)
 	h.expectEval(`
@@ -342,8 +342,8 @@ func TestReplBanner(t *testing.T) {
 	h := bootRepl(t)
 	out := h.eval(`local repl = require("repl"); return repl.banner()`)
 	banner := out[0]
-	if !strings.Contains(banner, "nu ") || !strings.Contains(banner, "REPL") {
-		t.Fatalf("el banner debe nombrar nu y REPL; got %q", banner)
+	if !strings.Contains(banner, "enu ") || !strings.Contains(banner, "REPL") {
+		t.Fatalf("el banner debe nombrar enu y REPL; got %q", banner)
 	}
 	if !strings.Contains(banner, "API") {
 		t.Fatalf("el banner debe mostrar el nivel de API; got %q", banner)
@@ -364,7 +364,7 @@ func TestReplInteractivo(t *testing.T) {
 		return "ok"`, "ok")
 
 	// el banner está en la rejilla (texto del runtime).
-	if !gridHas(h, 12, "nu ") {
+	if !gridHas(h, 12, "enu ") {
 		t.Fatalf("el banner del repl no se pintó; rejilla:\n%s", gridTextDump(h, 12))
 	}
 

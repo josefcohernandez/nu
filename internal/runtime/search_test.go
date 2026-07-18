@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -18,7 +20,7 @@ func setRoot(h *harness, root string) {
 	h.eval(`ROOT = rootPath()`)
 }
 
-// Tests de `nu.search` (S27, api.md §11; inventario 🔒). Tres bloques de lógica
+// Tests de `enu.search` (S27, api.md §11; inventario 🔒). Tres bloques de lógica
 // a blindar:
 //
 //   - `files` respeta `.gitignore` (G7): ignorado NO aparece, no-ignorado SÍ;
@@ -63,7 +65,7 @@ func makeSearchTree(t *testing.T) string {
 	return root
 }
 
-// --- nu.search.files (🔒: respeta .gitignore) ---------------------------------
+// --- enu.search.files (🔒: respeta .gitignore) ---------------------------------
 
 // TestSearchFilesGitignore blinda que `files` respeta `.gitignore` (G7,
 // inventario 🔒): el fichero ignorado NO aparece, el no-ignorado SÍ, un
@@ -80,7 +82,7 @@ func TestSearchFilesGitignore(t *testing.T) {
 	}
 	setRoot(h, root)
 
-	got := searchFilesList(h, `nu.search.files(ROOT)`)
+	got := searchFilesList(h, `enu.search.files(ROOT)`)
 	want := []string{"a.go", "b.txt", "sub/c.go"}
 	assertRelPaths(t, root, got, want)
 }
@@ -93,7 +95,7 @@ func TestSearchFilesHidden(t *testing.T) {
 	root := makeSearchTree(t)
 	setRoot(h, root)
 
-	got := searchFilesList(h, `nu.search.files(ROOT, { hidden = true })`)
+	got := searchFilesList(h, `enu.search.files(ROOT, { hidden = true })`)
 	// Con hidden: aparecen `.gitignore`, `.hidden.txt` y `.secretdir/d.go` (todos
 	// ficheros ocultos reales); siguen fuera los ignorados por gitignore
 	// (ignored.txt, debug.log, build/out.bin). El `.gitignore` es un fichero más:
@@ -109,7 +111,7 @@ func TestSearchFilesGlob(t *testing.T) {
 	root := makeSearchTree(t)
 	setRoot(h, root)
 
-	got := searchFilesList(h, `nu.search.files(ROOT, { glob = "*.go" })`)
+	got := searchFilesList(h, `enu.search.files(ROOT, { glob = "*.go" })`)
 	want := []string{"a.go", "sub/c.go"}
 	assertRelPaths(t, root, got, want)
 }
@@ -120,7 +122,7 @@ func TestSearchFilesMax(t *testing.T) {
 	root := makeSearchTree(t)
 	setRoot(h, root)
 
-	got := searchFilesList(h, `nu.search.files(ROOT, { max = 2 })`)
+	got := searchFilesList(h, `enu.search.files(ROOT, { max = 2 })`)
 	if len(got) != 2 {
 		t.Fatalf("max=2: got %d resultados %q, want 2", len(got), got)
 	}
@@ -137,8 +139,8 @@ func TestSearchFilesErrors(t *testing.T) {
 	// root inexistente → ENOENT (desde una task, capturado y reexpuesto).
 	h.eval(`
 		ERRC = nil
-		nu.task.spawn(function()
-			local ok, e = pcall(function() return nu.search.files(ROOT .. "/no-existe") end)
+		enu.task.spawn(function()
+			local ok, e = pcall(function() return enu.search.files(ROOT .. "/no-existe") end)
 			ERRC = ok and "no-error" or e.code
 		end)
 	`)
@@ -147,12 +149,12 @@ func TestSearchFilesErrors(t *testing.T) {
 	// opts no-tabla, glob no-string, max no-número → EINVAL.
 	h.eval(`
 		E2,E3,E4 = nil,nil,nil
-		nu.task.spawn(function()
-			local _, a = pcall(function() return nu.search.files(ROOT, 5) end)
+		enu.task.spawn(function()
+			local _, a = pcall(function() return enu.search.files(ROOT, 5) end)
 			E2 = a.code
-			local _, b = pcall(function() return nu.search.files(ROOT, { glob = 7 }) end)
+			local _, b = pcall(function() return enu.search.files(ROOT, { glob = 7 }) end)
 			E3 = b.code
-			local _, c = pcall(function() return nu.search.files(ROOT, { max = "x" }) end)
+			local _, c = pcall(function() return enu.search.files(ROOT, { max = "x" }) end)
 			E4 = c.code
 		end)
 	`)
@@ -161,13 +163,13 @@ func TestSearchFilesErrors(t *testing.T) {
 	h.expectEval(`return E4`, "EINVAL")
 
 	// Fuera de una task (en el chunk principal) → EINVAL (no se puede suspender).
-	se := h.evalErr(`return nu.search.files(ROOT)`)
+	se := h.evalErr(`return enu.search.files(ROOT)`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("files fuera de task: got %s, want EINVAL", se.Code)
 	}
 }
 
-// --- nu.search.fuzzy (🔒: ordena por score de forma estable) ------------------
+// --- enu.search.fuzzy (🔒: ordena por score de forma estable) ------------------
 
 // TestSearchFuzzyOrder blinda que `fuzzy` ordena por score descendente, excluye
 // los que no casan y devuelve `index` 1-based correcto.
@@ -176,7 +178,7 @@ func TestSearchFuzzyOrder(t *testing.T) {
 	// "abc" casa "abc" (1, contiguo desde el inicio), "axbxc" (2, disperso) y
 	// "xxabc" (4, contiguo pero no al inicio). "zzz" (3) no casa → excluido.
 	h.eval(`
-		R = nu.search.fuzzy("abc", { "abc", "axbxc", "zzz", "xxabc" })
+		R = enu.search.fuzzy("abc", { "abc", "axbxc", "zzz", "xxabc" })
 		IDX, SCORE = {}, {}
 		for i,m in ipairs(R) do IDX[i] = m.index; SCORE[i] = m.score end
 		N = #R
@@ -208,7 +210,7 @@ func TestSearchFuzzyStable(t *testing.T) {
 	// Cuatro candidatos idénticos: todos casan "ab" con EXACTAMENTE el mismo score.
 	// Un orden estable debe devolverlos en orden de entrada (1,2,3,4).
 	h.eval(`
-		R = nu.search.fuzzy("ab", { "ab", "ab", "ab", "ab" })
+		R = enu.search.fuzzy("ab", { "ab", "ab", "ab", "ab" })
 		ORDER = {}
 		for i,m in ipairs(R) do ORDER[i] = m.index end
 	`)
@@ -220,7 +222,7 @@ func TestSearchFuzzyStable(t *testing.T) {
 	// que empiezan por "a" (índices 1,3) puntúan más (primer carácter). Estables:
 	// dentro del grupo alto debe salir 1 antes que 3; en el bajo, 2 antes que 4.
 	h.eval(`
-		R2 = nu.search.fuzzy("a", { "aXa", "bXa", "aYa", "bYa" })
+		R2 = enu.search.fuzzy("a", { "aXa", "bXa", "aYa", "bYa" })
 		O2 = {}
 		for i,m in ipairs(R2) do O2[i] = m.index end
 	`)
@@ -239,22 +241,22 @@ func TestSearchFuzzyEmptyAndMax(t *testing.T) {
 	h := newHarness(t)
 	// Query vacío: casa todo, orden de entrada (todos score 0, estable).
 	h.eval(`
-		RE = nu.search.fuzzy("", { "x", "y", "z" })
+		RE = enu.search.fuzzy("", { "x", "y", "z" })
 		EORDER = {}
 		for i,m in ipairs(RE) do EORDER[i] = m.index end
 	`)
 	h.expectEval(`return #RE == 3 and tostring(EORDER[1]..EORDER[2]..EORDER[3])`, "123")
 
 	// max recorta.
-	h.eval(`RM = nu.search.fuzzy("a", { "a", "ba", "xa", "aa" }, { max = 2 })`)
+	h.eval(`RM = enu.search.fuzzy("a", { "a", "ba", "xa", "aa" }, { max = 2 })`)
 	h.expectEval(`return tostring(#RM)`, "2")
 
 	// candidatos con un no-string → EINVAL; opts no-tabla → EINVAL.
-	se := h.evalErr(`return nu.search.fuzzy("a", { "ok", 5 })`)
+	se := h.evalErr(`return enu.search.fuzzy("a", { "ok", 5 })`)
 	if se.Code != CodeEINVAL {
 		t.Fatalf("fuzzy candidato no-string: got %s, want EINVAL", se.Code)
 	}
-	se2 := h.evalErr(`return nu.search.fuzzy("a", { "ok" }, 5)`)
+	se2 := h.evalErr(`return enu.search.fuzzy("a", { "ok" }, 5)`)
 	if se2.Code != CodeEINVAL {
 		t.Fatalf("fuzzy opts no-tabla: got %s, want EINVAL", se2.Code)
 	}
@@ -301,11 +303,11 @@ func TestFuzzyScoreUnit(t *testing.T) {
 	}
 }
 
-// --- nu.search.grep (🔒: itera según llegan, ranges, paralelo, max) -----------
+// --- enu.search.grep (🔒: itera según llegan, ranges, paralelo, max) -----------
 
 // TestSearchGrepAll blinda que `grep` encuentra TODOS los matches con la forma
 // `{path, line_no, line, ranges}` correcta, que los ranges (byte 1-based
-// inclusive, coherente con `nu.re.find_all` de S26) reconstruyen el match por
+// inclusive, coherente con `enu.re.find_all` de S26) reconstruyen el match por
 // `line:sub`, y que el pool paralelo no pierde ni duplica resultados (respeta
 // gitignore: el match en el fichero ignorado no aparece).
 func TestSearchGrepAll(t *testing.T) {
@@ -318,8 +320,8 @@ func TestSearchGrepAll(t *testing.T) {
 	h.eval(`
 		MATCHES = {}
 		SUBOK = true
-		nu.task.spawn(function()
-			for r in nu.search.grep("TODO", { root = ROOT }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("TODO", { root = ROOT }) do
 				MATCHES[#MATCHES+1] = { path = r.path, line_no = r.line_no, line = r.line }
 				-- ranges reconstruyen el match exacto por line:sub (S26).
 				local rg = r.ranges[1]
@@ -363,8 +365,8 @@ func TestSearchGrepGlobCaseMax(t *testing.T) {
 	// glob *.go: solo x.go. case sensible: "hello" en minúscula → 2 líneas.
 	h.eval(`
 		N_GLOB = 0
-		nu.task.spawn(function()
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "sensitive" }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "sensitive" }) do
 				N_GLOB = N_GLOB + 1
 			end
 		end)
@@ -374,8 +376,8 @@ func TestSearchGrepGlobCaseMax(t *testing.T) {
 	// case insensible en x.go: "hello"/"HELLO"/"hello" → 3 líneas.
 	h.eval(`
 		N_CI = 0
-		nu.task.spawn(function()
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive" }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive" }) do
 				N_CI = N_CI + 1
 			end
 		end)
@@ -385,8 +387,8 @@ func TestSearchGrepGlobCaseMax(t *testing.T) {
 	// max corta: con max=1 sobre x.go (3 matches insensibles) → exactamente 1.
 	h.eval(`
 		N_MAX = 0
-		nu.task.spawn(function()
-			for r in nu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive", max = 1 }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("hello", { root = ROOT, glob = "*.go", case = "insensitive", max = 1 }) do
 				N_MAX = N_MAX + 1
 			end
 		end)
@@ -419,8 +421,8 @@ func TestSearchGrepParallelComplete(t *testing.T) {
 	h.eval(`
 		TOTAL = 0
 		PERPATH = {}
-		nu.task.spawn(function()
-			for r in nu.search.grep("MARK", { root = ROOT }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("MARK", { root = ROOT }) do
 				TOTAL = TOTAL + 1
 				PERPATH[r.path] = (PERPATH[r.path] or 0) + 1
 			end
@@ -461,8 +463,8 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 	base := runtime.NumGoroutine()
 	h.eval(`
 		FIRST = nil
-		nu.task.spawn(function()
-			for r in nu.search.grep("NEEDLE", { root = ROOT }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("NEEDLE", { root = ROOT }) do
 				FIRST = r.path
 				break -- abandona el iterador con el pool aún trabajando
 			end
@@ -470,23 +472,217 @@ func TestSearchGrepEarlyStopNoLeak(t *testing.T) {
 	`)
 	h.expectEval(`return type(FIRST)`, "string")
 
-	// El cleanup de la task (cancela el contexto del grep) corre al terminar la
-	// task. Damos un margen a que las goroutines del pool drenen y comparamos con
-	// la base con holgura (otras goroutines del runtime fluctúan).
-	if !eventuallyLeqGoroutines(base+5, 2_000) {
-		t.Fatalf("posible fuga de goroutines tras early-stop: base=%d, ahora=%d", base, runtime.NumGoroutine())
+	// El cleanup corre al terminar la task y desregistra el iterador de forma
+	// síncrona (no bloqueante). Esta aserción es SÍNCRONA y siempre válida: al
+	// volver del `break`, el `close` del cleanup ya ejecutó su `untrackGrep`, así
+	// que el iterador no puede seguir rastreado. Es lo que este test de nivel Lua
+	// blinda de forma determinista.
+	h.rt.sched.mu.Lock()
+	tracked := len(h.rt.sched.greps)
+	h.rt.sched.mu.Unlock()
+	if tracked != 0 {
+		t.Fatalf("greps vivos tras early-stop: %d", tracked)
+	}
+
+	// El drenado real del pool (sin fugas de goroutine) ya NO se asegura contando
+	// goroutines bajo un deadline: ese conteo era la fuente de la flake (2026-07-11)
+	// —en runners estrangulados las goroutines canceladas tardan en morir— y hacer
+	// `close` síncrono para forzarlo bloqueaba el hilo de la VM (panel clean-room
+	// NO CONFORME). La no-fuga la blinda ahora, de forma determinista y sin tocar el
+	// hilo de la VM, el test blanco TestGrepCloseDrainaElPool: construye el iterador
+	// con el pool bloqueado, llama a `close` y espera `<-it.done` DESDE la goroutine
+	// del test. Aquí sólo comprobamos que el conteo no se ha disparado sin acotar,
+	// con holgura amplia y sin que un fallo dependa del planificador de un runner
+	// lento (best-effort, no criterio de fuga).
+	if !eventuallyLeqGoroutines(base+8, 2_000) {
+		t.Logf("aviso: goroutines aún altas tras early-stop (best-effort): base=%d, ahora=%d", base, runtime.NumGoroutine())
+	}
+}
+
+// grepFilesConMatches escribe `nFiles` ficheros en un directorio temporal, cada
+// uno con `perFile` líneas que casan `NEEDLE`, y devuelve sus rutas. Es la
+// materia prima de los tests blancos del pool: bastantes matches como para que
+// los workers estén enviando a `results` cuando llega la cancelación.
+func grepFilesConMatches(t *testing.T, nFiles, perFile int) []string {
+	t.Helper()
+	root := t.TempDir()
+	files := make([]string, 0, nFiles)
+	var content strings.Builder
+	for j := 0; j < perFile; j++ {
+		content.WriteString("NEEDLE en linea\n")
+	}
+	blob := []byte(content.String())
+	for i := 0; i < nFiles; i++ {
+		p := filepath.Join(root, "g"+itoa(i)+".txt")
+		if err := os.WriteFile(p, blob, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, p)
+	}
+	return files
+}
+
+// TestGrepCloseDrainaElPool es el test BLANCO que blinda "sin fugas de goroutine"
+// SIN bloquear el hilo de la VM. Construye el iterador directamente con
+// `newGrepIter` y NO consume `results`: como el canal es sin buffer, los workers
+// que encuentran match quedan bloqueados enviando (`it.results <- res`). Entonces
+// llama a `close` (que ahora es NO bloqueante: sólo cancela) y espera `<-it.done`
+// DESDE LA GOROUTINE DEL TEST —que puede bloquear libremente, no es la VM—,
+// verificando que el pool drenó (todos los workers salieron, `results` cerrado).
+//
+// Este test MATA la reversión del fix de forma determinista: si alguien borra la
+// señal de drenado (`close(it.done)` en la cerradora), `<-it.done` no se sella
+// nunca y el test falla por timeout, sin depender del planificador de CI. Es la
+// garantía que antes se intentaba (mal) forzando `close` a ser síncrono, lo que
+// congelaba el event loop (panel clean-room NO CONFORME).
+func TestGrepCloseDrainaElPool(t *testing.T) {
+	files := grepFilesConMatches(t, 40, 100)
+	re := regexp.MustCompile("NEEDLE")
+
+	// Sin scheduler: el iterador se admite aislado y este test sólo mira el pool.
+	it := newGrepIter(nil, re, files, 0)
+
+	// Deja que los workers arranquen y se aparquen enviando al canal sin consumidor:
+	// no es requisito de correctitud (la garantía de drenado vale igual), sólo hace
+	// que el test ejercite el estado que nos importa (workers bloqueados en el send).
+	time.Sleep(50 * time.Millisecond)
+
+	it.close() // no bloqueante: cancela el contexto y vuelve
+
+	// El drenado ocurre en las goroutines de fondo; lo esperamos AQUÍ, no en la VM.
+	select {
+	case <-it.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("close() no drenó el pool: la señal `done` no se selló en 2s (¿se borró close(it.done)?)")
+	}
+
+	// `done` se sella DESPUÉS de cerrar `results`: al llegar aquí el canal está
+	// cerrado y ya no queda ningún worker enviando. Un receive devuelve ok=false.
+	if _, ok := <-it.results; ok {
+		t.Fatal("results entregó un valor tras done: el pool no había drenado")
+	}
+}
+
+// TestGrepStopAllGrepsTerminaConGrepVivo cubre el camino de la red de seguridad
+// `Runtime.Close` → `stopAllGreps` → `close()` con un grep VIVO y un CONSUMIDOR
+// activo, verificando que ambos terminan. Es el hueco de test T2 del panel
+// clean-room: antes no había cobertura de este camino, y con el `close` síncrono
+// un worker atascado colgaba el shutdown entero. Con `close` no bloqueante,
+// `stopAllGreps` vuelve enseguida y el pool drena por su cuenta.
+func TestGrepStopAllGrepsTerminaConGrepVivo(t *testing.T) {
+	h := newHarness(t)
+	files := grepFilesConMatches(t, 40, 100)
+	re := regexp.MustCompile("NEEDLE")
+
+	it := newGrepIter(h.rt.sched, re, files, 0)
+	h.rt.sched.trackGrep(it)
+
+	// Consumidor: drena `results` en una goroutine, como haría el `next` de una task.
+	consumed := make(chan struct{})
+	go func() {
+		defer close(consumed)
+		for range it.results {
+		}
+	}()
+
+	// La red de seguridad. `close` es no bloqueante, así que esto no puede colgarse
+	// aunque un worker estuviera atascado en una lectura no cancelable.
+	h.rt.sched.stopAllGreps()
+
+	// El consumidor termina: `results` se cierra cuando el pool drena.
+	select {
+	case <-consumed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el consumidor no terminó: `results` no se cerró tras stopAllGreps")
+	}
+	// El pool drenó del todo (la cerradora selló `done`).
+	select {
+	case <-it.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el pool no drenó tras stopAllGreps")
+	}
+	// Y el grep quedó desregistrado del scheduler.
+	h.rt.sched.mu.Lock()
+	tracked := len(h.rt.sched.greps)
+	h.rt.sched.mu.Unlock()
+	if tracked != 0 {
+		t.Fatalf("grep aún rastreado tras stopAllGreps: %d", tracked)
+	}
+}
+
+// TestSearchGrepLineaLargaNoSilenciaElFichero blinda que una línea que supera el
+// tope de truncado NO aborta el escaneo del fichero: las líneas posteriores (con
+// sus matches) se siguen entregando. Antes, bufio.Scanner devolvía false
+// definitivo (ErrTooLong) y el resto del fichero se perdía en silencio.
+func TestSearchGrepLineaLargaNoSilenciaElFichero(t *testing.T) {
+	h := newHarness(t)
+	root := t.TempDir()
+	// Línea 1: más larga que grepMaxLine (1 MiB). Línea 2: el match buscado.
+	long := strings.Repeat("x", grepMaxLine+4096)
+	if err := os.WriteFile(filepath.Join(root, "gen.txt"), []byte(long+"\nAGUJA aquí\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setRoot(h, root)
+
+	h.eval(`
+		FOUND = {}
+		enu.task.spawn(function()
+			for r in enu.search.grep("AGUJA", { root = ROOT }) do
+				FOUND[#FOUND+1] = { line_no = r.line_no, line = r.line }
+			end
+		end)
+	`)
+	h.expectEval(`return tostring(#FOUND)`, "1")
+	h.expectEval(`return tostring(FOUND[1].line_no)`, "2")
+}
+
+// TestReadGrepLine cubre el lector de líneas con truncado: línea normal, línea
+// que excede el tope (se recorta y se CONTINÚA en la siguiente), CRLF, y última
+// línea sin salto final.
+func TestReadGrepLine(t *testing.T) {
+	read := func(input string, max int) []string {
+		r := bufio.NewReaderSize(strings.NewReader(input), 16) // buffer mínimo: fuerza ErrBufferFull
+		var lines []string
+		for {
+			line, eof, err := readGrepLine(r, max)
+			if err != nil {
+				t.Fatalf("readGrepLine: %v", err)
+			}
+			if eof && line == "" {
+				return lines
+			}
+			lines = append(lines, line)
+			if eof {
+				return lines
+			}
+		}
+	}
+
+	got := read("corta\n"+strings.Repeat("L", 100)+"\nfoo\r\nbar", 10)
+	want := []string{"corta", strings.Repeat("L", 10), "foo", "bar"}
+	if len(got) != len(want) {
+		t.Fatalf("líneas: got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("línea %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+	// Fichero terminado en '\n': sin línea vacía fantasma al final.
+	if got := read("a\nb\n", 10); len(got) != 2 {
+		t.Fatalf("línea fantasma tras salto final: %v", got)
 	}
 }
 
 // --- helpers ------------------------------------------------------------------
 
-// searchFilesList corre una expresión `nu.search.files(...)` desde una task y
+// searchFilesList corre una expresión `enu.search.files(...)` desde una task y
 // devuelve las rutas resultantes (ordenadas para comparación determinista).
 func searchFilesList(h *harness, expr string) []string {
 	h.t.Helper()
 	h.eval(`
 		FILES_RESULT = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			FILES_RESULT = ` + expr + `
 		end)
 	`)

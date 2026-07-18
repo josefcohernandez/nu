@@ -5,8 +5,8 @@ package runtime
 // sobre la API pública congelada (Fase 8, ADR-003 —el core NO sabe lo que es un
 // chat—), construida sobre el toolkit de widgets (S42), el agente (S39), providers
 // (S36/S37) y sessions (S38). La prueba arranca un Runtime con las CINCO
-// extensiones (toolkit, providers, sessions, agent, chat) activadas por `nu.toml`
-// y ejercita el contrato de [chat.md](../../docs/chat.md) desde Lua.
+// extensiones (toolkit, providers, sessions, agent, chat) activadas por `enu.toml`
+// y ejercita el contrato de [chat.md](../../docs/contracts/chat.md) desde Lua.
 //
 // Blinda:
 //   - **layout** (§1): una `toolkit.app` con vbox transcript/input/statusline +
@@ -22,9 +22,9 @@ package runtime
 //     agente corre el turno → `agent:delta` streaming se pinta con markdown en el
 //     transcript del chat (el Block compuesto crece). El provider REAL (CP-11
 //     original) requiere red/credenciales y NO es ejecutable headless en CI
-//     (limitación del entorno, documentada en claude_decisions.md S43).
+//     (limitación del entorno, documentada en docs/worklog/README.md S43).
 //
-// La UI es headless en los tests (sin TTY, G20): el arnés fuerza `nu.ui` con
+// La UI es headless en los tests (sin TTY, G20): el arnés fuerza `enu.ui` con
 // `WithForceUI(true)` (como toolkit_test.go) y un tamaño conocido (`WithUISize`)
 // para layout determinista. El Block es opaco a Lua (solo `.width`/`.height`): la
 // inspección de CONTENIDO se hace en Go mirando la rejilla del compositor
@@ -40,10 +40,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // bootChat arranca un Runtime con toolkit+providers+sessions+agent+chat activadas
-// por nu.toml, `nu.ui` forzada (headless, G20) y un tamaño de pantalla conocido.
+// por enu.toml, `enu.ui` forzada (headless, G20) y un tamaño de pantalla conocido.
 // Un `providersToml` opcional declara un provider (para los tests que corren un
 // turno real contra un adaptador). Devuelve el harness ya con Boot hecho y el
 // data_dir (para inspeccionar el JSONL si hiciera falta).
@@ -58,7 +59,19 @@ func bootChat(t *testing.T, providersToml string, w, h int) (*harness, string) {
 			t.Fatalf("write providers.toml: %v", err)
 		}
 	}
-	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(true), WithUISize(w, h))
+	// Presupuesto de slice GENEROSO para el watchdog (S09), no el de producción
+	// (100 ms). `chat.start` construye TODA la UI en un único slice síncrono largo
+	// pero acotado (registries + agent.session + _build_ui + subs + keymaps +
+	// refresh + repaint): no quema CPU, sólo encadena muchas operaciones pequeñas.
+	// En producción termina muy por debajo de 100 ms, pero bajo `-race` (que ralentiza
+	// Lua ~10×) más contención de CPU en CI ese slice legítimo puede rebasar los 100 ms
+	// y el watchdog lo abortaría con EBUDGET no capturable, dejando el Chat a medias
+	// (`C` global = nil) — un falso positivo del watchdog EXCLUSIVO del entorno de test
+	// (los usuarios reales no corren bajo `-race`). Un margen amplio (10 s) evita ese
+	// aborto espurio sin desactivar el watchdog: un bucle infinito real en código de
+	// chat seguiría cortándose muy antes del timeout de `go test`.
+	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithForceUI(true), WithUISize(w, h),
+		WithSliceBudget(10*time.Second))
 	t.Cleanup(rt.Close)
 	if err := rt.Boot(); err != nil {
 		t.Fatalf("Boot falló: %v", err)
@@ -122,7 +135,7 @@ func TestChatCargaYActiva(t *testing.T) {
 		return "ok"`, "ok")
 }
 
-// TestChatStartRequiereUI (chat.md §8, G20): en headless (sin `nu.ui`), chat.start
+// TestChatStartRequiereUI (chat.md §8, G20): en headless (sin `enu.ui`), chat.start
 // es EINVAL accionable. Construimos un runtime SIN UI a mano (WithForceUI(false))
 // para observar el caso headless real.
 func TestChatStartRequiereUI(t *testing.T) {
@@ -140,8 +153,8 @@ func TestChatStartRequiereUI(t *testing.T) {
 	}
 	h := &harness{t: t, rt: rt}
 
-	// nu.ui no existe en headless (G20): chat.start es EINVAL accionable. El chequeo
-	// nu.has("ui") es lo PRIMERO de chat.start (antes de cualquier suspensión), así
+	// enu.ui no existe en headless (G20): chat.start es EINVAL accionable. El chequeo
+	// enu.has("ui") es lo PRIMERO de chat.start (antes de cualquier suspensión), así
 	// que se puede llamar directo sin task: el EINVAL se lanza síncrono.
 	se := h.evalErr(`return require("chat").start({ model = "test/m", no_store = true })`)
 	if se.Code != CodeEINVAL {
@@ -161,7 +174,7 @@ func TestChatDegradedStart(t *testing.T) {
 	h, _ := bootChat(t, "", 50, 14)
 	// Pumpea el scheduler a idle para que el spawn pendiente del `core:ready`
 	// (el auto-arranque del chat) corra hasta montar la UI degradada.
-	h.eval(`nu.task.spawn(function() end)`)
+	h.eval(`enu.task.spawn(function() end)`)
 
 	// El chat activo quedó en modo DEGRADADO, sin sesión (no se pudo construir).
 	h.expectEval(`return tostring(require("chat")._active ~= nil)`, "true")
@@ -189,7 +202,7 @@ func TestChatLayout(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local chat = require("chat")
 			` + registerChatStreamStub + `
 			C = chat.start({ model = "test/m", no_store = true })
@@ -254,7 +267,7 @@ func TestChatStreamingMarkdown(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 60, 20)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true })
 		end)
@@ -265,21 +278,21 @@ func TestChatStreamingMarkdown(t *testing.T) {
 	// un item de asistente en curso) y mide la altura BASE de la conversación vacía.
 	h.eval(`
 		-- el agente emite con atribución de sesión (G3): payload.session = SID.
-		nu.events.emit("agent:turn.start", { session = SID })
+		enu.events.emit("agent:turn.start", { session = SID })
 		local w = C.transcript_widget.w
 		H0 = C.transcript_widget:content_height(w)
 	`)
 
 	// Llegan deltas de texto markdown; cada uno debe hacer crecer el transcript.
 	h.eval(`
-		nu.events.emit("agent:delta", { session = SID, type = "text", text = "# Título\n\n" })
+		enu.events.emit("agent:delta", { session = SID, type = "text", text = "# Título\n\n" })
 	`)
 	h.eval(`
 		local w = C.transcript_widget.w
 		H1 = C.transcript_widget:content_height(w)
 	`)
 	h.eval(`
-		nu.events.emit("agent:delta", { session = SID, type = "text", text = "Una línea.\n\nOtra línea más larga para forzar altura.\n" })
+		enu.events.emit("agent:delta", { session = SID, type = "text", text = "Una línea.\n\nOtra línea más larga para forzar altura.\n" })
 	`)
 	h.eval(`
 		local w = C.transcript_widget.w
@@ -298,7 +311,7 @@ func TestChatStreamingMarkdown(t *testing.T) {
 
 	// agent:message SELLA el mensaje con el Message del done (chat.md §2).
 	h.eval(`
-		nu.events.emit("agent:message", {
+		enu.events.emit("agent:message", {
 			session = SID,
 			message = { role = "assistant", content = { { type = "text", text = "# Final\n\nsellado.\n" } } },
 			stop_reason = "end",
@@ -336,7 +349,7 @@ func TestChatFiltraPorSesion(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 60, 20)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true })
 		end)
@@ -346,12 +359,12 @@ func TestChatFiltraPorSesion(t *testing.T) {
 		N0 = C.transcript:count()
 	`)
 	// un delta de la sesión ACTIVA crece el transcript.
-	h.eval(`nu.events.emit("agent:delta", { session = SID, type = "text", text = "mío" })`)
+	h.eval(`enu.events.emit("agent:delta", { session = SID, type = "text", text = "mío" })`)
 	h.expectEval(`return tostring(C.transcript:count() > N0)`, "true")
 	// un delta de OTRA sesión NO toca el transcript.
 	h.eval(`
 		N1 = C.transcript:count()
-		nu.events.emit("agent:delta", { session = "otra-sesion", type = "text", text = "ajeno" })
+		enu.events.emit("agent:delta", { session = "otra-sesion", type = "text", text = "ajeno" })
 		N2 = C.transcript:count()
 	`)
 	h.expectEval(`return tostring(N2 == N1)`, "true")
@@ -366,7 +379,7 @@ func TestChatDialogoPermisos(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 60, 20)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true })
 		end)
@@ -385,7 +398,7 @@ func TestChatDialogoPermisos(t *testing.T) {
 	`)
 	// emitimos un ask de la sesión activa: el chat abre el modal.
 	h.eval(`
-		nu.events.emit("agent:permission.asked", {
+		enu.events.emit("agent:permission.asked", {
 			session = SID, id = "ask-1", tool = "write_file",
 			args = { path = "/tmp/x", content = "hola" },
 			suggested = "write_file:/tmp/x",
@@ -402,6 +415,78 @@ func TestChatDialogoPermisos(t *testing.T) {
 	h.eval(`C:quit()`)
 }
 
+// TestChatPendingAsksNoSePisan (G3, chat.md §6): el indicador de asks pendientes de
+// la statusline suma DOS estados independientes —la cola de asks PROPIOS (los que
+// abren modal) y el contador de asks de OTRAS sesiones (que solo suben el indicador,
+// G3)— sin que un flujo borre al otro. Regresión: antes un ÚNICO campo `pending_count`
+// lo escribían ambos flujos y se pisaban: un ask propio fijaba la cuenta a 1 (perdía
+// los ajenos), y responderlo la bajaba a 0 (borraba el indicador de los ajenos aún
+// pendientes). También verifica el decremento del contador ajeno al DENEGARSE un ask
+// de la otra sesión (`agent:permission.denied` con source="user").
+func TestChatPendingAsksNoSePisan(t *testing.T) {
+	h, _ := bootChat(t, providersTomlChatStub, 60, 20)
+	h.eval(`
+		C = nil
+		enu.task.spawn(function()
+			` + registerChatStreamStub + `
+			C = require("chat").start({ model = "test/m", no_store = true })
+		end)
+	`)
+	h.eval(`SID = C.session.id`)
+	// texto renderizado del segmento de asks pendientes (derecha de la statusline).
+	h.eval(`
+		function pending_span_text()
+			C:_update_statusline()
+			local parts = {}
+			for _, s in ipairs(C.status_right.spans or {}) do parts[#parts+1] = s.text end
+			return table.concat(parts)
+		end
+	`)
+	// 2 asks AJENOS (de otra sesión): solo suben el contador; NO abren modal (G3).
+	h.eval(`
+		for i = 1, 2 do
+			enu.events.emit("agent:permission.asked", {
+				session = "otra-sesion", id = "ext-"..i, tool = "bash",
+				args = { command = "ls" }, suggested = "bash:ls",
+			})
+		end
+	`)
+	h.expectEval(`return tostring(C.current_modal == nil)`, "true")
+	h.expectEval(`return tostring(C:_pending_total())`, "2")
+	// 1 ask PROPIO (sesión activa): abre modal y SUMA a los ajenos (no los pisa).
+	h.eval(`
+		enu.events.emit("agent:permission.asked", {
+			session = SID, id = "ask-propio", tool = "write_file",
+			args = { path = "/tmp/x", content = "hola" },
+			suggested = "write_file:/tmp/x",
+		})
+	`)
+	h.expectEval(`return tostring(C.current_modal ~= nil)`, "true")
+	h.expectEval(`return tostring(C:_pending_total())`, "3") // 2 ajenos + 1 propio
+	h.expectEval(`return tostring(pending_span_text():find("3 perm", 1, true) ~= nil)`, "true")
+	// El usuario responde el propio (permitir una vez, tecla "a"): baja SOLO el propio.
+	// Los 2 ajenos SIGUEN pendientes (antes esto los borraba con pending_count = 0).
+	h.eval(`C.app:handle_key({ type = "key", key = "a" })`)
+	h.expectEval(`return tostring(C.current_modal == nil)`, "true")
+	h.expectEval(`return tostring(C:_pending_total())`, "2")
+	// Un ajeno se resuelve DENEGANDO (source="user"): decrementa el contador ajeno.
+	h.eval(`
+		enu.events.emit("agent:permission.denied", {
+			session = "otra-sesion", id = "call-1", tool = "bash", source = "user",
+		})
+	`)
+	h.expectEval(`return tostring(C:_pending_total())`, "1")
+	// Una denegación por POLÍTICA (source≠"user") NO decrementa: nunca incrementó el
+	// contador (esas denegaciones no emiten `permission.asked`). Guard a 0 implícito.
+	h.eval(`
+		enu.events.emit("agent:permission.denied", {
+			session = "otra-sesion", id = "call-2", tool = "bash", source = "deny",
+		})
+	`)
+	h.expectEval(`return tostring(C:_pending_total())`, "1")
+	h.eval(`C:quit()`)
+}
+
 // TestChatComandoSlash (chat.md §4): un comando slash se registra y despacha.
 // /help lista los comandos; un comando desconocido devuelve un mensaje (no se
 // envía al modelo).
@@ -409,7 +494,7 @@ func TestChatComandoSlash(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 60, 20)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true })
 		end)
@@ -418,7 +503,7 @@ func TestChatComandoSlash(t *testing.T) {
 	// /help es un builtin (chat.md §4): dispatch devuelve handled=true y un texto.
 	h.eval(`
 		HANDLED, MSG = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local commands = require("chat.commands")
 			HANDLED, MSG = commands.dispatch("/help", C:command_ctx())
 		end)
@@ -428,7 +513,7 @@ func TestChatComandoSlash(t *testing.T) {
 	// un comando desconocido: handled=true (se maneja mostrando el error), con mensaje.
 	h.eval(`
 		HANDLED2, MSG2 = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local commands = require("chat.commands")
 			HANDLED2, MSG2 = commands.dispatch("/noexiste", C:command_ctx())
 		end)
@@ -445,7 +530,7 @@ func TestChatStatusline(t *testing.T) {
 	h, _ := bootChat(t, providersTomlChatStub, 80, 24)
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			` + registerChatStreamStub + `
 			C = require("chat").start({ model = "test/m", no_store = true })
 		end)
@@ -472,7 +557,7 @@ func TestChatStatusline(t *testing.T) {
 // CP-11 (dogfooding): la sesión de chat de extremo a extremo contra un SSE
 // GRABADO del adaptador anthropic. ADAPTACIÓN: el CP-11 original pide un provider
 // REAL; en este entorno NO hay red ni credenciales, así que se ejercita contra el
-// SSE grabado (como CP-9). Documentado en claude_decisions.md S43.
+// SSE grabado (como CP-9). Documentado en docs/worklog/README.md S43.
 // ---------------------------------------------------------------------------
 
 // chatAnthropicProvidersToml: un providers.toml cuyo provider `anthropic` apunta su
@@ -586,7 +671,7 @@ func TestCP11ChatStreamingE2E(t *testing.T) {
 	// cubre TestChatDialogoPermisos). El handler es trivial (devuelve un texto).
 	h.eval(`
 		C = nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local agent = require("agent")
 			agent.tool{
 				name = "get_weather",
@@ -607,7 +692,7 @@ func TestCP11ChatStreamingE2E(t *testing.T) {
 		-- turno suscribiéndonos a agent:delta DESPUÉS del chat (el chat ya está
 		-- suscrito; este observador solo MIDE, no pinta).
 		HEIGHTS = {}
-		OBS = nu.events.on("agent:delta", function(p)
+		OBS = enu.events.on("agent:delta", function(p)
 			if p.session == SID and p.type == "text" then
 				local w = C.transcript_widget.w
 				HEIGHTS[#HEIGHTS+1] = C.transcript_widget:content_height(w)
@@ -622,17 +707,17 @@ func TestCP11ChatStreamingE2E(t *testing.T) {
 	h.eval(`
 		DONE = false
 		-- el turno termina con agent:turn.end (una vez, tras las dos vueltas).
-		nu.events.on("agent:turn.end", function(p)
+		enu.events.on("agent:turn.end", function(p)
 			if p.session == SID then DONE = true end
 		end)
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			C.input:set_value("¿qué tiempo hace en Madrid?")
 			C:submit()
 			-- esperamos a que el turno (dos vueltas del SSE grabado) termine; el loop
 			-- avanza el turno suspendido mientras sondeamos.
 			for _ = 1, 400 do
 				if DONE then break end
-				nu.task.sleep(5)
+				enu.task.sleep(5)
 			end
 		end)
 	`)

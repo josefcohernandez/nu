@@ -18,11 +18,11 @@ func escribirFicheroTest(t *testing.T, path, contenido string) {
 	}
 }
 
-// Tests de S34 — `nu.worker.spawn` + caps (G6) + send/recv con colas acotadas
+// Tests de S34 — `enu.worker.spawn` + caps (G6) + send/recv con colas acotadas
 // (§13). La lógica 🔒 a blindar:
 //
 //   - **caps deny-by-default + dos granularidades (G6)**: un worker con
-//     `caps={"fs.read"}` TIENE `nu.fs.read` pero NO `nu.fs.write` ni otros módulos;
+//     `caps={"fs.read"}` TIENE `enu.fs.read` pero NO `enu.fs.write` ni otros módulos;
 //     con `caps={"fs"}` tiene todo `fs`; sin `caps` toda la API [W]; con `caps={}`
 //     casi nada. Se verifica DESDE DENTRO del worker (reporta al padre qué existe).
 //   - **colas acotadas / backpressure**: `Worker:send` SUSPENDE al llenarse la cola
@@ -34,7 +34,7 @@ func escribirFicheroTest(t *testing.T, path, contenido string) {
 //   - **sin watchdog (G15)**: un worker quema CPU (cómputo largo) sin ser abortado.
 //
 // El arnés `newHarness` (G20) corre headless con `WithForceUI(true)`; el worker, en
-// cambio, es SIEMPRE headless (`uiActive=false`): un worker no tiene `nu.ui`.
+// cambio, es SIEMPRE headless (`uiActive=false`): un worker no tiene `enu.ui`.
 
 // workerHarness construye un harness cuyo runtime tiene un directorio de plugins con
 // el plugin `wmod` (un módulo `lua/wmod.lua` con `init.lua` vacío), de modo que un
@@ -72,16 +72,16 @@ func workerHarness(t *testing.T, wmodLua string) *harness {
 func TestWorkerRoundTrip(t *testing.T) {
 	h := workerHarness(t, `
 		-- El módulo ES el cuerpo del worker (corre como task): recibe, transforma, responde.
-		local msg = nu.worker.parent.recv()
-		nu.worker.parent.send({ echo = msg.text, n = msg.n * 2 })
+		local msg = enu.worker.parent.recv()
+		enu.worker.parent.send({ echo = msg.text, n = msg.n * 2 })
 	`)
 
 	// La task del padre corre durante el `waitIdle` de este primer eval; deja el
 	// resultado en globales que el segundo eval lee.
 	h.eval(`
 		ECHO, N, DONE = nil, nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			w:send({ text = "hola", n = 21 })
 			local result = w:recv()
 			ECHO, N = result.echo, result.n
@@ -99,13 +99,13 @@ func TestWorkerRoundTrip(t *testing.T) {
 // del envío, no la mutación posterior. El worker devuelve lo que vio.
 func TestWorkerMessageCopied(t *testing.T) {
 	h := workerHarness(t, `
-		local m = nu.worker.parent.recv()
-		nu.worker.parent.send(m.v)  -- eco del valor que el worker VIO
+		local m = enu.worker.parent.recv()
+		enu.worker.parent.send(m.v)  -- eco del valor que el worker VIO
 	`)
 	h.eval(`
 		SEEN, CDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			local t = { v = 7 }
 			w:send(t)        -- copia: el worker recibe v=7
 			t.v = 999        -- mutacion POSTERIOR del lado del padre
@@ -123,11 +123,11 @@ func TestWorkerMessageCopied(t *testing.T) {
 // función) lanza `EINVAL` claro, reusando el codec de §12. El error se detecta en el
 // lado del padre (bajo su token), antes de suspender.
 func TestWorkerSendNonSerializable(t *testing.T) {
-	h := workerHarness(t, `nu.task.sleep(60000)`)
+	h := workerHarness(t, `enu.task.sleep(60000)`)
 	h.eval(`
 		ERRCODE, EDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			local ok, e = pcall(function() w:send(function() end) end)
 			ERRCODE = (not ok) and e.code or "no-lanzo"
 			w:terminate()
@@ -163,7 +163,7 @@ func TestWorkerNoWatchdog(t *testing.T) {
 	escribirFicheroTest(t, filepath.Join(dir, "lua", "wmod.lua"), `
 		local s = 0
 		for i = 1, 2000000 do s = s + 1 end
-		nu.worker.parent.send(s)
+		enu.worker.parent.send(s)
 	`)
 
 	// Padre con watchdog DESACTIVADO (budget 0): probamos el worker, no el padre.
@@ -177,8 +177,8 @@ func TestWorkerNoWatchdog(t *testing.T) {
 
 	h.eval(`
 		SUM, WDONE = nil, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			SUM = w:recv()
 			w:terminate()
 			WDONE = true
@@ -190,7 +190,7 @@ func TestWorkerNoWatchdog(t *testing.T) {
 }
 
 // TestWorkerTerminateInterruptsSleep blinda que `terminate()` es **inmediato y sin
-// fuga** (§13): un worker cuya task está suspendida en un `nu.task.sleep` LARGO (60 s)
+// fuga** (§13): un worker cuya task está suspendida en un `enu.task.sleep` LARGO (60 s)
 // es cortado al acto por `terminate()` —NO espera a que venza el sleep— y NO deja la
 // goroutine del worker colgada. Sin el arreglo del review, `terminate` solo cerraba
 // `done`, que un `sleep` no observa: el worker colgaba ~60 s y su goroutine fugaba.
@@ -214,7 +214,7 @@ func TestWorkerTerminateInterruptsSleep(t *testing.T) {
 	// El módulo del worker se suspende en un sleep LARGO: si `terminate` no lo cortara
 	// en su punto de suspensión, el worker colgaría hasta que venciera (60 s).
 	escribirFicheroTest(t, filepath.Join(dir, "lua", "wmod.lua"), `
-		nu.task.sleep(60000)
+		enu.task.sleep(60000)
 	`)
 
 	rt := New(WithDataDir(dataDir), WithConfigDir(cfg), WithPluginDir(root), WithForceUI(true))
@@ -232,10 +232,10 @@ func TestWorkerTerminateInterruptsSleep(t *testing.T) {
 	start := time.Now()
 	h.eval(`
 		TDONE = false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			-- Da un instante a que el worker arranque y se suspenda en el sleep largo.
-			nu.task.sleep(20)
+			enu.task.sleep(20)
 			w:terminate()  -- DEBE cortar el sleep del worker de inmediato, no esperar 60 s
 			TDONE = true
 		end)
@@ -292,9 +292,9 @@ func TestWorkerTerminateInterruptsCPULoop(t *testing.T) {
 	go func() {
 		h.eval(`
 			CDONE = false
-			nu.task.spawn(function()
-				local w = nu.worker.spawn("wmod")
-				nu.task.sleep(20) -- deja arrancar el bucle de CPU del worker
+			enu.task.spawn(function()
+				local w = enu.worker.spawn("wmod")
+				enu.task.sleep(20) -- deja arrancar el bucle de CPU del worker
 				w:terminate()     -- rompe el bucle por cancelación de contexto
 				CDONE = true
 			end)
@@ -311,21 +311,21 @@ func TestWorkerTerminateInterruptsCPULoop(t *testing.T) {
 	}
 }
 
-// TestWorkerSpawnValidation blinda los errores de argumento de `nu.worker.spawn`
+// TestWorkerSpawnValidation blinda los errores de argumento de `enu.worker.spawn`
 // (§13), todos `EINVAL` accionables antes de crear nada.
 func TestWorkerSpawnValidation(t *testing.T) {
 	h := newHarness(t)
 
-	if se := h.evalErr(`nu.worker.spawn("")`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`enu.worker.spawn("")`); se.Code != CodeEINVAL {
 		t.Errorf("module vacio: code=%q, want EINVAL", se.Code)
 	}
-	if se := h.evalErr(`nu.worker.spawn("m", { caps = "fs" })`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`enu.worker.spawn("m", { caps = "fs" })`); se.Code != CodeEINVAL {
 		t.Errorf("caps no-array: code=%q, want EINVAL", se.Code)
 	}
-	if se := h.evalErr(`nu.worker.spawn("m", { caps = {123} })`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`enu.worker.spawn("m", { caps = {123} })`); se.Code != CodeEINVAL {
 		t.Errorf("caps con no-string: code=%q, want EINVAL", se.Code)
 	}
-	if se := h.evalErr(`nu.worker.spawn("m", "no-tabla")`); se.Code != CodeEINVAL {
+	if se := h.evalErr(`enu.worker.spawn("m", "no-tabla")`); se.Code != CodeEINVAL {
 		t.Errorf("opts no-tabla: code=%q, want EINVAL", se.Code)
 	}
 }
@@ -333,9 +333,9 @@ func TestWorkerSpawnValidation(t *testing.T) {
 // TestWorkerSendRecvRequireTask blinda que `Worker:send`/`recv` (⏸) fuera de una
 // task lanzan `EINVAL` (no se puede suspender en el estado principal, §1.3).
 func TestWorkerSendRecvRequireTask(t *testing.T) {
-	h := workerHarness(t, `nu.task.sleep(60000)`)
+	h := workerHarness(t, `enu.task.sleep(60000)`)
 	if se := h.evalErr(`
-		local w = nu.worker.spawn("wmod")
+		local w = enu.worker.spawn("wmod")
 		local ok, e = pcall(function() w:send(1) end)
 		w:terminate()
 		error(e)
@@ -348,11 +348,11 @@ func TestWorkerSendRecvRequireTask(t *testing.T) {
 // (sin mensajes pendientes) da `nil` (fin del canal), no lanza —coherente con
 // `Ws:recv`/§8 (una punta cerrada rinde fin de stream)—.
 func TestWorkerRecvAfterTerminate(t *testing.T) {
-	h := workerHarness(t, `nu.worker.parent.recv()`) // espera un mensaje que no llega
+	h := workerHarness(t, `enu.worker.parent.recv()`) // espera un mensaje que no llega
 	h.eval(`
 		GOT, GDONE, GOTNIL = "sentinel", false, false
-		nu.task.spawn(function()
-			local w = nu.worker.spawn("wmod")
+		enu.task.spawn(function()
+			local w = enu.worker.spawn("wmod")
 			w:terminate()
 			local got = w:recv()
 			GOTNIL = (got == nil)

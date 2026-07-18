@@ -5,7 +5,7 @@
 -- `caps` y `stream(req, provider) -> iterator<Event>` (⏸). NO toca la red: emite
 -- una secuencia FIJA de `Event`s canónicos (providers.md §2.3) derivada del
 -- request, de modo que un test pueda comprobar el stream canónico sin un servidor.
--- El adaptador `anthropic` REAL (SSE de Anthropic sobre `nu.http.stream`) llega
+-- El adaptador `anthropic` REAL (SSE de Anthropic sobre `enu.http.stream`) llega
 -- en S37 y reusará exactamente esta forma —solo cambia el cuerpo de `stream`,
 -- que en vez de eventos fijos parseará el SSE del provider con `Stream:events()`—.
 --

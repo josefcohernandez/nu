@@ -9,19 +9,20 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
 
-// `nu.proc` — subprocesos (api.md §6, sesión S16, inventario 🔒). Lanza procesos
+// `enu.proc` — subprocesos (api.md §6, sesión S16, inventario 🔒). Lanza procesos
 // del sistema y se comunica con ellos. Dos niveles, como el contrato:
 //
-//   - `nu.proc.run(argv, opts?) -> {code, stdout, stderr}` ⏸ — conveniencia con
+//   - `enu.proc.run(argv, opts?) -> {code, stdout, stderr}` ⏸ — conveniencia con
 //     buffers: lanza, alimenta `stdin`, recoge `stdout`/`stderr` enteros, espera y
 //     devuelve el código de salida. Un `code != 0` NO lanza (es dato, como el
-//     `status` de `nu.http`); `timeout_ms` excedido mata el proceso y lanza
+//     `status` de `enu.http`); `timeout_ms` excedido mata el proceso y lanza
 //     `ETIMEOUT`.
-//   - `nu.proc.spawn(argv, opts?) -> Proc` — control fino con streams. NO es ⏸
+//   - `enu.proc.spawn(argv, opts?) -> Proc` — control fino con streams. NO es ⏸
 //     (lanzar no bloquea: devuelve el handle al arrancar). De ahí cuelgan
 //     `write`/`close_stdin`, `read_line`/`read`, `wait`/`kill` (los IO son ⏸;
 //     `close_stdin`/`kill` son síncronos).
@@ -34,8 +35,8 @@ import (
 // existe si no hay shell.
 //
 // VIDA DEL PROCESO (la lógica 🔒, §6). La regla es **matarlo explícitamente** vía
-// `nu.task.cleanup` en quien lo crea: una task que hace `spawn` registra
-// `nu.task.cleanup(function() proc:kill() end)`, de modo que al terminar la task
+// `enu.task.cleanup` en quien lo crea: una task que hace `spawn` registra
+// `enu.task.cleanup(function() proc:kill() end)`, de modo que al terminar la task
 // —éxito, error o **cancelación** (S08)— el proceso muere con ella. Como **red de
 // seguridad** (no como la vía principal), un `Proc` que se queda sin referencias en
 // Lua acaba matado por el GC vía `runtime.SetFinalizer` —**no determinista**: no se
@@ -46,9 +47,9 @@ import (
 // su IO **bloqueante** (leer del pipe, esperar al proceso) en la goroutine de fondo
 // de `suspend`, que **JAMÁS toca Lua**: los bytes cruzan a Lua solo en la
 // `deliverFn`, con el token recuperado. Así una task que lee de un subproceso lento
-// no congela el loop —otras progresan—. Es el mismo patrón de `nu.fs` (S14).
+// no congela el loop —otras progresan—. Es el mismo patrón de `enu.fs` (S14).
 //
-// `nu.proc.alive(pid) -> boolean` (G17) informa de **existencia, no de identidad**:
+// `enu.proc.alive(pid) -> boolean` (G17) informa de **existencia, no de identidad**:
 // pregunta "¿hay algún proceso vivo con este pid?", y un pid reciclado por el SO da
 // `true` aunque sea otro proceso. Es la pieza para detectar locks de sesión
 // huérfanos (sesiones.md §6): un lock cuyo pid ya no existe es huérfano. NO es ⏸
@@ -62,7 +63,7 @@ type luaProc struct {
 	s   *scheduler
 	cmd *exec.Cmd
 
-	// EL REPARTO DE CANDADOS es la decisión delicada de S16 (claude_decisions.md). El
+	// EL REPARTO DE CANDADOS es la decisión delicada de S16 (docs/worklog/README.md). El
 	// IO de un `Proc` (escribir/leer/esperar) **bloquea** en goroutines de fondo
 	// (sin token); `kill` corre síncrono (con token) y DEBE poder interrumpir ese IO
 	// —el patrón de vida del proceso es "cleanup mata el proceso colgado para que su
@@ -111,11 +112,24 @@ type luaProc struct {
 	killMu sync.Mutex
 	killed bool
 
-	// ownerName es el dueño con que se etiquetó el proc al crearse (`currentOwner()`
-	// vigente en `spawn`, S11): `nu.plugin.reload` (S13, G2) mata exactamente los
-	// procesos de ESE plugin —un `spawn` de su `init.lua` no debe sobrevivir a la
-	// recarga, "reload no deja handlers huérfanos"—.
+	// ownerName es el dueño con que se etiquetó el proc al crearse (`ownerForInst`
+	// vigente en `spawn`, S11/G56): el `currentOwner()` del estado principal o, si el
+	// `spawn` nació DENTRO de un worker, la foto CRUDA del plugin dueño del worker
+	// (ADR-024). `enu.plugin.reload` (S13, G2) mata exactamente los procesos de ESE
+	// plugin —un `spawn` de su `init.lua`, o de un worker que él lanzó, no debe
+	// sobrevivir a la recarga, "reload no deja handlers huérfanos"—.
 	ownerName string
+
+	// Recuperación temprana (reap): un proceso TERMINADO cuyos dos streams ya se
+	// agotaron no puede producir nada más — se cierran sus pipes y se desregistra
+	// de los mapas del scheduler (`s`) sin esperar a Runtime.Close (sin esto, cada
+	// spawn anclaría 2 descriptores + sus entradas de rastreo toda la vida del
+	// runtime). eofOut/eofErr los marca la ruta de lectura al ver el EOF; son
+	// atómicos para que `maybeReap` los consulte sin tomar los candados de stream
+	// (que una lectura bloqueada podría retener).
+	reapOnce sync.Once
+	eofOut   atomic.Bool
+	eofErr   atomic.Bool
 }
 
 // luaProc implementa ownedHandle (S13): el registro de handles por dueño
@@ -133,6 +147,12 @@ type luaProc struct {
 func (p *luaProc) release() {
 	p.killSignal(syscall.SIGKILL)
 	p.closeReadPipes()
+	// Fuera también del mapa de vivos (es otro registro que el de dueños, que
+	// vació quien nos llama): un proc derribado por reload no necesita que
+	// `Runtime.Close` lo re-mate.
+	if p.s != nil {
+		p.s.untrackProc(p)
+	}
 }
 
 // owner devuelve el dueño con que se etiquetó el proc al crearse.
@@ -148,7 +168,7 @@ type procOpts struct {
 	hasStdin bool
 	timeout  time.Duration // 0 = sin límite
 
-	// envOver es la **foto del overlay de `setenv`** (`nu.sys.setenv`, S17),
+	// envOver es la **foto del overlay de `setenv`** (`enu.sys.setenv`, S17),
 	// tomada en el estado principal bajo el token al entrar en `run`/`spawn`. Son
 	// las variables que afectan a los subprocesos FUTUROS (§7): se aplican al
 	// construir el entorno del hijo (`mergedEnv`). Tomarla aquí —no en la
@@ -175,7 +195,7 @@ func newCmd(argv []string, opts procOpts) *exec.Cmd {
 
 // mergedEnv construye el entorno del subproceso combinando, **por precedencia de
 // menor a mayor** (la integración S16↔S17, §6/§7): entorno heredado del SO <
-// overlay de `nu.sys.setenv` (`opts.envOver`) < `opts.env` explícito de la
+// overlay de `enu.sys.setenv` (`opts.envOver`) < `opts.env` explícito de la
 // llamada. La regla cumple las dos semánticas a la vez:
 //
 //   - `setenv` afecta a los subprocesos futuros (§7): el overlay PISA lo heredado
@@ -267,12 +287,12 @@ func exitCode(err error) int {
 	return -1
 }
 
-// --- nu.proc.run --------------------------------------------------------------
+// --- enu.proc.run --------------------------------------------------------------
 
 // errProcTimeout es el centinela interno que `runBuffered` devuelve cuando mató el
 // proceso por exceder `timeout_ms`. `procRun` lo distingue para lanzar `ETIMEOUT`
 // (no `EIO`).
-var errProcTimeout = errors.New("nu.proc: timeout")
+var errProcTimeout = errors.New("enu.proc: timeout")
 
 // runBuffered ejecuta el ciclo completo de `run` **fuera del token** (no toca Lua):
 // arranca, alimenta stdin, espera con captura de stdout/stderr y aplica el timeout.
@@ -318,22 +338,41 @@ func runBuffered(argv []string, opts procOpts) (int, string, string, error) {
 	return exitCode(werr), outBuf.String(), errBuf.String(), nil
 }
 
-// --- nu.proc.spawn ------------------------------------------------------------
+// --- enu.proc.spawn ------------------------------------------------------------
 
 // spawnProc arranca el subproceso descrito por `argv`/`opts` y monta su handle
 // `luaProc` —pipes, tracking, reaper y finalizer—, **sin tocar la VM**: es el
 // núcleo VM-agnóstico que comparten el backend gopher (`procSpawn`) y el wasm
-// (`registerProcWasm`). Toma aquí la foto del overlay de `nu.sys.setenv` (§7), como
+// (`registerProcWasm`). Toma aquí la foto del overlay de `enu.sys.setenv` (§7), como
 // el resto de `spawn`, en el estado principal. Devuelve o el handle ya arrancado o
 // el error **crudo** de arranque (`StdinPipe`/`os.Pipe`/`Start`), que cada backend
 // traduce a `ENOENT`/`EACCES`/`EIO` con su propio mapeador (`mapProcStartError` en
 // gopher, `mapProcStartErrorWasm` en wasm). No cambia el comportamiento observable
 // del backend gopher: allí `rt.sys` y `rt.sched` siempre existen, así que las
 // guardas de nil nunca se toman —solo permiten un `rt` mínimo en los tests de wasm—.
-func (rt *Runtime) spawnProc(argv []string, opts procOpts) (*luaProc, error) {
-	// Foto del overlay de `nu.sys.setenv` (S17): el subproceso ve los `setenv`
-	// previos a este `spawn` (§7). Corre en el estado principal, así que esta lectura
-	// no compite con un `setenv` concurrente.
+//
+// `owner` es el dueño con que se registra el proceso para la supervisión (G56,
+// ADR-024): lo resuelve el HostFn con `rt.ownerForInst(inst)` —el dueño vigente
+// desde el estado principal, o la FOTO del spawn si el proceso nace DENTRO de un
+// worker—. Se guarda CRUDO (sin sufijo `(worker)`): un proceso lanzado por un worker
+// queda bajo su plugin dueño, de modo que `plugin.reload` de ese plugin lo alcanza
+// igual que a los del estado principal (árbol de supervisión sin fugas, P11).
+func (rt *Runtime) spawnProc(argv []string, opts procOpts, owner string) (*luaProc, error) {
+	// Foto del overlay de `enu.sys.setenv` (S17): el subproceso ve los `setenv`
+	// previos a este `spawn` (§7). Tras G56 (ADR-024) esta lectura NO corre siempre en
+	// el estado principal: si el `spawn` nace DENTRO de un worker, `spawnProc` —y con
+	// ella este `envOverlay`— corren en la goroutine del worker (el HostFn de
+	// `proc._spawn` es síncrono en el hilo que lo invoca). Lo que la hace segura frente
+	// a un `enu.sys.setenv` concurrente del estado principal NO es "correr en el hilo
+	// principal" —ya no es cierto—, sino el candado `sysState.mu` que serializa
+	// `envOverlay` (lectura) y `setenv` (escritura) del mismo mapa aunque vivan en
+	// goroutinas distintas (diseño de S17: el candado, no el token, cubre las lecturas
+	// de fondo de `enu.proc`). Por eso NO se aplica aquí la foto-en-el-spawn-del-worker
+	// del owner (ADR-024): la identidad del worker es inmutable, pero el overlay debe
+	// leerse en el instante de ESTE `spawn` para honrar §7 (el hijo ve los `setenv`
+	// previos a él, no los previos a la creación del worker) —tomarlo antes cambiaría
+	// la semántica observable—. El candado ya basta; blindado en
+	// TestSpawnDesdeWorkerConcurrenteConSetenv (verde bajo `-race`).
 	if rt.sys != nil {
 		opts.envOver = rt.sys.envOverlay()
 	}
@@ -391,7 +430,7 @@ func (rt *Runtime) spawnProc(argv []string, opts procOpts) (*luaProc, error) {
 		stdout:    bufio.NewReader(rOut),
 		stderr:    bufio.NewReader(rErr),
 		waitDone:  make(chan struct{}),
-		ownerName: rt.currentOwner(),
+		ownerName: owner,
 	}
 
 	if rt.sched != nil {
@@ -419,7 +458,7 @@ func (rt *Runtime) spawnProc(argv []string, opts procOpts) (*luaProc, error) {
 
 // errStdinClosed lo devuelve `writeStdin` cuando stdin ya se cerró (o nunca existió):
 // `procWrite` lo rinde como `ECLOSED`.
-var errStdinClosed = errors.New("nu.proc: stdin cerrado")
+var errStdinClosed = errors.New("enu.proc: stdin cerrado")
 
 // writeStdin escribe al pipe de stdin **fuera del token** (lo llama la goroutine de
 // fondo de `procWrite`), de ahí el candado: protege `stdin`/`stdinClosed` frente a
@@ -524,8 +563,49 @@ func (p *luaProc) wait() int {
 		p.code = exitCode(p.waitErr)
 		close(p.waitDone)
 	})
-	<-p.waitDone // un segundo `wait` (que no ganó el Once) espera al desenlace publicado
+	<-p.waitDone  // un segundo `wait` (que no ganó el Once) espera al desenlace publicado
+	p.maybeReap() // por si los dos streams ya se habían agotado antes de la salida
 	return p.code
+}
+
+// noteEOF registra que un stream se agotó (la ruta de lectura vio su EOF) e
+// intenta la recuperación temprana. Tras un EOF el `bufio.Reader` es pegajoso
+// (toda lectura posterior vuelve a dar EOF sin bloquear), así que marcado el
+// flag ya no puede haber una lectura bloqueada sobre ese stream.
+func (p *luaProc) noteEOF(which string) {
+	switch which {
+	case "stdout":
+		p.eofOut.Store(true)
+	case "stderr":
+		p.eofErr.Store(true)
+	}
+	p.maybeReap()
+}
+
+// maybeReap cierra los pipes y desregistra el Proc de los mapas del scheduler
+// cuando ya no puede producir nada: proceso terminado (waitDone cerrado) Y
+// stdout/stderr agotados. Idempotente (reapOnce) y seguro desde cualquier
+// goroutine (reaper, rutas de lectura): con ambos EOF vistos, closeReadPipes
+// toma los candados de stream sin riesgo de esperar a una lectura bloqueada.
+// El handle Lua sigue siendo válido después: wait/kill están memoizados y no
+// necesitan los pipes. Quien no llega aquí (nadie leyó hasta EOF) lo recoge
+// `reload` (release, por dueño) o `Runtime.Close` (stopAllProcs), como antes.
+func (p *luaProc) maybeReap() {
+	select {
+	case <-p.waitDone:
+	default:
+		return // sigue vivo: los pipes aún pueden traer datos
+	}
+	if !p.eofOut.Load() || !p.eofErr.Load() {
+		return
+	}
+	p.reapOnce.Do(func() {
+		p.closeReadPipes()
+		if p.s != nil {
+			p.s.untrackProc(p)
+			p.s.untrack(p)
+		}
+	})
 }
 
 // closeReadPipes cierra los extremos de lectura de stdout/stderr (propios, vía
@@ -562,11 +642,20 @@ func (p *luaProc) killSignal(sig syscall.Signal) {
 	if p.killed || p.cmd.Process == nil {
 		return
 	}
-	p.killed = true
-	_ = p.cmd.Process.Signal(sig)
+	// `killed` se fija SÓLO si la señal se envió sin error. Marcarlo pase lo que pase
+	// dejaría un proceso vivo pero "matado" a la vista de cleanup, el finalizer y el
+	// scheduler: un envío fallido cortocircuitaría todos los kills posteriores (todos
+	// ven `killed`) y el proceso quedaría huérfano e inmatable. La protección contra
+	// reciclar el pid tras `Wait` no la aporta este flag, sino `os.Process`, que
+	// devuelve `ErrProcessDone` sin llegar a hacer el `kill(2)`; así, un envío exitoso
+	// implica que el proceso seguía vivo (y `killed` bloquea correctamente re-señalarlo),
+	// mientras que uno fallido deja `killed=false` para que el siguiente kill reintente.
+	if err := p.cmd.Process.Signal(sig); err == nil {
+		p.killed = true
+	}
 }
 
-// --- nu.proc.alive ------------------------------------------------------------
+// --- enu.proc.alive ------------------------------------------------------------
 
 // pidAlive comprueba si existe un proceso con `pid` enviándole la "señal 0": en
 // Unix, `kill(pid, 0)` no envía señal alguna pero falla si el proceso no existe

@@ -3,8 +3,8 @@ package runtime
 // Eventos `ui:*` del core (api.md §4, §9, sesión S32). El kernel reserva el
 // namespace `ui:` (junto a `core:`, §4) para los eventos del ciclo de vida del
 // terminal: cambio de tamaño, foco y suspensión/reanudación. Se emiten por el bus de
-// `nu.events` (events.go), igual que `core:ready`/`core:plugin.misbehaved`, de modo
-// que cualquier extensión (toolkit, chat) reaccione a ellos con `nu.events.on`.
+// `enu.events` (events.go), igual que `core:ready`/`core:plugin.misbehaved`, de modo
+// que cualquier extensión (toolkit, chat) reaccione a ellos con `enu.events.on`.
 //
 // DÓNDE NACEN ESTOS EVENTOS. La FUENTE real es el **driver de TTY** (CP-7 manual,
 // S33+): es quien negocia el terminal en raw mode, observa el `SIGWINCH`/secuencias de
@@ -12,9 +12,9 @@ package runtime
 // señal de suspensión (`SIGTSTP` → `ui:suspend`, y la reanudación → `ui:resume`).
 // S32 cabla la EMISIÓN por el bus y deja los puntos de inyección (`emitUI*`,
 // `resizeUI`) que el driver y los tests usan; aquí no hay lector de TTY (headless), y
-// por el gating G20 estos eventos solo tienen sentido con `nu.ui` activo.
+// por el gating G20 estos eventos solo tienen sentido con `enu.ui` activo.
 //
-// SOLO ESTADO PRINCIPAL (ADR-008). Como todo `nu.ui`, la emisión corre bajo el token
+// SOLO ESTADO PRINCIPAL (ADR-008). Como todo `enu.ui`, la emisión corre bajo el token
 // en el estado principal: `emit` (events.go) lo presupone. El driver, cuando observe
 // un evento del SO en su goroutine, lo encolará al loop para emitirlo bajo el token
 // (igual que el painter toma el token para pintar); las vías de aquí presuponen ese
@@ -22,7 +22,7 @@ package runtime
 
 // emitUIEvent emite un evento `ui:*` por el bus de la Instance wasm con su payload
 // (un mapa de datos, o nil para un evento sin datos). Es el punto único por el que
-// pasan todos los `ui:*`. En headless, donde `nu.ui` no se registra, nadie llama a
+// pasan todos los `ui:*`. En headless, donde `enu.ui` no se registra, nadie llama a
 // las vías de abajo, pero el bus sigue ahí —`ui:` es del core—.
 func (rt *Runtime) emitUIEvent(name string, payload map[string]any) {
 	if rt.wasm != nil {
@@ -42,10 +42,19 @@ func (rt *Runtime) resizeUI(w, h int) {
 	if rt.ui == nil {
 		return
 	}
-	if w == rt.ui.comp.w && h == rt.ui.comp.h {
+	// La consulta y la reasignación del compositor van bajo el candado de la UI
+	// (G44: el bombeo puede estar mutándolo); la emisión queda FUERA — EmitEvent
+	// re-entra la VM y toma el mutex por su cuenta (no es reentrante).
+	changed := false
+	rt.withUILock(func() {
+		if w != rt.ui.comp.w || h != rt.ui.comp.h {
+			rt.ui.comp.resize(w, h)
+			changed = true
+		}
+	})
+	if !changed {
 		return // sin cambio real: no emitir un ui:resize espurio
 	}
-	rt.ui.comp.resize(w, h)
 	rt.emitUIEvent("ui:resize", map[string]any{"w": int64(w), "h": int64(h)})
 }
 

@@ -42,11 +42,11 @@ func runMain(t *testing.T, setup string) string {
 func TestWorkerRoundTrip(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[
-			local m = nu.worker.parent.recv()
-			nu.worker.parent.send({ text = m.text, n = m.n * 2 })
+		local w = enu.worker.spawn([[
+			local m = enu.worker.parent.recv()
+			enu.worker.parent.send({ text = m.text, n = m.n * 2 })
 		]])
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			w:send({ text = "hola", n = 21 })
 			local r = w:recv()
 			out = r.text .. ":" .. tostring(r.n)
@@ -61,12 +61,12 @@ func TestWorkerRoundTrip(t *testing.T) {
 func TestWorkerAislamiento(t *testing.T) {
 	out := runMain(t, `
 		GLOBAL_PADRE = "soy-padre"
-		local w = nu.worker.spawn([[
+		local w = enu.worker.spawn([[
 			GLOBAL_WORKER = "soy-worker"
 			-- el global del padre no existe aquí:
-			nu.worker.parent.send({ ve_padre = (GLOBAL_PADRE == nil), yo = GLOBAL_WORKER })
+			enu.worker.parent.send({ ve_padre = (GLOBAL_PADRE == nil), yo = GLOBAL_WORKER })
 		]])
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local r = w:recv()
 			-- y el global del worker no existe en el padre:
 			out = tostring(r.ve_padre) .. ":" .. r.yo .. ":" .. tostring(GLOBAL_WORKER == nil)
@@ -84,18 +84,18 @@ func TestWorkerBackpressure(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
 		-- el worker consume 1 y luego duerme: la cola se llena y no se vacía.
-		local w = nu.worker.spawn([[ nu.worker.parent.recv() ; nu.task.sleep(100000) ]])
+		local w = enu.worker.spawn([[ enu.worker.parent.recv() ; enu.task.sleep(100000) ]])
 		local enviados = 0
 		local acabado = false
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			for i = 1, 1000 do
 				w:send({ i = i })
 				enviados = enviados + 1
 			end
 			acabado = true
 		end)
-		nu.task.spawn(function()
-			nu.task.sleep(80)   -- tiempo de sobra para llenar la cola y bloquear
+		enu.task.spawn(function()
+			enu.task.sleep(80)   -- tiempo de sobra para llenar la cola y bloquear
 			-- backpressure: el sender NO acabó (bloqueado) y el count está acotado
 			-- por la cola (16) + el 1 consumido, no llegó a 1000.
 			out = tostring((not acabado) and enviados >= 16 and enviados <= 18)
@@ -111,11 +111,11 @@ func TestWorkerBackpressure(t *testing.T) {
 func TestWorkerMensajeCopiado(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[
-			local m = nu.worker.parent.recv()
-			nu.worker.parent.send({ visto = m.v })
+		local w = enu.worker.spawn([[
+			local m = enu.worker.parent.recv()
+			enu.worker.parent.send({ visto = m.v })
 		]])
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local t = { v = 7 }
 			w:send(t)
 			t.v = 999          -- muta DESPUÉS de enviar
@@ -131,8 +131,8 @@ func TestWorkerMensajeCopiado(t *testing.T) {
 func TestWorkerSendNoSerializable(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[ nu.task.sleep(1) ]])
-		nu.task.spawn(function()
+		local w = enu.worker.spawn([[ enu.task.sleep(1) ]])
+		enu.task.spawn(function()
 			local ok, e = pcall(function() w:send({ fn = function() end }) end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
 			w:terminate()
@@ -151,15 +151,15 @@ func TestWorkerCapsGranularidades(t *testing.T) {
 		p.Register("http.get", func(inst *Instance, a []any) ([]any, error) { return []any{"g"}, nil })
 	}
 	probe := `[[
-		nu.worker.parent.send({
-			fs = (nu.fs ~= nil),
-			fs_read = (nu.fs ~= nil and nu.fs.read ~= nil),
-			fs_write = (nu.fs ~= nil and nu.fs.write ~= nil),
-			http = (nu.http ~= nil),
-			task = (nu.task ~= nil),
-			ui = (nu.ui ~= nil),
-			spawn = (nu.worker.spawn ~= nil),
-			parent = (nu.worker.parent ~= nil),
+		enu.worker.parent.send({
+			fs = (enu.fs ~= nil),
+			fs_read = (enu.fs ~= nil and enu.fs.read ~= nil),
+			fs_write = (enu.fs ~= nil and enu.fs.write ~= nil),
+			http = (enu.http ~= nil),
+			task = (enu.task ~= nil),
+			ui = (enu.ui ~= nil),
+			spawn = (enu.worker.spawn ~= nil),
+			parent = (enu.worker.parent ~= nil),
 		})
 	]]`
 	cases := []struct {
@@ -188,8 +188,8 @@ func TestWorkerCapsGranularidades(t *testing.T) {
 			t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
 			setup := `
 				out = ""
-				local w = nu.worker.spawn(` + probe + c.opts + `)
-				nu.task.spawn(function()
+				local w = enu.worker.spawn(` + probe + c.opts + `)
+				enu.task.spawn(function()
 					local r = w:recv()
 					out = r
 				end)`
@@ -203,6 +203,44 @@ func TestWorkerCapsGranularidades(t *testing.T) {
 			checkCaps(t, inst, c.want)
 		})
 	}
+}
+
+// TestWorkerSinPlugin blinda que `plugin.*` NO cruza a los workers ni siquiera
+// sin caps (api.md §13/§16: es solo estado principal). Antes se filtraba, y con
+// él un `plugin.reload` cuyo HostFn cierra sobre el runtime principal: ejecutarlo
+// desde la goroutine del worker re-entraba la VM principal en paralelo.
+func TestWorkerSinPlugin(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simula las primitivas que registerPluginWasm cuelga en el Pool principal.
+	p.Register("plugin.current", func(inst *Instance, a []any) ([]any, error) { return []any{"x"}, nil })
+	p.Register("plugin.list", func(inst *Instance, a []any) ([]any, error) { return []any{[]any{}}, nil })
+	p.RegisterSuspending("plugin.reload", func(inst *Instance, a []any) ([]any, error) { return nil, nil })
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	setup := `
+		out = ""
+		local w = enu.worker.spawn([[
+			enu.worker.parent.send({
+				plugin = (enu.plugin ~= nil),
+			})
+		]])
+		enu.task.spawn(function()
+			out = w:recv()
+		end)`
+	if _, lerr, err := inst.Eval(setup); err != nil || lerr != "" {
+		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
+	}
+	if err := inst.RunTasks(context.Background()); err != nil {
+		t.Fatalf("RunTasks: %v", err)
+	}
+	checkCaps(t, inst, "plugin=false")
 }
 
 // checkCaps evalúa `want` (pares "k=bool") contra la tabla `out` del estado.
@@ -221,8 +259,8 @@ func checkCaps(t *testing.T, inst *Instance, want string) {
 func TestWorkerRecvExcluyeOnMessage(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[ nu.task.sleep(100000) ]])
-		nu.task.spawn(function()
+		local w = enu.worker.spawn([[ enu.task.sleep(100000) ]])
+		enu.task.spawn(function()
 			w:on_message(function(m) end)
 			local ok, e = pcall(function() return w:recv() end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
@@ -237,8 +275,8 @@ func TestWorkerRecvExcluyeOnMessage(t *testing.T) {
 func TestWorkerOnMessageSegundoRechazado(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[ nu.task.sleep(100000) ]])
-		nu.task.spawn(function()
+		local w = enu.worker.spawn([[ enu.task.sleep(100000) ]])
+		enu.task.spawn(function()
 			w:on_message(function(m) end)
 			local ok, e = pcall(function() return w:on_message(function(m) end) end)
 			out = tostring(ok) .. ":" .. tostring(e.code)
@@ -253,14 +291,14 @@ func TestWorkerOnMessageSegundoRechazado(t *testing.T) {
 func TestWorkerOnMessageEntrega(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[
-			for i = 1, 5 do nu.worker.parent.send(i) end
+		local w = enu.worker.spawn([[
+			for i = 1, 5 do enu.worker.parent.send(i) end
 		]])
 		local recibidos = {}
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local sub = w:on_message(function(m) recibidos[#recibidos+1] = m end)
 			-- espera a que lleguen los 5 y compón el resultado.
-			while #recibidos < 5 do nu.task.sleep(1) end
+			while #recibidos < 5 do enu.task.sleep(1) end
 			out = table.concat(recibidos, ",")
 			sub.cancel()
 			w:terminate()
@@ -274,12 +312,12 @@ func TestWorkerOnMessageEntrega(t *testing.T) {
 func TestWorkerSinWatchdog(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[
+		local w = enu.worker.spawn([[
 			local s = 0
 			for i = 1, 2000000 do s = s + 1 end
-			nu.worker.parent.send(s)
+			enu.worker.parent.send(s)
 		]])
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			out = tostring(w:recv())
 		end)`)
 	if out != "2000000" {
@@ -300,7 +338,7 @@ func TestWorkerTerminateInterrumpeBucleCPU(t *testing.T) {
 	}
 	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
 	if _, lerr, err := inst.Eval(`
-		W = nu.worker.spawn([[ while true do end ]])   -- bucle infinito de CPU
+		W = enu.worker.spawn([[ while true do end ]])   -- bucle infinito de CPU
 	`); err != nil || lerr != "" {
 		t.Fatalf("spawn: lerr=%q err=%v", lerr, err)
 	}
@@ -329,11 +367,11 @@ func TestWorkerTerminateInterrumpeBucleCPU(t *testing.T) {
 func TestWorkerTerminateNoAfectaPadre(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[ nu.worker.parent.recv() ]])  -- se queda esperando
-		nu.task.spawn(function()
+		local w = enu.worker.spawn([[ enu.worker.parent.recv() ]])  -- se queda esperando
+		enu.task.spawn(function()
 			w:terminate()
 			w:terminate()                 -- idempotente
-			nu.task.sleep(5)
+			enu.task.sleep(5)
 			out = "padre-vivo"            -- el padre sigue corriendo tras terminar el worker
 		end)`)
 	if out != "padre-vivo" {
@@ -345,8 +383,8 @@ func TestWorkerTerminateNoAfectaPadre(t *testing.T) {
 func TestWorkerRecvTrasTerminate(t *testing.T) {
 	out := runMain(t, `
 		out = "?"
-		local w = nu.worker.spawn([[ nu.task.sleep(100000) ]])
-		nu.task.spawn(function()
+		local w = enu.worker.spawn([[ enu.task.sleep(100000) ]])
+		enu.task.spawn(function()
 			w:terminate()
 			local m = w:recv()
 			out = tostring(m)   -- nil
@@ -354,4 +392,243 @@ func TestWorkerRecvTrasTerminate(t *testing.T) {
 	if out != "nil" {
 		t.Fatalf("recv tras terminate: got %q (se esperaba nil)", out)
 	}
+}
+
+// --- A-07: el registro Pool.workers retira los workers terminados -------------
+//
+// Antes, registerWorker añadía al mapa y nadie borraba: cada spawn dejaba para
+// siempre la struct, sus canales y la entrada del mapa (crecimiento monótono en
+// procesos de larga vida). Ahora shutdown() —el único punto por el que pasa todo
+// fin de worker, sea natural, terminate() o StopWorkers— se retira del registro.
+// La degradación semántica DEBE preservarse: send sobre un worker retirado →
+// ECLOSED, recv → nil (fin de canal), no EINVAL —el id fue válido, solo que ya no
+// está—; un id que nunca existió sí es EINVAL.
+
+// spawnRun replica lo que hace worker._spawn: crea el worker aislado, lo registra
+// en el Pool (fija id/parent) y arranca su goroutine. Devuelve el worker y su id.
+func spawnRun(t *testing.T, inst *Instance, src string) (*worker, int64) {
+	t.Helper()
+	w, err := inst.spawnWorker(src, nil, false, "")
+	if err != nil {
+		t.Fatalf("spawnWorker: %v", err)
+	}
+	id := inst.pool.registerWorker(w)
+	go w.run(src)
+	return w, id
+}
+
+// hostFn localiza una primitiva host registrada por su nombre. En la ruta de
+// degradación de A-07 (worker ya retirado) las primitivas del handle Worker
+// retornan SIN suspender, así que en el test se pueden invocar directamente.
+func hostFn(p *Pool, name string) HostFn {
+	for id, n := range p.reg.names {
+		if n == name {
+			return p.reg.fns[id]
+		}
+	}
+	return nil
+}
+
+// workerCount lee el tamaño del registro bajo su lock.
+func workerCount(p *Pool) int {
+	p.workerMu.Lock()
+	defer p.workerMu.Unlock()
+	return len(p.workers)
+}
+
+// A-07(a): spawn+terminate repetido NO hace crecer el registro. Tras cada
+// terminate+wait el worker está fuera del mapa; el registro vuelve a 0.
+func TestWorkerRegistroNoCreceA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	const n = 50
+	for i := 0; i < n; i++ {
+		w, _ := spawnRun(t, inst, `enu.task.sleep(100000)`)
+		w.terminate()
+		w.wait() // espera al shutdown completo (que se retira del mapa)
+		if c := workerCount(p); c != 0 {
+			t.Fatalf("A-07: tras spawn+terminate #%d el registro tiene %d entradas (se esperaba 0)", i+1, c)
+		}
+	}
+	// Los ids siguen siendo monótonos (no se reutilizan): sanity de que la retirada
+	// borra la entrada, no reinicia el contador.
+	if p.workerNext != n {
+		t.Fatalf("A-07: workerNext=%d, se esperaba %d", p.workerNext, n)
+	}
+}
+
+// A-07(b): send sobre un worker YA RETIRADO (terminado y reapeado) sigue dando
+// ECLOSED, no EINVAL; un id que nunca existió sí es EINVAL.
+func TestWorkerSendTrasTerminateReapedA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	w, id := spawnRun(t, inst, `enu.task.sleep(100000)`)
+	w.terminate()
+	w.wait() // reapeado: fuera del mapa
+	if lw, known := p.lookupWorker(id); lw != nil || !known {
+		t.Fatalf("A-07: lookupWorker(%d) = (%v, known=%v), se esperaba (nil, true)", id, lw, known)
+	}
+
+	send := hostFn(p, "worker._send")
+	if send == nil {
+		t.Fatal("no se encontró la primitiva worker._send")
+	}
+	// worker retirado → ECLOSED (degradación preservada).
+	if _, err := send(inst, []any{id, map[string]any{"x": int64(1)}}); !isCode(err, "ECLOSED") {
+		t.Fatalf("A-07: send tras terminate+reap → %v, se esperaba ECLOSED", err)
+	}
+	// id que nunca existió → EINVAL (se conserva la distinción conocido/forjado).
+	if _, err := send(inst, []any{int64(99999), map[string]any{"x": int64(1)}}); !isCode(err, "EINVAL") {
+		t.Fatalf("A-07: send con id forjado → %v, se esperaba EINVAL", err)
+	}
+}
+
+// A-07(c): recv sobre un worker YA RETIRADO devuelve nil (fin de canal), sin
+// error; un id que nunca existió sí es EINVAL.
+func TestWorkerRecvTrasTerminateReapedA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	w, id := spawnRun(t, inst, `enu.task.sleep(100000)`)
+	w.terminate()
+	w.wait() // reapeado: fuera del mapa
+
+	recv := hostFn(p, "worker._recv")
+	if recv == nil {
+		t.Fatal("no se encontró la primitiva worker._recv")
+	}
+	res, err := recv(inst, []any{id})
+	if err != nil {
+		t.Fatalf("A-07: recv tras terminate+reap dio error %v (se esperaba nil sin error)", err)
+	}
+	if len(res) != 1 || res[0] != nil {
+		t.Fatalf("A-07: recv tras terminate+reap → %v, se esperaba [nil] (fin de canal)", res)
+	}
+	// id que nunca existió → EINVAL.
+	if _, err := recv(inst, []any{int64(99999)}); !isCode(err, "EINVAL") {
+		t.Fatalf("A-07: recv con id forjado → %v, se esperaba EINVAL", err)
+	}
+}
+
+// A-07 (regresión): un worker que termina con mensajes BUFFERIZADOS hacia el
+// padre NO se retira en shutdown —retirarlo perdería la cola: recv sobre un id
+// retirado da nil inmediato—. La entrada sobrevive como zombie, recv drena
+// todos los mensajes, y el fin de canal (nil) reapea la entrada. Blinda la
+// promesa de recvOnChan («un mensaje encolado justo antes de terminar aún se
+// entrega»), que la primera versión de A-07 rompió (TestWorkerOnMessageEntrega
+// perdía el último mensaje).
+func TestWorkerZombieDrenaYReapeaA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	// El worker manda 3 (caben en workerQueueCap) y retorna: fin natural.
+	if _, lerr, err := inst.Eval(`
+		out = "?"
+		__w = enu.worker.spawn([[
+			for i = 1, 3 do enu.worker.parent.send(i) end
+		]])`); err != nil || lerr != "" {
+		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
+	}
+	// Espera el shutdown COMPLETO antes de leer: los 3 mensajes quedan
+	// bufferizados y la entrada debe seguir en el registro (zombie).
+	w, _ := p.lookupWorker(1)
+	if w == nil {
+		t.Fatal("A-07: el worker recién spawneado no está en el registro")
+	}
+	w.wait()
+	if c := workerCount(p); c != 1 {
+		t.Fatalf("A-07: tras terminar con mensajes pendientes el registro tiene %d entradas (se esperaba 1, zombie)", c)
+	}
+
+	// Drena: los 3 mensajes se entregan en orden y el nil final reapea.
+	if _, lerr, err := inst.Eval(`
+		enu.task.spawn(function()
+			local got = {}
+			while true do
+				local m = __w:recv()
+				if m == nil then break end
+				got[#got+1] = m
+			end
+			out = table.concat(got, ",")
+		end)`); err != nil || lerr != "" {
+		t.Fatalf("drenado: lerr=%q err=%v", lerr, err)
+	}
+	if err := inst.RunTasks(context.Background()); err != nil {
+		t.Fatalf("RunTasks: %v", err)
+	}
+	if out, _, _ := inst.Eval(`return tostring(out)`); out != "1,2,3" {
+		t.Fatalf("A-07: se drenó %q, se esperaba \"1,2,3\"", out)
+	}
+	if c := workerCount(p); c != 0 {
+		t.Fatalf("A-07: tras drenar el registro tiene %d entradas (se esperaba 0)", c)
+	}
+}
+
+// A-07(d): StopWorkers retira todas las entradas; el fin NATURAL (un módulo que
+// retorna solo) también, vía el mismo shutdown().
+func TestWorkerStopWorkersYFinNaturalRetiranA07(t *testing.T) {
+	p, err := NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := p.NewInstance()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
+
+	// Cinco workers vivos, bloqueados esperando al padre.
+	for i := 0; i < 5; i++ {
+		spawnRun(t, inst, `enu.worker.parent.recv()`)
+	}
+	if c := workerCount(p); c != 5 {
+		t.Fatalf("A-07: se esperaban 5 workers vivos, hay %d", c)
+	}
+	p.StopWorkers()
+	if c := workerCount(p); c != 0 {
+		t.Fatalf("A-07: StopWorkers dejó %d entradas (se esperaba 0)", c)
+	}
+
+	// Fin natural: un módulo que retorna de inmediato se retira él solo.
+	w, _ := spawnRun(t, inst, `return 1`)
+	w.wait()
+	if c := workerCount(p); c != 0 {
+		t.Fatalf("A-07: fin natural dejó %d entradas (se esperaba 0)", c)
+	}
+}
+
+// isCode comprueba que err es un StructuredError con el código dado.
+func isCode(err error, code string) bool {
+	se, ok := err.(*StructuredError)
+	return ok && se.Code == code
 }

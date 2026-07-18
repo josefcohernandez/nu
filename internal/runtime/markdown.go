@@ -10,7 +10,7 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// `nu.text.markdown` — render completo de markdown a un `Block` (api.md §10,
+// `enu.text.markdown` — render completo de markdown a un `Block` (api.md §10,
 // sesión S23, inventario 🔒). Es CPU puro: parsea un string ya en memoria y
 // emite líneas de spans estilizados, sin esperar IO. Por eso es **[W] pero
 // NINGUNA ⏸** (como `width`/`wrap`/`truncate` de S22 y los codecs de S18): no
@@ -23,7 +23,7 @@ import (
 // word-wrap reusa `wrapText`/`splitWide` de S22 (text.go) y la anchura,
 // `uniseg.StringWidth` (la misma de `text.width`). El theme resuelve `Style`
 // con `parseStyle`/`normalizeColor` de S22 (ui.go). Ni una función pública de
-// más: solo se cuelga `nu.text.markdown`.
+// más: solo se cuelga `enu.text.markdown`.
 //
 // THEME (themable, §10). `opts.theme` lleva un `Style` por cada elemento
 // (headings por nivel "h1".."h6", code, emphasis, strong, link, bullet,
@@ -81,11 +81,11 @@ import (
 // TABLAS: NO se soportan en S23 (CommonMark base; las tablas son una extensión
 // GFM). goldmark sin extensiones no las parsea, así que una tabla cae a un
 // párrafo de texto plano (las celdas con `|`) — válido y estable, solo sin
-// formato de tabla. Documentado en claude_decisions.md (S23); reabrible si una
+// formato de tabla. Documentado en docs/worklog/README.md (S23); reabrible si una
 // extensión las pide (P##).
 //
 // QUÉ REUSARÁ S24 (highlight): el render de un code block aquí aplica UN solo
-// Style (theme.code) a cada línea; S24 (`nu.text.highlight`) sustituirá ese
+// Style (theme.code) a cada línea; S24 (`enu.text.highlight`) sustituirá ese
 // tramo plano por spans coloreados por token dentro del MISMO armazón de líneas
 // (renderCodeBlock es el punto de extensión: hoy un span por línea, mañana N
 // spans por línea según el lexer — por eso `lang` ya se extrae y se pasa).
@@ -219,7 +219,7 @@ func (r *mdRenderer) renderParagraph(n ast.Node) [][]span {
 // compositor recorta) ni se reestiliza por contenido (el highlighting es S24).
 //
 // PUNTO DE EXTENSIÓN PARA S24: hoy cada línea es UN span (texto crudo + code
-// style). S24 (`nu.text.highlight`) reemplazará ese span único por N spans
+// style). S24 (`enu.text.highlight`) reemplazará ese span único por N spans
 // coloreados según el lexer del lenguaje, manteniendo el MISMO armazón (una
 // entrada por línea del código) — por eso `lang` ya se extrae y se pasa aquí.
 func (r *mdRenderer) renderCodeBlock(segs *text.Segments, lang string) [][]span {

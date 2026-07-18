@@ -2,7 +2,7 @@ package spike
 
 // Pregunta 3 del spike: EL PEAJE. Los mismos programas Lua medidos en las dos
 // VMs — el Lua oficial sobre wazero (lua.wasm) y gopher-lua v1.1.2 (la VM
-// actual de nu). Ejes: VM pura, frontera host, throw/pcall, yield/resume,
+// actual de enu). Ejes: VM pura, frontera host, throw/pcall, yield/resume,
 // carga de chunk y arranque.
 
 import (

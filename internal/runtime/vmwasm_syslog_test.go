@@ -1,6 +1,6 @@
 package runtime
 
-// Tests de M13b: nu.sys y nu.log sobre wasm (§7, §15). Ambos módulos síncronos.
+// Tests de M13b: enu.sys y enu.log sobre wasm (§7, §15). Ambos módulos síncronos.
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
 // M13b.sys.1: platform/pid/hostname devuelven valores coherentes con el proceso.
@@ -27,10 +27,10 @@ func TestSysWasmBasico(t *testing.T) {
 	t.Cleanup(func() { _ = inst.Close() })
 
 	out := evalWasm(t, inst, `
-		return nu.sys.platform() .. ":" ..
-			tostring(nu.sys.pid() == math.floor(nu.sys.pid())) .. ":" ..
-			tostring(#nu.sys.hostname() > 0) .. ":" ..
-			math.type(nu.sys.pid())`)
+		return enu.sys.platform() .. ":" ..
+			tostring(enu.sys.pid() == math.floor(enu.sys.pid())) .. ":" ..
+			tostring(#enu.sys.hostname() > 0) .. ":" ..
+			math.type(enu.sys.pid())`)
 	// platform es un string no vacío; pid es integer; hostname no vacío.
 	parts := strings.Split(out, ":")
 	if len(parts) != 4 || parts[0] == "" || parts[1] != "true" || parts[2] != "true" || parts[3] != "integer" {
@@ -48,9 +48,9 @@ func TestSysWasmEnvOverlay(t *testing.T) {
 	t.Cleanup(func() { _ = inst.Close() })
 
 	out := evalWasm(t, inst, `
-		local antes = nu.sys.env("NU_TEST_X")
-		nu.sys.setenv("NU_TEST_X", "hola")
-		return tostring(antes) .. ":" .. tostring(nu.sys.env("NU_TEST_X"))`)
+		local antes = enu.sys.env("NU_TEST_X")
+		enu.sys.setenv("NU_TEST_X", "hola")
+		return tostring(antes) .. ":" .. tostring(enu.sys.env("NU_TEST_X"))`)
 	if out != "nil:hola" {
 		t.Fatalf("env overlay: got %q", out)
 	}
@@ -65,18 +65,18 @@ func TestSysWasmMonoMs(t *testing.T) {
 	t.Cleanup(func() { _ = inst.Close() })
 
 	out := evalWasm(t, inst, `
-		local a = nu.sys.mono_ms()
-		local b = nu.sys.mono_ms()
+		local a = enu.sys.mono_ms()
+		local b = enu.sys.mono_ms()
 		return tostring(b >= a)`)
 	if out != "true" {
 		t.Fatalf("mono_ms: got %q", out)
 	}
 }
 
-// M13b.log.1: nu.log.info formatea (string.format) y escribe una línea al log.
+// M13b.log.1: enu.log.info formatea (string.format) y escribe una línea al log.
 func TestLogWasmEscribe(t *testing.T) {
 	dir := t.TempDir()
-	logPath := filepath.Join(dir, "nu.log")
+	logPath := filepath.Join(dir, "enu.log")
 	p, _ := vmwasm.NewPool()
 	t.Cleanup(func() { _ = p.Close() })
 	rt := &Runtime{log: newLogger(logPath)}
@@ -85,7 +85,7 @@ func TestLogWasmEscribe(t *testing.T) {
 	inst, _ := p.NewInstance()
 	t.Cleanup(func() { _ = inst.Close() })
 
-	if _, lerr, err := inst.Eval(`nu.log.info("x=%d y=%s", 5, "z")`); err != nil || lerr != "" {
+	if _, lerr, err := inst.Eval(`enu.log.info("x=%d y=%s", 5, "z")`); err != nil || lerr != "" {
 		t.Fatalf("log: lerr=%q err=%v", lerr, err)
 	}
 	data, err := os.ReadFile(logPath)
@@ -98,10 +98,10 @@ func TestLogWasmEscribe(t *testing.T) {
 	}
 }
 
-// M13b.log.2: print es alias de nu.log.info (§15).
+// M13b.log.2: print es alias de enu.log.info (§15).
 func TestLogWasmPrintAlias(t *testing.T) {
 	dir := t.TempDir()
-	logPath := filepath.Join(dir, "nu.log")
+	logPath := filepath.Join(dir, "enu.log")
 	p, _ := vmwasm.NewPool()
 	t.Cleanup(func() { _ = p.Close() })
 	rt := &Runtime{log: newLogger(logPath)}

@@ -1,0 +1,431 @@
+---
+// Plantilla compartida de una página de la wiki (pantalla 12a), parametrizada
+// por idioma (W-04). La consumen dos wrappers finos: pages/docs/[slug].astro
+// (ES) y pages/en/docs/[slug].astro (EN), que solo resuelven getStaticPaths
+// contra la colección del idioma que toca y delegan aquí. Así el template de
+// ~300 líneas (markup + script + estilos) vive una sola vez.
+//
+// Grid de 3 columnas: sidebar 240px (borde derecho) + contenido (max ~68ch) +
+// carril derecho 180px. En <768px el sidebar y el carril desaparecen: el índice
+// vive tras `[≡]` (drawer) y prev/next pasan a filas táctiles grandes.
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import HeaderInternal from '../HeaderInternal.astro';
+import Statusline from '../Statusline.astro';
+import Sidebar from '../wiki/Sidebar.astro';
+import { TOTAL, urlDoc, gitPathLang, repoPath, type DocEntry } from '../../lib/docmap';
+import { gitMeta } from '../../lib/gitmeta';
+import { i18n, type Lang } from '../../lib/i18n';
+import '../../styles/markdown.css';
+
+interface Props {
+  doc: DocEntry;
+  entry: any;
+  index: number;
+  prev: DocEntry | null;
+  next: DocEntry | null;
+  lang?: Lang;
+}
+const { doc, entry, index, prev, next, lang = 'es' } = Astro.props;
+const t = i18n[lang]; // build-time en el idioma de la página; el swap es en cliente
+
+const { Content, headings } = await render(entry);
+
+// Título: el frontmatter manda (todos los .md de docs/ lo traen desde la
+// reestructuración; la instantánea EN aún no, y cae al primer H1 del cuerpo).
+// Las páginas locales (empezar y extensiones) no traen H1 en el cuerpo: se
+// pinta aquí para que reciba el mismo estilo (═) que un H1 de markdown.
+const pintaH1 = doc.collection === 'empezar' || doc.collection === 'extensiones';
+const tituloH1 = headings.find((h) => h.depth === 1)?.text;
+const titulo = (entry.data.title as string) ?? tituloH1 ?? doc.slug;
+
+// Índice del carril: los h2 del documento.
+const toc = headings.filter((h) => h.depth === 2);
+
+// Metadatos de git de la ruta fuente del idioma (el EN sale de su instantánea
+// bajo content/en/, para que «última edición» sea veraz).
+const meta = gitMeta(gitPathLang(doc.collection, doc.slug, lang));
+const posicion = `${index + 1}/${TOTAL}`;
+
+const routePath = repoPath(doc.collection, doc.slug);
+const routeDir = routePath.slice(0, routePath.lastIndexOf('/') + 1);
+const routeFile = routePath.slice(routePath.lastIndexOf('/') + 1);
+const nextUrl = next ? urlDoc(next.slug, lang) : null;
+const prevUrl = prev ? urlDoc(prev.slug, lang) : null;
+
+// Homólogas para el picker de idioma: misma página en el otro idioma (W-04).
+const langHome = { es: urlDoc(doc.slug, 'es'), en: urlDoc(doc.slug, 'en') };
+
+// Teclas de la statusline (orden del prototipo 12a). Las etiquetas salen del
+// diccionario del idioma y llevan su clave data-i18n para el swap en cliente.
+const keys = [
+  { k: 'j/k', label: t.kScroll, i18n: 'kScroll' },
+  { k: 'n/p', label: t.kDoc, i18n: 'kDoc' },
+  { k: ':', label: t.kCmd, i18n: 'kCmd' },
+  { k: '/', label: t.kSearch, i18n: 'kSearch' },
+  { k: '?', label: t.kHelp, i18n: 'kHelp' },
+  { k: 'q', label: t.kBack, i18n: 'kBack' },
+];
+
+// Ago inicial en el idioma de la página (el cliente lo re-renderiza al cambiar
+// data-lang, pero como el cambio de idioma navega, esto ya sirve).
+function agoLabel(n: number): string {
+  if (lang === 'en') return n === 1 ? '1 day ago' : `${n} days ago`;
+  return n === 1 ? 'hace 1 día' : `hace ${n} días`;
+}
+---
+<Base
+  title={`${titulo} · enu`}
+  description={(entry.data.description as string) ?? titulo}
+  lang={lang}
+  langMode="fixed"
+  langHome={langHome}
+>
+  <div class="wiki">
+    <HeaderInternal active="docs" routePath={routePath} lang={lang} />
+
+    <div class="wiki-grid">
+      <!-- Sidebar (desktop). -->
+      <aside class="col-side">
+        <Sidebar activeSlug={doc.slug} lang={lang} />
+      </aside>
+
+      <!-- Contenido. -->
+      <main class="col-main">
+        <article class="markdown">
+          {pintaH1 && <h1>{titulo}</h1>}
+          <Content />
+        </article>
+
+        <!-- Pie: prev/next. -->
+        <nav class="prevnext">
+          {prev ? (
+            <a class="pn prev" href={prevUrl}>
+              <span class="pn-lbl" data-i18n="prev">{t.prev}</span>
+              <span class="pn-file">{prev.slug}.md</span>
+            </a>
+          ) : (
+            <span class="pn-empty"></span>
+          )}
+          {next && (
+            <a class="pn next" href={nextUrl}>
+              <span class="pn-lbl" data-i18n="next">{t.next}</span>
+              <span class="pn-file">{next.slug}.md →</span>
+            </a>
+          )}
+        </nav>
+      </main>
+
+      <!-- Carril derecho. -->
+      <aside class="col-rail">
+        {toc.length > 0 && (
+          <div class="toc">
+            <div class="toc-title">§ <span data-i18n="onPage">{t.onPage}</span></div>
+            <div class="toc-list">
+              {toc.map((h, i) => (
+                <a href={`#${h.slug}`} class={i === 0 ? 'toc-link activo' : 'toc-link'}>{h.text}</a>
+              ))}
+            </div>
+          </div>
+        )}
+        {meta && (
+          <div class="meta">
+            <span data-i18n="commit">{t.commit}</span><br />
+            <span class="hash">{meta.hash}</span> · <span class="ago" data-dias={meta.diasDesde}>{agoLabel(meta.diasDesde)}</span>
+          </div>
+        )}
+      </aside>
+    </div>
+
+    <Statusline left={`${routePath} · 0% · ${posicion}`} keys={keys} lang={lang} />
+
+    <!-- Botón de índice móvil + drawer overlay (misma lista del sidebar). -->
+    <button type="button" class="drawer-abre" data-drawer-toggle aria-label="índice">[≡]</button>
+    <div class="drawer" data-drawer>
+      <div class="drawer-backdrop" data-drawer-toggle></div>
+      <div class="drawer-panel">
+        <div class="drawer-head">
+          <span class="dim">{routeDir}</span><span class="bright">{routeFile}</span>
+          <button type="button" class="drawer-cierra" data-drawer-toggle aria-label="cerrar">[×]</button>
+        </div>
+        <Sidebar activeSlug={doc.slug} lang={lang} />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { initPager } from '../../scripts/pager';
+    import { initMermaid } from '../../scripts/mermaid-init';
+
+    const data = document.getElementById('enu-wiki-data');
+    const ctx = data?.getAttribute('data-ctx') ?? '';
+    const pos = data?.getAttribute('data-pos') ?? '';
+    const nextUrl = data?.getAttribute('data-next') || null;
+    const prevUrl = data?.getAttribute('data-prev') || null;
+
+    initPager({ context: ctx, pos, withPercent: true, nextUrl, prevUrl });
+    void initMermaid();
+
+    // El drawer móvil ([≡] flotante, `[≡] índice` de la statusline, backdrop y
+    // cerrar) lo cablea initPager por atributos: no hace falta nada aquí.
+
+    // «hace N días» bilingüe: sigue el data-lang actual (ES por defecto).
+    const ago = document.querySelector<HTMLElement>('.ago');
+    if (ago) {
+      const n = parseInt(ago.getAttribute('data-dias') ?? '0', 10);
+      const pintaAgo = (): void => {
+        const en = document.documentElement.getAttribute('data-lang') === 'en';
+        ago.textContent = en
+          ? n === 1 ? '1 day ago' : `${n} days ago`
+          : n === 1 ? 'hace 1 día' : `hace ${n} días`;
+      };
+      pintaAgo();
+      new MutationObserver(pintaAgo).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-lang'],
+      });
+    }
+
+    // Scroll-spy del carril: resalta el §h2 visible.
+    const enlaces = Array.from(document.querySelectorAll<HTMLElement>('.toc-link'));
+    if (enlaces.length > 0) {
+      const porId = new Map<string, HTMLElement>();
+      enlaces.forEach((a) => {
+        const id = a.getAttribute('href')?.slice(1);
+        if (id) porId.set(id, a);
+      });
+      const encabezados = Array.from(document.querySelectorAll<HTMLElement>('.markdown h2'));
+      const obs = new IntersectionObserver(
+        (entradas) => {
+          const visible = entradas.find((e) => e.isIntersecting);
+          if (!visible) return;
+          const id = visible.target.id;
+          enlaces.forEach((a) => a.classList.remove('activo'));
+          porId.get(id)?.classList.add('activo');
+        },
+        { rootMargin: '0px 0px -70% 0px', threshold: 0 },
+      );
+      encabezados.forEach((h) => obs.observe(h));
+    }
+  </script>
+
+  <!-- Datos para el script (evita interpolar en el módulo). -->
+  <span
+    id="enu-wiki-data"
+    hidden
+    data-ctx={routePath}
+    data-pos={posicion}
+    data-next={nextUrl ?? ''}
+    data-prev={prevUrl ?? ''}
+  ></span>
+</Base>
+
+<style>
+  .wiki {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .wiki-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 180px;
+    align-items: start;
+  }
+  .col-side {
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+  .col-main {
+    padding: 36px 52px;
+    min-width: 0;
+  }
+  .col-rail {
+    padding: 36px 26px 0 0;
+    font-size: var(--fs-3);
+    line-height: 2;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  /* Carril: índice §. */
+  .toc-title {
+    color: var(--dim);
+    margin-bottom: 2px;
+  }
+  .toc-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .toc-link {
+    color: var(--dim);
+    padding: 1px 0;
+  }
+  .toc-link.activo {
+    color: var(--bright);
+  }
+  .meta {
+    margin-top: 22px;
+    color: var(--dim);
+    font-size: var(--fs-1);
+    line-height: 1.8;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .meta .hash {
+    color: var(--key);
+  }
+
+  /* Pie prev/next (desktop): fila con borde superior. */
+  .prevnext {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin-top: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: var(--fs-5);
+    max-width: 68ch;
+  }
+  .pn {
+    display: inline-flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .pn.prev {
+    color: var(--dim);
+  }
+  .pn.next {
+    color: var(--key);
+    margin-left: auto;
+  }
+  .pn.prev .pn-file {
+    color: var(--fg);
+  }
+  .pn-empty {
+    flex: 1;
+  }
+
+  /* Botón de índice móvil y drawer: ocultos en desktop. */
+  .drawer-abre,
+  .drawer {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    /* Una sola columna: sidebar y carril fuera. */
+    .wiki-grid {
+      grid-template-columns: 1fr;
+    }
+    .col-side,
+    .col-rail {
+      display: none;
+    }
+    .col-main {
+      padding: 26px 24px;
+    }
+
+    /* prev/next como dos filas táctiles grandes. */
+    .prevnext {
+      flex-direction: column;
+      gap: 10px;
+      border-top: none;
+      padding-top: 0;
+      max-width: none;
+    }
+    .pn {
+      display: flex;
+      justify-content: space-between;
+      border: 1px solid var(--border);
+      padding: 13px 14px;
+      min-height: 48px;
+      font-size: var(--fs-4);
+    }
+    .pn.next {
+      margin-left: 0;
+    }
+    .pn-empty {
+      display: none;
+    }
+
+    /* Botón [≡] flotante para abrir el índice. */
+    .drawer-abre {
+      display: block;
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 30;
+      background: none;
+      border: none;
+      color: var(--key);
+      font: inherit;
+      font-weight: 600;
+      font-size: var(--fs-8);
+      padding: 6px;
+      cursor: pointer;
+    }
+
+    /* Drawer overlay: misma lista del sidebar a ancho completo. */
+    .drawer {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      visibility: hidden;
+    }
+    .drawer.abierto {
+      visibility: visible;
+    }
+    .drawer-backdrop {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      opacity: 0.7;
+    }
+    .drawer-panel {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px 0;
+    }
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 24px 16px;
+      font-size: var(--fs-4);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .drawer-head .dim {
+      color: var(--dim);
+    }
+    .drawer-head .bright {
+      color: var(--bright);
+    }
+    .drawer-cierra {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--key);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px;
+    }
+  }
+</style>

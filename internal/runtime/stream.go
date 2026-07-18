@@ -10,15 +10,15 @@ import (
 	"time"
 )
 
-// `nu.http.stream` — respuesta HTTP en streaming (api.md §8, sesión S20,
-// inventario 🔒). A diferencia de `nu.http.request` (S19, buffereada), `stream`
+// `enu.http.stream` — respuesta HTTP en streaming (api.md §8, sesión S20,
+// inventario 🔒). A diferencia de `enu.http.request` (S19, buffereada), `stream`
 // **no lee el body entero**: hace la petición, devuelve un `Stream` **al recibir
 // las cabeceras** (`Stream.status`, `Stream.headers`) y entrega el cuerpo trozo a
 // trozo según llega —`Stream:chunks()` (crudo) o `Stream:events()` (parser SSE
 // incorporado, la lógica 🔒)—. Es lo que pide ADR-005: los adaptadores de
 // providers viven en Lua y consumen SSE de un endpoint que va emitiendo tokens.
 //
-// REUSA TODO S19 (claude_decisions.md S19/S20): el parseo de `opts`
+// REUSA TODO S19 (docs/worklog/README.md S19/S20): el parseo de `opts`
 // (`parseReqOpts`), el modelo del cliente reutilizable vs por-petición
 // (`clientFor`, con TLS/proxy de G12) y el mapeo de errores de transporte
 // (`classifyTransportError`/`httpError`, que ya deciden el código del core fuera
@@ -27,7 +27,7 @@ import (
 //
 // EL PUENTE ⏸ (S04, ADR-011). Como el resto de IO, `stream` y sus iteradores son
 // ⏸: sueltan el token y bloquean en la goroutine de fondo, que **JAMÁS toca Lua**.
-// `nu.http.stream` suspende hasta las cabeceras; cada `next` de `chunks()`/
+// `enu.http.stream` suspende hasta las cabeceras; cada `next` de `chunks()`/
 // `events()` suspende hasta el siguiente trozo/evento; los bytes (o el evento ya
 // parseado en Go) cruzan a Lua solo en la `deliverFn`, con el token recuperado.
 //
@@ -52,7 +52,7 @@ import (
 //
 // CLOSE / CLEANUP. `Stream:close()` aborta la conexión (cancela el contexto, cierra
 // el body) y es **idempotente** (`closeOnce`). El idioma de vida es el de §6: quien
-// abre el stream registra `nu.task.cleanup(function() st:close() end)`, de modo que
+// abre el stream registra `enu.task.cleanup(function() st:close() end)`, de modo que
 // al cancelar/terminar la task el stream se cierra sin fuga de goroutines. Como red
 // de seguridad, `Runtime.Close` cierra todos los streams vivos (`stopAllStreams`).
 // El `Stream` NO es un `ownedHandle` por dueño como `Proc`: un stream es de la task
@@ -122,7 +122,7 @@ type httpStream struct {
 }
 
 // newHTTPStream construye el handle y arranca la goroutine de fondo que lee el
-// body. Se llama bajo el token (en la `deliverFn` de `nu.http.stream`), pero la
+// body. Se llama bajo el token (en la `deliverFn` de `enu.http.stream`), pero la
 // goroutine que lanza corre fuera de él.
 func newHTTPStream(s *scheduler, status int, headers map[string]string, body io.ReadCloser, cancel context.CancelFunc, idle time.Duration) *httpStream {
 	st := &httpStream{
@@ -185,7 +185,7 @@ func (st *httpStream) readLoop() {
 			if st.buffered+len(chunk) > maxStreamBuffer {
 				// Backpressure desbordado (§8): el consumidor va demasiado lento y el
 				// buffer superaría su tope. Falla con `EIO` en vez de crecer sin límite.
-				st.readErr = &httpError{code: CodeEIO, msg: "nu.http.stream: buffer de backpressure desbordado (consumidor demasiado lento)"}
+				st.readErr = &httpError{code: CodeEIO, msg: "enu.http.stream: buffer de backpressure desbordado (consumidor demasiado lento)"}
 				st.done = true
 				st.cond.Broadcast()
 				st.mu.Unlock()
@@ -229,7 +229,7 @@ func (st *httpStream) finishRead(err error) {
 		// cerró a propósito; un `next` posterior verá "fin" (readErr nil) o ECLOSED.
 		st.readErr = nil
 	} else if st.idleFired {
-		st.readErr = &httpError{code: CodeETIMEOUT, msg: "nu.http.stream: el body no envió bytes en idle_timeout_ms"}
+		st.readErr = &httpError{code: CodeETIMEOUT, msg: "enu.http.stream: el body no envió bytes en idle_timeout_ms"}
 	} else {
 		// Error de transporte leyendo el body (conexión cortada a media respuesta,
 		// reset): mismo mapeo que S19. No hay `ctx` aquí, pero un timeout de red lo
@@ -270,7 +270,7 @@ func (st *httpStream) nextChunk() ([]byte, bool, error) {
 
 // errStreamClosed lo devuelve `nextChunk` cuando el stream se cerró (`close()`)
 // mientras se consumía: los iteradores lo rinden como `ECLOSED`.
-var errStreamClosed = errors.New("nu.http.stream: stream cerrado")
+var errStreamClosed = errors.New("enu.http.stream: stream cerrado")
 
 // close aborta la conexión y libera recursos (§8). **Idempotente** (`closeOnce`):
 // llamarlo dos veces, o desde un `cleanup` tras un fin natural, es inocuo. Cancela
@@ -303,7 +303,7 @@ func (st *httpStream) close() {
 	})
 }
 
-// --- nu.http.stream -----------------------------------------------------------
+// --- enu.http.stream -----------------------------------------------------------
 
 // openStream hace la petición **fuera del token** y devuelve un `httpStream` con
 // las cabeceras ya recibidas y la goroutine de fondo leyendo el body. NO lee el
@@ -314,10 +314,15 @@ func (st *httpStream) close() {
 // cierra `Stream:close`), así que el `cancel` se entrega al `httpStream`, no se
 // difiere aquí.
 func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration) (*httpStream, error) {
-	client, err := st.clientFor(o)
+	base, err := st.clientFor(o)
 	if err != nil {
 		return nil, &httpError{code: CodeEINVAL, msg: err.Error()}
 	}
+	// Política de redirects por petición (G54): misma copia con `CheckRedirect` que
+	// `request`. Agotado el presupuesto, `client.Do` devuelve la última respuesta
+	// `3xx` como dato y `openStream` entrega un `Stream` con ese status (con su
+	// `location` en `headers`) —igual que un 200—, coherente con "el status es dato".
+	client := withRedirectPolicy(base, o)
 
 	// El `timeout_ms` cubre HASTA las cabeceras (§8); pasadas éstas, el plazo del
 	// body es el idle-timeout. Por eso NO se usa `context.WithTimeout` para toda la
@@ -326,15 +331,25 @@ func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration)
 	// no llegan a tiempo; al recibirlas, se detiene.
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// LA CARRERA DE LAS CABECERAS (§8). El `time.AfterFunc(timeout)` vence en su
+	// PROPIA goroutine, y `Timer.Stop()` **no** cancela una AfterFunc que YA
+	// disparó. Sin exclusión, si el timer venciera en la ventana entre que
+	// `client.Do` retorna con éxito y el `Stop`, su `cancel()` envenenaría el
+	// contexto que gobierna `resp.Body`: entregaríamos un `Stream` con el contexto
+	// ya cancelado y el primer `next` lanzaría un `ENET` espurio pese a haber
+	// recibido status y cabeceras correctos. El `headerGate` arbitra la carrera con
+	// exclusión mutua: la AfterFunc y la ruta de entrega no pueden solaparse, así
+	// que o gana la entrega (el timer, si dispara después, es un no-op y no toca el
+	// contexto) o gana el timer (la entrega lo detecta y trata la petición como el
+	// mismo timeout de cabeceras que la ruta de error). El resultado es
+	// determinista: o `Stream` válido o `ETIMEOUT`, nunca un `ENET` espurio.
+	var gate headerGate
 	var headerTimer *time.Timer
-	headerTimedOut := false
-	var htMu sync.Mutex
 	if o.timeout > 0 {
 		headerTimer = time.AfterFunc(o.timeout, func() {
-			htMu.Lock()
-			headerTimedOut = true
-			htMu.Unlock()
-			cancel()
+			if gate.fire() {
+				cancel()
+			}
 		})
 	}
 
@@ -348,7 +363,7 @@ func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration)
 			headerTimer.Stop()
 		}
 		cancel()
-		return nil, &httpError{code: CodeEINVAL, msg: "nu.http.stream: " + err.Error()}
+		return nil, &httpError{code: CodeEINVAL, msg: "enu.http.stream: " + err.Error()}
 	}
 	for name, value := range o.headers {
 		req.Header.Set(name, value)
@@ -358,18 +373,72 @@ func (st *httpState) openStream(sched *scheduler, o reqOpts, idle time.Duration)
 	if headerTimer != nil {
 		headerTimer.Stop()
 	}
+	// Cierra la carrera ANTES de decidir nada: marca la entrega y averigua si el
+	// timer ya la había ganado. A partir de aquí la AfterFunc, si aún no había
+	// disparado, es un no-op (no tocará `cancel`); si YA disparó, `timedOut` es
+	// true y el contexto está (o estará) cancelado por ella.
+	timedOut := gate.deliver()
 	if err != nil {
 		cancel()
-		htMu.Lock()
-		timedOut := headerTimedOut
-		htMu.Unlock()
 		if timedOut {
-			return nil, &httpError{code: CodeETIMEOUT, msg: "nu.http.stream: la petición excedió timeout_ms (hasta cabeceras)"}
+			return nil, &httpError{code: CodeETIMEOUT, msg: "enu.http.stream: la petición excedió timeout_ms (hasta cabeceras)"}
 		}
 		return nil, classifyTransportError(ctx, err)
+	}
+	if timedOut {
+		// `Do` retornó éxito pero el timer ganó la carrera (venció justo antes del
+		// `Stop`): su `cancel()` ya envenenó el contexto, así que el body está muerto.
+		// No entregamos un `Stream` que lanzaría `ENET` espurio en el primer `next`:
+		// tratamos la petición como el MISMO timeout de cabeceras que la ruta de error
+		// (resultado determinista). Cerramos el body descartado y cancelamos (inocuo,
+		// ya está cancelado) para no filtrar la conexión.
+		_ = resp.Body.Close()
+		cancel()
+		return nil, &httpError{code: CodeETIMEOUT, msg: "enu.http.stream: la petición excedió timeout_ms (hasta cabeceras)"}
 	}
 
 	// Cabeceras recibidas: el `Stream` toma posesión del body y del `cancel`. La
 	// goroutine de fondo (en `newHTTPStream`) empieza a leer el body de inmediato.
 	return newHTTPStream(sched, resp.StatusCode, flattenHeaders(resp.Header), resp.Body, cancel, idle), nil
+}
+
+// headerGate arbitra la carrera entre la AfterFunc del `timeout_ms` (que vence en
+// su propia goroutine) y la ruta de entrega de `openStream` (que corre tras
+// `client.Do`). Da EXCLUSIÓN MUTUA determinista con un candado pequeño y un par de
+// booleanos: `delivered` (la entrega ya tomó posesión de la respuesta) y
+// `timedOut` (el timer venció y pidió cancelar el contexto). Solo uno de los dos
+// lados "gana", y el otro lo observa bajo el mismo candado —nunca se solapan—, de
+// modo que jamás se entrega un `Stream` con el contexto ya envenenado por un timer
+// que disparó en la ventana entre `Do` y `Timer.Stop()`.
+type headerGate struct {
+	mu        sync.Mutex
+	delivered bool
+	timedOut  bool
+}
+
+// fire lo llama la AfterFunc del `headerTimer` al vencer. Devuelve true si el
+// llamante debe cancelar el contexto: solo cuando la entrega AÚN no ha ocurrido
+// (marca entonces `timedOut` para que la ruta de entrega lo detecte). Si la
+// entrega ya ganó la carrera, devuelve false y no toca nada —el contexto que
+// gobierna un body ya entregado no se envenena—.
+func (g *headerGate) fire() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.delivered {
+		return false
+	}
+	g.timedOut = true
+	return true
+}
+
+// deliver lo llama la ruta de entrega tras `Do`+`Stop`. Marca `delivered` (a
+// partir de aquí un `fire` posterior es no-op) y devuelve si el timer YA había
+// ganado la carrera: si es true, el contexto está cancelado y el llamante debe
+// abortar la entrega tratándola como timeout de cabeceras en vez de entregar un
+// stream envenenado.
+func (g *headerGate) deliver() (timedOut bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.delivered = true
+	return g.timedOut
 }

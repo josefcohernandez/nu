@@ -1,17 +1,31 @@
 {
-  "name": "nu-docs",
+  "name": "enu-docs",
   "type": "module",
   "version": "0.0.1",
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "check:drift": "node scripts/check-drift.mjs",
+    "check:contraste": "node scripts/check-contraste.mjs",
+    "check:limpieza": "node scripts/check-limpieza-html.mjs",
+    "check:limpieza:fuente": "node scripts/check-limpieza-html.mjs --fuente"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.36.0",
+    "@fontsource/ibm-plex-mono": "^5.1.0",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
     "astro": "^5.16.0",
+    "mermaid": "^11.4.0",
+    "remark-directive": "^4.0.0"
+  },
+  "devDependencies": {
+    "pagefind": "^1.3.0",
     "sharp": "^0.34.0"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true,
+    "esbuild@0.25.12": true
   }
 }

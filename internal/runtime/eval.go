@@ -9,10 +9,10 @@ import (
 
 // EvalString compila y ejecuta `code` como un chunk Lua sobre el ESTADO PRINCIPAL
 // de la Instance wasm (no como task) y devuelve sus valores de retorno convertidos
-// a string (vía `tostring`), en orden. Es lo que respalda `nu -e`: el chunk
-// `return nu.version.api` produce `["2"]` (G32 lo subió de 1).
+// a string (vía `tostring`), en orden. Es lo que respalda `enu -e`: el chunk
+// `return enu.version.api` produce `["2"]` (G32 lo subió de 1).
 //
-// El chunk puede lanzar tasks con `nu.task.spawn` pero no usar funciones ⏸ (que
+// El chunk puede lanzar tasks con `enu.task.spawn` pero no usar funciones ⏸ (que
 // exigen estar en una task, §1.3). Tras evaluarlo, `RunTasks` drena las tasks que
 // haya lanzado (el equivalente de `waitIdle`) antes de devolver sus valores.
 //
@@ -32,41 +32,48 @@ func (rt *Runtime) EvalString(code string) ([]string, error) {
 	//     texto ya rendido por el shim. Sin el pcall, un `error({code=...})` en el
 	//     ESTADO PRINCIPAL se popea en nu_eval y sólo sobrevive su `luaL_tolstring`
 	//     ("table: 0x..."), perdiendo el code/message. Con él leemos e.code/e.message
-	//     en Lua y reconstruimos el *StructuredError fiel (mismo truco que el camino
-	//     de task en evalTaskWrapper). El chunk corre en el ESTADO PRINCIPAL (no task):
-	//     puede lanzar tasks pero no usar ⏸ directo (§1.3).
+	//     en Lua y los transporta a Go el probe (evalStringProbe) por el MISMO
+	//     protocolo de separadores 0x01 que el camino de task (A-40): un error
+	//     estructurado cruza fiel por su tabla y un `error("ENOENT: ...")` de string
+	//     de usuario NO se reclasifica como error del core (viaja como texto). El
+	//     chunk corre en el ESTADO PRINCIPAL (no task): puede lanzar tasks pero no
+	//     usar ⏸ directo (§1.3).
 	_, luaErr, goErr := rt.wasm.Eval(evalStringWrapper(code))
 	if goErr != nil {
 		return nil, goErr // trap del motor wasm: fallo duro
 	}
 	if luaErr != "" {
-		// El wrapper no compiló (sintaxis en `code`): sólo hay texto.
-		return nil, wasmChunkError(luaErr)
+		// El wrapper no compiló (sintaxis en `code`): sólo hay texto, nunca un error
+		// estructurado (no se reinterpreta su forma).
+		return nil, errors.New(luaErr)
 	}
-	// Sondea el desenlace: si el chunk lanzó, reconstruye el error ANTES de drenar
-	// tasks (el fallo del chunk se devuelve sin drenar).
-	okStr, _, _ := rt.wasm.Eval("return tostring(__es_ok)")
-	if okStr != "true" {
-		codeStr, _, _ := rt.wasm.Eval("return tostring(__es_err_code)")
-		if codeStr != "nil" {
-			msgStr, _, _ := rt.wasm.Eval("return tostring(__es_err_msg or '')")
-			return nil, &StructuredError{Code: codeStr, Message: msgStr}
-		}
-		strStr, _, _ := rt.wasm.Eval("return tostring(__es_err_str)")
-		return nil, wasmChunkError(strStr)
+	// Sondea el desenlace con un ÚNICO probe (evalStringProbe), como EvalTaskString:
+	// devuelve un header delimitado por 0x01 que parseEvalOutcome traduce. Si el chunk
+	// lanzó, se reconstruye el error ANTES de drenar tasks (el fallo del chunk se
+	// devuelve sin drenar).
+	outcome, luaErr, goErr := rt.wasm.Eval(evalStringProbe)
+	if goErr != nil {
+		return nil, goErr
 	}
-	// Drena las tasks que el chunk haya lanzado (sus efectos y liberaciones deben
-	// completar antes de devolver).
+	if luaErr != "" {
+		return nil, errors.New(luaErr)
+	}
+	n, err := parseEvalOutcome(outcome)
+	if err != nil {
+		// "E\1..." → *StructuredError con code/message fieles; "X\1..." → error
+		// simple (un `error("string")` de usuario, sin reclasificar por su texto).
+		return nil, err
+	}
+	// Desenlace de éxito (n >= 0). Drena las tasks que el chunk haya lanzado (sus
+	// efectos y liberaciones deben completar antes de devolver).
 	if err := rt.wasm.RunTasks(context.Background()); err != nil {
 		return nil, err
 	}
-	// Lee el recuento y serializa cada valor con tostring (leído de uno en uno para
-	// no depender de un delimitador que un valor podría contener).
-	nStr, _, _ := rt.wasm.Eval("return tostring(__es_n)")
-	n, err := strconv.Atoi(nStr)
-	if err != nil || n < 0 {
+	if n == 0 {
 		return nil, nil
 	}
+	// Serializa cada valor de retorno con tostring, de uno en uno (para no depender de
+	// un delimitador que un valor podría contener).
 	results := make([]string, 0, n)
 	for i := 1; i <= n; i++ {
 		v, lerr, gerr := rt.wasm.Eval("return tostring(__es[" + strconv.Itoa(i) + "])")
@@ -74,12 +81,31 @@ func (rt *Runtime) EvalString(code string) ([]string, error) {
 			return nil, gerr
 		}
 		if lerr != "" {
-			return nil, wasmChunkError(lerr)
+			return nil, errors.New(lerr)
 		}
 		results = append(results, v)
 	}
 	return results, nil
 }
+
+// evalStringProbe es el chunk que lee el desenlace que dejó evalStringWrapper y lo
+// codifica con el MISMO protocolo delimitado por 0x01 que evalTaskProbe (A-40):
+// "N" sin valores, "V\1<n>" con N valores de retorno (que el llamante lee de uno en
+// uno de __es, para no depender de un delimitador que un valor podría contener),
+// "E\1<code>\1<msg>" error estructurado (la tabla {code,message} del chunk cruza
+// fiel), "X\1<texto>" error simple (un `error("string")` de usuario, que NO se
+// reinterpreta por su texto: nunca se hace pasar por estructurado). Que el error del
+// chunk se transporte por este protocolo —en vez de parsear "CODE: mensaje" del
+// texto rendido— es lo que cierra A-40.
+const evalStringProbe = `
+if __es_ok ~= true then
+  if __es_err_code ~= nil then
+    return "E\1" .. __es_err_code .. "\1" .. tostring(__es_err_msg or "")
+  end
+  return "X\1" .. tostring(__es_err_str or "el chunk no produjo resultado")
+end
+if __es_n == 0 then return "N" end
+return "V\1" .. tostring(__es_n)`
 
 // evalStringWrapper envuelve `code` en un pcall que captura su desenlace (recuento de
 // retornos y error estructurado) en globales `__es_*`, de forma análoga a
@@ -110,13 +136,13 @@ end`
 // EvalTaskString compila `code` y lo ejecuta **como una task** (§3), no como el
 // chunk principal: a diferencia de `EvalString`, aquí el chunk corre sobre su propio
 // thread con el puente de suspensión disponible, de modo que puede llamar directamente
-// a `nu.fs.read`, `nu.http.stream`, `Session:send` del agente, etc. Espera a que la
+// a `enu.fs.read`, `enu.http.stream`, `Session:send` del agente, etc. Espera a que la
 // task —y cualquier otra que ella lance— termine, y devuelve sus valores de retorno
 // convertidos a string (vía `tostring`), en orden.
 //
 // Es el **ejecutor headless** del binario: respalda los modos del CLI que orquestan
 // extensiones suspendientes sin TTY (un turno de agente headless, `--continue`), la
-// contraparte ⏸ de `nu -e`. NO es superficie Lua sagrada (igual que `EvalString` o
+// contraparte ⏸ de `enu -e`. NO es superficie Lua sagrada (igual que `EvalString` o
 // `RenderBareScreen`): es la interfaz Go del ejecutable, fuera de api.md. El core
 // sigue sin saber lo que es un agente (ADR-003): aquí solo corre un chunk Lua a
 // término; la lógica de agente vive en la extensión `agent` y en el driver Lua que
@@ -134,8 +160,9 @@ func (rt *Runtime) EvalTaskString(code string) ([]string, error) {
 	if _, luaErr, goErr := rt.wasm.Eval(evalTaskWrapper(code)); goErr != nil {
 		return nil, goErr
 	} else if luaErr != "" {
-		// El wrapper no compiló (sintaxis en `code`) o el propio spawn falló.
-		return nil, wasmChunkError(luaErr)
+		// El wrapper no compiló (sintaxis en `code`) o el propio spawn falló: sólo hay
+		// texto, nunca un error estructurado.
+		return nil, errors.New(luaErr)
 	}
 	if err := rt.wasm.RunTasks(context.Background()); err != nil {
 		return nil, err
@@ -147,7 +174,7 @@ func (rt *Runtime) EvalTaskString(code string) ([]string, error) {
 	if luaErr != "" {
 		return nil, errors.New(luaErr)
 	}
-	n, err := parseEvalTaskOutcome(outcome)
+	n, err := parseEvalOutcome(outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +191,7 @@ func (rt *Runtime) EvalTaskString(code string) ([]string, error) {
 			return nil, gerr
 		}
 		if lerr != "" {
-			return nil, wasmChunkError(lerr)
+			return nil, errors.New(lerr)
 		}
 		results = append(results, v)
 	}
@@ -180,7 +207,7 @@ func (rt *Runtime) EvalTaskString(code string) ([]string, error) {
 func evalTaskWrapper(code string) string {
 	return `__eval_ok = nil; __eval_n = 0; __eval_results = nil
 __eval_err_code = nil; __eval_err_msg = nil; __eval_err_str = nil
-nu.task.spawn(function()
+enu.task.spawn(function()
   local packed = table.pack(pcall(function()
 ` + code + `
   end))
@@ -217,10 +244,13 @@ end
 if __eval_n == 0 then return "N" end
 return "V\1" .. tostring(__eval_n)`
 
-// parseEvalTaskOutcome traduce el header que emitió evalTaskProbe. Para el caso "V"
-// devuelve el NÚMERO de valores en `n` (con ok=true); el llamante los lee de
-// __eval_results. Para "N"/"E"/"X" el desenlace es completo (n=0).
-func parseEvalTaskOutcome(outcome string) (n int, err error) {
+// parseEvalOutcome traduce el header delimitado por 0x01 que emiten evalTaskProbe y
+// evalStringProbe (el MISMO protocolo para ambos caminos, A-40). Para el caso "V"
+// devuelve el NÚMERO de valores en `n` (con err=nil); el llamante los lee de su tabla
+// de resultados. Para "N" el desenlace de éxito es completo (n=0). Para "E"/"X"
+// devuelve el error (n=0): "E" reconstruye el *StructuredError con code/message
+// fieles, "X" un error simple con el texto tal cual (sin reinterpretarlo).
+func parseEvalOutcome(outcome string) (n int, err error) {
 	switch {
 	case outcome == "N":
 		return 0, nil // sin valores de retorno (slice vacío)
@@ -240,22 +270,8 @@ func parseEvalTaskOutcome(outcome string) (n int, err error) {
 	case strings.HasPrefix(outcome, "X\x01"):
 		return 0, errors.New(outcome[len("X\x01"):])
 	default:
-		return 0, errors.New("EvalTaskString: desenlace de task no reconocido: " + outcome)
+		return 0, errors.New("eval: desenlace no reconocido: " + outcome)
 	}
-}
-
-// wasmChunkError traduce el mensaje de error (string) que el backend wasm entrega
-// al evaluar un chunk en el ESTADO PRINCIPAL (Instance.Eval) a un error Go. El
-// puente sólo expone el error ya rendido a texto por el shim (luaL_tolstring): la
-// tabla estructurada original se popea en nu_eval y no sobrevive (a diferencia de
-// EvalTaskString, que la lee en Lua). Se recupera como *StructuredError si el texto
-// tiene la forma "CODE: mensaje" con un code reservado (best-effort); si no, un
-// error simple.
-func wasmChunkError(msg string) error {
-	if code, rest, ok := strings.Cut(msg, ": "); ok && IsReservedCode(code) {
-		return &StructuredError{Code: code, Message: rest}
-	}
-	return errors.New(msg)
 }
 
 // SetStringGlobal fija un global Lua de tipo string desde Go. Es la vía por la que

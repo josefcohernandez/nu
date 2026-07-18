@@ -1,17 +1,17 @@
 package runtime
 
-// Catálogo de nu.plugin y nu.config sobre el backend wasm (M13d-ext, §14).
-// Contraparte de plugin.go: `nu.plugin.current`/`nu.plugin.list` (consulta del
-// loader) y `nu.config.dir`/`nu.config.data_dir`. Todas SÍNCRONAS (consultas del
+// Catálogo de enu.plugin y enu.config sobre el backend wasm (M13d-ext, §14).
+// Contraparte de plugin.go: `enu.plugin.current`/`enu.plugin.list` (consulta del
+// loader) y `enu.config.dir`/`enu.config.data_dir`. Todas SÍNCRONAS (consultas del
 // estado del loader, sin IO ni suspensión). Reusan el estado Go-side del loader
 // (rt.ldr) y la pila de dueños (rt.ownerStack), que el arranque de extensiones
 // sobre wasm (vmwasm_loader.go) empuja y saca alrededor del `init.lua` de cada
-// extensión — de modo que `nu.plugin.current()` y el owner de `nu.log` son
+// extensión — de modo que `enu.plugin.current()` y el owner de `enu.log` son
 // correctos DURANTE ese init, igual que en gopher.
 //
 // DECISIÓN DEL OWNER (M13d-ext): el `ownerStack` sigue viviendo Go-side
 // (rt.ownerStack), no se duplica en Lua. Las primitivas del catálogo wasm que
-// dependen del dueño —`nu.plugin.current` (aquí) y `nu.log` (vmwasm_log.go)— son
+// dependen del dueño —`enu.plugin.current` (aquí) y `enu.log` (vmwasm_log.go)— son
 // HostFn SÍNCRONOS que corren en línea, en el mismo goroutine que conduce el
 // `Eval`/paso del scheduler; leen `rt.currentOwner()` sin candado ni carrera (el
 // estado principal es single-thread, ADR-004). El arranque empuja el `*pluginInfo`
@@ -20,7 +20,7 @@ package runtime
 // corre luego, el chunk de `-e`) la pila está vacía y el owner es "user" —idéntico
 // al backend gopher—.
 //
-// `nu.plugin.reload` (⏸, G2) SÍ se expone sobre wasm (M13d-triage): se registra como
+// `enu.plugin.reload` (⏸, G2) SÍ se expone sobre wasm (M13d-triage): se registra como
 // primitiva SUSPENDENTE, de modo que su HostFn corre en la goroutine de fondo del
 // scheduler (performHostcall) —fuera del `inst.mu` que toma un paso del bucle—, donde
 // puede RE-ENTRAR la VM con `Eval` sin bloqueo para re-correr el `init.lua`. El
@@ -31,19 +31,19 @@ package runtime
 // con el contexto empujado al `ownerStack`. El gate ⏸ (fuera de una task → EINVAL con
 // "task" en el mensaje) lo da gratis el thunk suspendente del preludio (`__current`).
 //
-// El etiquetado de handles por dueño (G2) reposa en `nu.plugin._owner`, un HostFn
+// El etiquetado de handles por dueño (G2) reposa en `enu.plugin._owner`, un HostFn
 // SÍNCRONO que devuelve `rt.currentOwner()` (el tope del ownerStack). El preludio lo
 // consulta al crear cada sub/timer para etiquetarlo con el dueño vigente —la MISMA
 // fuente de verdad que gopher, un solo ownerStack Go-side—.
 
 import (
-	"github.com/dbareagimeno/nu/internal/vmwasm"
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 )
 
-// registerPluginWasm cuelga `nu.plugin` (current/list) y `nu.config` (dir/data_dir)
+// registerPluginWasm cuelga `enu.plugin` (current/list) y `enu.config` (dir/data_dir)
 // del catálogo wasm. Lo llama `registerWasmCatalog` (runtime.go).
 func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
-	// nu.plugin.current() -> {name, version, dir} (§14): el plugin en cuyo contexto
+	// enu.plugin.current() -> {name, version, dir} (§14): el plugin en cuyo contexto
 	// corre el código ahora mismo (tope de ownerStack) o, fuera de todo plugin, el
 	// contexto de usuario {name="user", version="", dir=config.dir}. Nunca nil:
 	// siempre hay un contexto (espejo de pluginCurrent en gopher).
@@ -55,7 +55,7 @@ func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{map[string]any{"name": ownerUser, "version": "", "dir": rt.ldr.configDir}}, nil
 	})
 
-	// nu.plugin.list() -> {name, version, source, enabled}[] (§14): los plugins
+	// enu.plugin.list() -> {name, version, source, enabled}[] (§14): los plugins
 	// cargados, en el orden topológico en que corrieron (rt.ldr.ordered, que fija
 	// BootWasm). Espejo de pluginList en gopher.
 	p.Register("plugin.list", func(inst *vmwasm.Instance, args []any) ([]any, error) {
@@ -71,7 +71,7 @@ func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{arr}, nil
 	})
 
-	// nu.plugin._owner() -> string: el dueño vigente (rt.currentOwner()). Interno del
+	// enu.plugin._owner() -> string: el dueño vigente (rt.currentOwner()). Interno del
 	// preludio (etiquetado de handles por dueño, G2): SÍNCRONO, sin IO, corre en línea
 	// leyendo el tope del ownerStack sin candado (estado principal single-thread,
 	// ADR-004). Durante el init.lua de un plugin es su nombre; fuera, "user".
@@ -79,7 +79,7 @@ func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
 		return []any{rt.currentOwner()}, nil
 	})
 
-	// nu.plugin.reload(name) ⏸ (§14, G2): recarga un plugin ya cargado. SUSPENDENTE
+	// enu.plugin.reload(name) ⏸ (§14, G2): recarga un plugin ya cargado. SUSPENDENTE
 	// (ver la nota de cabecera): su HostFn corre en la goroutine de fondo del
 	// scheduler y re-entra la VM para re-correr el init. El trabajo lo hace el gemelo
 	// Go de loader.reload; aquí solo se desempaqueta el nombre y se propaga el error
@@ -99,12 +99,12 @@ func registerPluginWasm(p *vmwasm.Pool, rt *Runtime) {
 		return nil, nil
 	})
 
-	// nu.config.dir() -> string [W] (§14): el directorio de configuración.
+	// enu.config.dir() -> string [W] (§14): el directorio de configuración.
 	p.Register("config.dir", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		return []any{rt.ldr.configDir}, nil
 	})
 
-	// nu.config.data_dir() -> string [W] (§14): el directorio de datos.
+	// enu.config.data_dir() -> string [W] (§14): el directorio de datos.
 	p.Register("config.data_dir", func(inst *vmwasm.Instance, args []any) ([]any, error) {
 		return []any{rt.ldr.dataDir}, nil
 	})

@@ -64,7 +64,7 @@ func TestAnthropicThinkingPorModelo(t *testing.T) {
 	// (un literal Lua de tabla, o "nil") y devuelve el cuerpo enviado al wire.
 	runThinking := func(ref, thinkingLua string) string {
 		h.eval(fmt.Sprintf(`
-			nu.task.spawn(function()
+			enu.task.spawn(function()
 				local p = require("providers")
 				local r = p.resolve(%q)
 				local req = {

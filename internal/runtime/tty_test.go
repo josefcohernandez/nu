@@ -137,6 +137,32 @@ func TestDecodeLoneEscWithFlush(t *testing.T) {
 	}
 }
 
+func TestDecodeSplitCRLF(t *testing.T) {
+	// CP-7 (pasada de salud 2026-07-17): un CR al final del buffer es ambiguo —
+	// enter suelto o primera mitad de un CRLF partido entre reads— y sin flush se
+	// deja pendiente, como el ESC solitario. Antes se consumía como enter y el LF
+	// del siguiente read producía un SEGUNDO enter.
+	evs, consumed := decodeInput([]byte("\r"), false)
+	if len(evs) != 0 || consumed != 0 {
+		t.Fatalf("CR pendiente sin flush: evs=%+v consumed=%d, want vacío/0", evs, consumed)
+	}
+	// Con el LF ya llegado, el CRLF completo es UN solo enter.
+	evs, consumed = decodeInput([]byte("\r\n"), false)
+	if len(evs) != 1 || evs[0].key != "enter" || consumed != 2 {
+		t.Fatalf("CRLF completo: evs=%+v consumed=%d, want un enter/2", evs, consumed)
+	}
+	// En flush (los 30 ms del driver, o EOF), el CR solitario se resuelve como enter.
+	evs, consumed = decodeInput([]byte("\r"), true)
+	if len(evs) != 1 || evs[0].key != "enter" || consumed != 1 {
+		t.Fatalf("CR solo con flush: evs=%+v consumed=%d, want un enter/1", evs, consumed)
+	}
+	// Un CR en mitad del buffer no es ambiguo: enter inmediato (aquí seguido de texto).
+	evs, consumed = decodeInput([]byte("\ra"), false)
+	if len(evs) != 2 || evs[0].key != "enter" || evs[1].key != "a" || consumed != 2 {
+		t.Fatalf("CR en mitad: evs=%+v consumed=%d", evs, consumed)
+	}
+}
+
 func TestDecodeSplitSequence(t *testing.T) {
 	// Una flecha partida entre dos reads: el primer trozo deja el CSI a medias (no
 	// consume); con el resto se completa.

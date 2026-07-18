@@ -55,9 +55,11 @@ func IsReservedCode(code string) bool {
 
 // StructuredError es la cara Go de un error estructurado (§1.4) que ha cruzado
 // la frontera Lua→Go (p. ej. al evaluar un chunk con `EvalString`). Conserva el
-// `code` y el `message` ya copiados a strings Go. El backend wasm reconstruye
-// esta forma leyendo la tabla de error en Lua (EvalTaskString) o parseando el
-// texto rendido (EvalString); las interfaces Go del binario la construyen directa.
+// `code` y el `message` ya copiados a strings Go. El backend wasm reconstruye esta
+// forma leyendo la tabla de error en Lua y transportándola por el protocolo de
+// separadores 0x01 (tanto EvalTaskString como EvalString, A-40): un error de string
+// de usuario NO se hace pasar por estructurado reinterpretando su texto. Las
+// interfaces Go del binario la construyen directa.
 type StructuredError struct {
 	Code    string
 	Message string

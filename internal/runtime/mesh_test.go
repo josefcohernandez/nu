@@ -1,12 +1,12 @@
 package runtime
 
-// Tests de la extensión `mesh` (contrato: docs/malla.md). Lógica clave 🔒:
+// Tests de la extensión `mesh` (contrato: docs/contracts/malla.md). Lógica clave 🔒:
 //   - §2 specs: validación accionable de Role/Job y `to_session_opts` PURA;
 //   - §3 claim por CAS de refs contra un remoto REAL (bare local): dos nodos,
 //     uno gana; heartbeat con lease; release; claim_info con identidad;
 //   - §4 worktrees sobre sha pineado;
 //   - §5 run_job de punta a punta: worktree + sesión (adaptador de prueba) +
-//     rama-resultado empujada con .nu/mesh/{transcript.jsonl,result.json} a
+//     rama-resultado empujada con .enu/mesh/{transcript.jsonl,result.json} a
 //     bordo (G38) y las DENEGACIONES como dato en el result.json (G40);
 //   - §6 tournament: resultados alineados con variants (G27), allSettled,
 //     verificador determinista.
@@ -124,7 +124,7 @@ prompt = "haz algo"
 	// snippet: inTask ya envuelve en pcall y se tragaría el lanzamiento).
 	h.eval(inTask(`
 		local mesh = require("mesh")
-		nu.fs.write("` + filepath.ToSlash(dir) + `/mal.toml", "id='x'\nbase='y'\nbranch='z'\n")
+		enu.fs.write("` + filepath.ToSlash(dir) + `/mal.toml", "id='x'\nbase='y'\nbranch='z'\n")
 		local ok2, e = pcall(mesh.job.load, "` + filepath.ToSlash(dir) + `/mal.toml")
 		out2 = {
 			lanzo = not ok2,
@@ -194,7 +194,7 @@ prompt = "toca el fichero"
 	}
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				local mesh = require("mesh")
@@ -230,7 +230,7 @@ prompt = "toca el fichero"
 	h.expectEval(`return out.source`, "headless")
 
 	// El lado del CONTROLADOR: la rama está en el bare con la auditoría a bordo.
-	resultJSON := gitCmd(t, bare, "show", "refs/heads/mesh/J-42:.nu/mesh/result.json")
+	resultJSON := gitCmd(t, bare, "show", "refs/heads/mesh/J-42:.enu/mesh/result.json")
 	var res struct {
 		JobID   string `json:"job_id"`
 		Denials []struct {
@@ -245,7 +245,7 @@ prompt = "toca el fichero"
 		res.Denials[0].Suggested != "touch:x.txt" {
 		t.Fatalf("result.json sin la denegación como dato: %+v", res)
 	}
-	transcript := gitCmd(t, bare, "show", "refs/heads/mesh/J-42:.nu/mesh/transcript.jsonl")
+	transcript := gitCmd(t, bare, "show", "refs/heads/mesh/J-42:.enu/mesh/transcript.jsonl")
 	if !strings.Contains(transcript, `"t":"meta"`) && !strings.Contains(transcript, `"t": "meta"`) {
 		t.Fatalf("el transcript de la rama no parece un JSONL de sesión:\n%.200s", transcript)
 	}
@@ -257,7 +257,7 @@ func TestMeshSkillHashVeto(t *testing.T) {
 	h, _ := bootMesh(t, providersTomlCost)
 	repo, _, _ := gitFixture(t)
 	// El repo trae una skill cuyo contenido no casa con el pin del Role.
-	skillDir := filepath.Join(repo, ".nu", "skills", "review")
+	skillDir := filepath.Join(repo, ".enu", "skills", "review")
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestMeshTournament(t *testing.T) {
 	wt1, wt2 := t.TempDir(), t.TempDir()
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				local mesh = require("mesh")

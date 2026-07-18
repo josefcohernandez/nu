@@ -4,7 +4,7 @@ package runtime
 // S33 no existía —tecla cruda del terminal → parser → pila de input → handler Lua →
 // mutación del compositor → frame ANSI volcado al terminal— SIN un TTY real, conduciendo
 // el bucle del driver (`drive`) contra tuberías en memoria. Es la demostración de que
-// "una TUI en Lua sobre la API de Go" funciona: el mismo camino que un `nu` interactivo,
+// "una TUI en Lua sobre la API de Go" funciona: el mismo camino que un `enu` interactivo,
 // pero con la entrada/salida inyectadas para que un test las inspeccione.
 //
 // Lo no testeable aquí (raw mode, `term.GetSize`, `SIGWINCH`) es la cáscara fina de
@@ -52,15 +52,23 @@ func waitForOut(out *syncBuf, sub string, d time.Duration) bool {
 	return strings.Contains(out.String(), sub)
 }
 
+// readRow lee la fila `y` de la pantalla compuesta bajo el token Y el candado de
+// la UI (G44: el bombeo continuo puede estar mutando el compositor desde un paso
+// del scheduler; el token solo ya no excluye esa vía).
+func readRow(h *harness, y int) string {
+	h.rt.sched.acquire()
+	defer h.rt.sched.release()
+	var row string
+	h.rt.withUILock(func() { row = composeRow(h.rt.ui.comp, y) })
+	return row
+}
+
 // waitForRow sondea la fila `y` de la pantalla compuesta hasta que sea `want` o venza el
-// plazo. Lee bajo el token (composeRow toca el compositor, estado principal).
+// plazo.
 func waitForRow(h *harness, y int, want string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		h.rt.sched.acquire()
-		row := composeRow(h.rt.ui.comp, y)
-		h.rt.sched.release()
-		if row == want {
+		if readRow(h, y) == want {
 			return true
 		}
 		time.Sleep(2 * time.Millisecond)
@@ -82,15 +90,15 @@ func TestDriverEndToEnd(t *testing.T) {
 	// keymaps. Usa SOLO la API pública de §9 (region/blit/block/clear, keymap) y §4
 	// (events.emit) — exactamente lo que un autor de extensión escribiría.
 	h.eval(`
-		local r = nu.ui.region({ x = 0, y = 0, w = 24, h = 4 })
+		local r = enu.ui.region({ x = 0, y = 0, w = 24, h = 4 })
 		local count = 0
 		local function repaint()
 		  r:clear()
-		  r:blit(0, 0, nu.ui.block({ "count=" .. count }))
+		  r:blit(0, 0, enu.ui.block({ "count=" .. count }))
 		end
 		repaint()
-		nu.ui.keymap("up", function() count = count + 1; repaint() end)
-		nu.ui.keymap("q", function() nu.events.emit("core:shutdown") end)
+		enu.ui.keymap("up", function() count = count + 1; repaint() end)
+		enu.ui.keymap("q", function() enu.events.emit("core:shutdown") end)
 	`)
 
 	inR, inW := io.Pipe()
@@ -116,10 +124,7 @@ func TestDriverEndToEnd(t *testing.T) {
 		t.Fatalf("write ↑: %v", err)
 	}
 	if !waitForRow(h, 0, "count=3", 2*time.Second) {
-		h.rt.sched.acquire()
-		row := composeRow(h.rt.ui.comp, 0)
-		h.rt.sched.release()
-		t.Fatalf("tras 3 ↑ la fila compuesta es %q, want %q", row, "count=3")
+		t.Fatalf("tras 3 ↑ la fila compuesta es %q, want %q", readRow(h, 0), "count=3")
 	}
 
 	// (c) `q` emite core:shutdown → el handler interno del driver cierra el bucle.
@@ -136,17 +141,21 @@ func TestDriverEndToEnd(t *testing.T) {
 }
 
 // screenContains compone toda la pantalla y comprueba si alguna fila contiene `sub`.
-// Bajo el token (composeRow toca el compositor).
+// Bajo el token y el candado de la UI (G44, como readRow).
 func screenContains(h *harness, sub string) bool {
 	h.rt.sched.acquire()
 	defer h.rt.sched.release()
-	c := h.rt.ui.comp
-	for y := 0; y < c.h; y++ {
-		if strings.Contains(composeRow(c, y), sub) {
-			return true
+	found := false
+	h.rt.withUILock(func() {
+		c := h.rt.ui.comp
+		for y := 0; y < c.h; y++ {
+			if strings.Contains(composeRow(c, y), sub) {
+				found = true
+				return
+			}
 		}
-	}
-	return false
+	})
+	return found
 }
 
 func waitScreen(h *harness, sub string, d time.Duration) bool {
@@ -161,12 +170,12 @@ func waitScreen(h *harness, sub string, d time.Duration) bool {
 }
 
 // TestDriverRunsRealDemoPlugin arranca el PLUGIN DE DEMOSTRACIÓN real
-// (examples/nu/plugins/tui-demo) desde disco y lo conduce por el driver, sin TTY. Es la
+// (examples/enu/plugins/tui-demo) desde disco y lo conduce por el driver, sin TTY. Es la
 // prueba de que el artefacto que un humano correría en su terminal funciona: su init.lua
 // monta la UI sin errores, pinta el marco/título y responde al teclado (↑ sube el
 // contador). Si el demo tuviera un fallo de Lua, Boot o el primer frame lo destaparían.
 func TestDriverRunsRealDemoPlugin(t *testing.T) {
-	demoDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "nu", "plugins"))
+	demoDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "enu", "plugins"))
 	if err != nil {
 		t.Fatalf("ruta del demo: %v", err)
 	}

@@ -31,8 +31,8 @@ func loaderInst(t *testing.T, mods map[string]string) *Instance {
 	return inst
 }
 
-// M13.0: nu.version.api refleja el nivel que el Runtime inyecta con SetAPIVersion
-// (prep de M13d: el arranque real sobre wasm expone nu.version). En los tests
+// M13.0: enu.version.api refleja el nivel que el Runtime inyecta con SetAPIVersion
+// (prep de M13d: el arranque real sobre wasm expone enu.version). En los tests
 // aislados sin fijarlo queda en 0.
 func TestVersionAPI(t *testing.T) {
 	p, err := NewPool()
@@ -46,12 +46,12 @@ func TestVersionAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = inst.Close() })
-	out, lerr, err := inst.Eval(`return tostring(nu.version.api)`)
+	out, lerr, err := inst.Eval(`return tostring(enu.version.api)`)
 	if err != nil || lerr != "" {
 		t.Fatalf("lerr=%q err=%v", lerr, err)
 	}
 	if out != "7" {
-		t.Fatalf("nu.version.api: got %q want 7", out)
+		t.Fatalf("enu.version.api: got %q want 7", out)
 	}
 }
 
@@ -241,11 +241,11 @@ func TestLoaderRequireEnWorker(t *testing.T) {
 	t.Cleanup(func() { p.StopWorkers(); _ = inst.Close(); _ = p.Close() })
 	if _, lerr, err := inst.Eval(`
 		out = "?"
-		local w = nu.worker.spawn([[
+		local w = enu.worker.spawn([[
 			local m = require("compartido")
-			nu.worker.parent.send(m.valor)
+			enu.worker.parent.send(m.valor)
 		]])
-		nu.task.spawn(function() out = tostring(w:recv()) end)`); err != nil || lerr != "" {
+		enu.task.spawn(function() out = tostring(w:recv()) end)`); err != nil || lerr != "" {
 		t.Fatalf("setup: lerr=%q err=%v", lerr, err)
 	}
 	if err := inst.RunTasks(context.Background()); err != nil {

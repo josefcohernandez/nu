@@ -5,15 +5,15 @@
 -- y cierra su **cuestión abierta nº4**. Tres piezas:
 --
 --   1. **Cliente JSON-RPC 2.0 sobre stdio** (`Conn`): lanza el servidor con
---      `nu.proc.spawn`, le habla por stdin escribiendo requests JSON con
---      `nu.json.encode` + `Proc:write`, y lee responses de stdout línea a línea
---      con `Proc:read_line` + `nu.json.decode`. **Framing por líneas** (una línea
+--      `enu.proc.spawn`, le habla por stdin escribiendo requests JSON con
+--      `enu.json.encode` + `Proc:write`, y lee responses de stdout línea a línea
+--      con `Proc:read_line` + `enu.json.decode`. **Framing por líneas** (una línea
 --      = un mensaje JSON terminado en `\n`): es el framing newline-delimited del
---      transporte stdio de MCP (ver claude_decisions.md S41 para la justificación
+--      transporte stdio de MCP (ver docs/decisiones-implementacion.md S41 para la justificación
 --      y la alternativa Content-Length descartada para v1).
 --   2. **Ciclo de vida del proceso** (§"Ciclo de vida"): el servidor se lanza,
 --      se mantiene vivo mientras la conexión exista, y se mata limpiamente
---      (`Proc:kill` registrado en `nu.task.cleanup`, api.md §6) al cerrar o al
+--      (`Proc:kill` registrado en `enu.task.cleanup`, api.md §6) al cerrar o al
 --      morir su task. Un servidor que muere (EOF en stdout) despierta a todos los
 --      requests pendientes con un error `EMCP` (nadie cuelga para siempre).
 --   3. **Mapeo de tools + CONFIANZA** (§"Tools y confianza"): cada tool que el
@@ -48,11 +48,11 @@ end
 
 -- Versión del protocolo MCP que anunciamos en `initialize`. MCP versiona por
 -- fecha; el servidor responde con la suya (que aceptamos si la habla). Ver
--- claude_decisions.md S41 sobre la negociación mínima de v1.
+-- docs/decisiones-implementacion.md S41 sobre la negociación mínima de v1.
 local PROTOCOL_VERSION = "2025-06-18"
 
 -- Datos del cliente que enviamos en `initialize` (clientInfo, MCP §lifecycle).
-local CLIENT_INFO = { name = "nu", version = "0.1.0" }
+local CLIENT_INFO = { name = "enu", version = "0.1.0" }
 
 -- Registro de conexiones vivas por nombre de servidor (un proceso por servidor).
 -- Reconectar el mismo nombre cierra la conexión anterior.
@@ -101,12 +101,12 @@ local function dispatch_loop(self)
     end
     -- Líneas en blanco entre mensajes: las toleramos (framing newline-delimited).
     if line ~= "" and line:match("%S") then
-      local okd, msg = pcall(nu.json.decode, line)
+      local okd, msg = pcall(enu.json.decode, line)
       if not okd then
         -- Una línea que no es JSON válido: el servidor MCP no debería emitirla.
         -- La logueamos y seguimos (no tumbamos el lector por un mensaje sucio;
         -- algunos servidores emiten logs por stdout pese a la spec).
-        nu.log.warn("mcp[%s]: línea no-JSON ignorada en stdout: %s",
+        enu.log.warn("mcp[%s]: línea no-JSON ignorada en stdout: %s",
           self.name, line)
       elseif type(msg) == "table" and msg.id ~= nil and self.pending[msg.id] then
         -- Es una RESPONSE a un request nuestro: despierta a quien espera.
@@ -140,9 +140,9 @@ local function request(self, method, params)
       { server = self.name, method = method })
   end
   local id = next_id(self)
-  local fut = nu.task.future()
+  local fut = enu.task.future()
   self.pending[id] = fut
-  local payload = nu.json.encode({
+  local payload = enu.json.encode({
     jsonrpc = "2.0",
     id = id,
     method = method,
@@ -173,7 +173,7 @@ end
 -- notify(self, method, params) envía una NOTIFICACIÓN JSON-RPC (sin id, sin
 -- respuesta esperada). MCP usa `notifications/initialized` tras el handshake.
 local function notify(self, method, params)
-  local payload = nu.json.encode({
+  local payload = enu.json.encode({
     jsonrpc = "2.0",
     method = method,
     params = params or {},
@@ -199,7 +199,7 @@ function Conn:list_tools()
 end
 
 -- Conn:close() mata el servidor limpiamente y desregistra sus tools. Idempotente.
--- Lo llama `nu.task.cleanup` (vida del proceso, api.md §6) y se puede llamar a
+-- Lo llama `enu.task.cleanup` (vida del proceso, api.md §6) y se puede llamar a
 -- mano. Despierta a los pendientes (vía el lector que ve el proceso morir).
 function Conn:close()
   if self.closed then
@@ -220,7 +220,7 @@ end
 -- Prefijo `mcp__<servidor>__<tool>` (convención de namespacing del ecosistema
 -- MCP): evita choques entre servidores y entre una tool MCP y una propia, y hace
 -- el patrón de permiso legible (`allow = {"mcp__github__*"}`). Ver
--- claude_decisions.md S41.
+-- docs/decisiones-implementacion.md S41.
 local function tool_id(server, remote)
   return string.format("mcp__%s__%s", server, remote)
 end
@@ -317,7 +317,7 @@ end
 local function handshake(self)
   local init_result = request(self, "initialize", {
     protocolVersion = PROTOCOL_VERSION,
-    capabilities = {},        -- el cliente nu v1 no anuncia roots/sampling
+    capabilities = {},        -- el cliente enu v1 no anuncia roots/sampling
     clientInfo = CLIENT_INFO,
   })
   self.server_info = (type(init_result) == "table") and init_result.serverInfo or nil
@@ -339,7 +339,7 @@ end
 -- opts:
 --   - name (string, requerido): nombre del servidor (prefijo de sus tools).
 --   - command (string[], requerido): argv del servidor (sin shell, api.md §6).
---   - cwd? / env?: pasados a nu.proc.spawn.
+--   - cwd? / env?: pasados a enu.proc.spawn.
 -- Idempotencia: conectar un `name` ya conectado cierra la conexión anterior.
 --
 -- VIDA DEL PROCESO (api.md §6): el proceso lo posee la task que llama a `connect`
@@ -362,7 +362,7 @@ function M.connect(opts)
     conns[opts.name]:close()
   end
 
-  local proc = nu.proc.spawn(opts.command, { cwd = opts.cwd, env = opts.env })
+  local proc = enu.proc.spawn(opts.command, { cwd = opts.cwd, env = opts.env })
 
   local self = setmetatable({
     name = opts.name,
@@ -375,7 +375,7 @@ function M.connect(opts)
   }, Conn)
 
   -- Vida del proceso: matarlo al terminar la task que lo creó (api.md §6).
-  nu.task.cleanup(function()
+  enu.task.cleanup(function()
     self:close()
   end)
 
@@ -385,7 +385,7 @@ function M.connect(opts)
   -- requests; cada uno espera su future que el lector resuelve). El lector hereda
   -- la vida de esta task vía la jerarquía de tasks (cuando la task dueña termina,
   -- el cleanup mata el proceso → el lector ve EOF y sale).
-  self.reader = nu.task.spawn(function()
+  self.reader = enu.task.spawn(function()
     dispatch_loop(self)
   end)
 
@@ -419,7 +419,7 @@ end
 -- servidores se DECLARAN en TOML; el protocolo lo implementa este Lua.
 -- ---------------------------------------------------------------------------
 
--- Formato de `mcp.toml` (en `nu.config.dir()`), cierra arquitectura nº4
+-- Formato de `mcp.toml` (en `enu.config.dir()`), cierra arquitectura nº4
 -- ("formato de configuración: qué servidores, cómo se declaran"):
 --
 --   [servers.github]
@@ -431,27 +431,27 @@ end
 -- `mcp.connect` desde una task de larga vida.
 
 local function config_path()
-  return nu.config.dir() .. "/mcp.toml"
+  return enu.config.dir() .. "/mcp.toml"
 end
 
 -- mcp._has_config() -> bool. ¿Existe `mcp.toml`? (No suspende: stat-like barato.)
 -- Lo usa init.lua para decidir si arranca la auto-conexión.
 function M._has_config()
-  -- nu.fs.stat devuelve nil si no existe (no lanza ENOENT, api.md §5).
-  return nu.fs.stat(config_path()) ~= nil
+  -- enu.fs.stat devuelve nil si no existe (no lanza ENOENT, api.md §5).
+  return enu.fs.stat(config_path()) ~= nil
 end
 
 -- read_config() ⏸ -> { servers = {...} }. Lee y decodifica `mcp.toml`. Ausente →
 -- tabla vacía. Mal formado → EMCP accionable.
 local function read_config()
-  local ok, raw = pcall(nu.fs.read, config_path())
+  local ok, raw = pcall(enu.fs.read, config_path())
   if not ok then
     if type(raw) == "table" and raw.code == "ENOENT" then
       return {}
     end
     error(raw)
   end
-  local okd, decoded = pcall(nu.toml.decode, raw)
+  local okd, decoded = pcall(enu.toml.decode, raw)
   if not okd then
     emcp(string.format("mcp.toml mal formado (%s): %s", config_path(),
       (type(decoded) == "table" and decoded.message) or tostring(decoded)))
@@ -477,11 +477,11 @@ function M.connect_configured()
       if ok then
         out[#out + 1] = conn
       else
-        nu.log.warn("mcp: no se pudo conectar el servidor %q: %s", name,
+        enu.log.warn("mcp: no se pudo conectar el servidor %q: %s", name,
           (type(conn) == "table" and conn.message) or tostring(conn))
       end
     else
-      nu.log.warn("mcp: servidor %q en mcp.toml sin `command` (array); ignorado", name)
+      enu.log.warn("mcp: servidor %q en mcp.toml sin `command` (array); ignorado", name)
     end
   end
   return out

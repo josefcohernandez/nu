@@ -18,7 +18,7 @@ import (
 //   - el **presupuesto por slice** del watchdog (`budget`), que `buildWasmState`
 //     pasa al Pool wasm (`SetSliceBudget`, DM4).
 //   - el **rastreo de recursos de fondo con vida propia** (subprocesos, streams
-//     HTTP, websockets, iteradores de grep): las primitivas nu.proc/http.stream/
+//     HTTP, websockets, iteradores de grep): las primitivas enu.proc/http.stream/
 //     ws/search construyen su objeto Go VM-agnóstico (proc.go/stream.go/ws.go/
 //     search.go, reusado por los HostFn de vmwasm) y lo registran aquí para que
 //     `Runtime.Close` los corte a todos (red de seguridad tras el cleanup/GC).
@@ -41,16 +41,17 @@ type scheduler struct {
 
 	mu sync.Mutex // protege los mapas de recursos de fondo y `ownerHandles`
 
-	// procs/streams/ws/greps son los recursos de fondo vivos de nu.proc.spawn (S16),
-	// nu.http.stream (S20), nu.ws.connect (S21) y nu.search.grep (S27). Se rastrean
+	// procs/streams/ws/greps son los recursos de fondo vivos de enu.proc.spawn (S16),
+	// enu.http.stream (S20), enu.ws.connect (S21) y enu.search.grep (S27). Se rastrean
 	// para cortarlos TODOS en `Runtime.Close` (stopAll*): ninguna goroutine de fondo
 	// ni descriptor debe sobrevivir al proceso (red de seguridad, tras el cleanup de
 	// quien los creó). Los alimentan las primitivas (trackProc/trackStream/...) y los
 	// soltados a mano (untrackStream/untrackWs/untrackGrep).
-	procs   map[*luaProc]struct{}
-	streams map[*httpStream]struct{}
-	ws      map[*luaWs]struct{}
-	greps   map[*grepIter]struct{}
+	procs    map[*luaProc]struct{}
+	streams  map[*httpStream]struct{}
+	ws       map[*luaWs]struct{}
+	greps    map[*grepIter]struct{}
+	watchers map[*wasmWatcher]struct{}
 
 	// ownerHandles es el registro de handles por dueño (S13, handles.go): asocia cada
 	// plugin (por nombre de owner) a los handles persistentes que registró, para que
@@ -62,13 +63,14 @@ type scheduler struct {
 // presupuesto de slice del watchdog y los mapas de recursos de fondo vacíos.
 func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 	s := &scheduler{
-		rt:      rt,
-		gil:     make(chan struct{}, 1),
-		budget:  budget,
-		procs:   make(map[*luaProc]struct{}),
-		streams: make(map[*httpStream]struct{}),
-		ws:      make(map[*luaWs]struct{}),
-		greps:   make(map[*grepIter]struct{}),
+		rt:       rt,
+		gil:      make(chan struct{}, 1),
+		budget:   budget,
+		procs:    make(map[*luaProc]struct{}),
+		streams:  make(map[*httpStream]struct{}),
+		ws:       make(map[*luaWs]struct{}),
+		greps:    make(map[*grepIter]struct{}),
+		watchers: make(map[*wasmWatcher]struct{}),
 	}
 	s.gil <- struct{}{} // token disponible: el primero que lo pida pinta/lee el compositor
 	return s
@@ -79,7 +81,7 @@ func newScheduler(rt *Runtime, budget time.Duration) *scheduler {
 func (s *scheduler) acquire() { <-s.gil }
 func (s *scheduler) release() { s.gil <- struct{}{} }
 
-// trackProc registra un subproceso vivo de `nu.proc.spawn` (S16) para poder matarlo
+// trackProc registra un subproceso vivo de `enu.proc.spawn` (S16) para poder matarlo
 // al cerrar el runtime.
 func (s *scheduler) trackProc(p *luaProc) {
 	s.mu.Lock()
@@ -87,8 +89,16 @@ func (s *scheduler) trackProc(p *luaProc) {
 	s.mu.Unlock()
 }
 
+// untrackProc deja de rastrear un subproceso ya recogido (reap temprano: salió y
+// sus dos streams se agotaron y cerraron, proc.go maybeReap). Idempotente.
+func (s *scheduler) untrackProc(p *luaProc) {
+	s.mu.Lock()
+	delete(s.procs, p)
+	s.mu.Unlock()
+}
+
 // stopAllProcs mata todos los subprocesos vivos. Lo llama `Runtime.Close`: ningún
-// subproceso de la sesión debe sobrevivir al proceso de `nu`. `killSignal` es
+// subproceso de la sesión debe sobrevivir al proceso de `enu`. `killSignal` es
 // idempotente (`killed`), así que matar uno que ya salió por su cuenta es inocuo —se
 // usa SIGKILL para que ninguno lo ignore, como red de seguridad final—.
 func (s *scheduler) stopAllProcs() {
@@ -105,7 +115,7 @@ func (s *scheduler) stopAllProcs() {
 	}
 }
 
-// trackStream registra un `nu.http.stream` vivo (S20) para poder cerrarlo al cerrar
+// trackStream registra un `enu.http.stream` vivo (S20) para poder cerrarlo al cerrar
 // el runtime.
 func (s *scheduler) trackStream(st *httpStream) {
 	s.mu.Lock()
@@ -121,7 +131,7 @@ func (s *scheduler) untrackStream(st *httpStream) {
 }
 
 // stopAllStreams cierra todos los streams vivos. Lo llama `Runtime.Close`: ninguna
-// conexión ni goroutine de lectura de body debe sobrevivir al proceso de `nu`.
+// conexión ni goroutine de lectura de body debe sobrevivir al proceso de `enu`.
 // `httpStream.close` es idempotente (`closeOnce`). Se copia el conjunto antes de
 // iterar porque `close` llama a `untrackStream`, que toca el mapa bajo el mismo candado.
 func (s *scheduler) stopAllStreams() {
@@ -137,7 +147,7 @@ func (s *scheduler) stopAllStreams() {
 	}
 }
 
-// trackWs registra un `nu.ws.connect` vivo (S21) para poder cerrarlo al cerrar el
+// trackWs registra un `enu.ws.connect` vivo (S21) para poder cerrarlo al cerrar el
 // runtime.
 func (s *scheduler) trackWs(w *luaWs) {
 	s.mu.Lock()
@@ -153,7 +163,7 @@ func (s *scheduler) untrackWs(w *luaWs) {
 }
 
 // stopAllWs cierra todos los websockets vivos. Lo llama `Runtime.Close`: ninguna
-// conexión ni goroutine de IO debe sobrevivir al proceso de `nu`. `luaWs.close` es
+// conexión ni goroutine de IO debe sobrevivir al proceso de `enu`. `luaWs.close` es
 // idempotente (`closeOnce`). Se copia el conjunto antes de iterar porque `close` llama
 // a `untrackWs`, que toca el mapa bajo el mismo candado.
 func (s *scheduler) stopAllWs() {
@@ -169,7 +179,40 @@ func (s *scheduler) stopAllWs() {
 	}
 }
 
-// trackGrep registra un iterador de `nu.search.grep` vivo (S27) para poder
+// trackWatcher registra un `enu.fs.watch` vivo (S15) para poder cortarlo al cerrar
+// el runtime: su goroutine de fondo y el watcher del SO (fd de inotify/kqueue) no
+// deben sobrevivir al proceso.
+func (s *scheduler) trackWatcher(w *wasmWatcher) {
+	s.mu.Lock()
+	s.watchers[w] = struct{}{}
+	s.mu.Unlock()
+}
+
+// untrackWatcher deja de rastrear un watcher parado (`Watcher:stop`). Idempotente.
+func (s *scheduler) untrackWatcher(w *wasmWatcher) {
+	s.mu.Lock()
+	delete(s.watchers, w)
+	s.mu.Unlock()
+}
+
+// stopAllWatchers corta todos los watchers vivos. Lo llama `Runtime.Close`.
+// `wasmWatcher.stop` es idempotente (`stopOnce`). Se copia el conjunto antes de
+// iterar porque `stop` llama a `untrackWatcher`, que toca el mapa bajo el mismo
+// candado.
+func (s *scheduler) stopAllWatchers() {
+	s.mu.Lock()
+	ws := make([]*wasmWatcher, 0, len(s.watchers))
+	for w := range s.watchers {
+		ws = append(ws, w)
+	}
+	s.watchers = make(map[*wasmWatcher]struct{})
+	s.mu.Unlock()
+	for _, w := range ws {
+		w.stop()
+	}
+}
+
+// trackGrep registra un iterador de `enu.search.grep` vivo (S27) para poder
 // cancelarlo al cerrar el runtime.
 func (s *scheduler) trackGrep(it *grepIter) {
 	s.mu.Lock()
@@ -185,7 +228,7 @@ func (s *scheduler) untrackGrep(it *grepIter) {
 }
 
 // stopAllGreps cancela todos los greps vivos. Lo llama `Runtime.Close`: ningún pool
-// de goroutines de fondo debe sobrevivir al proceso de `nu`. `grepIter.close` es
+// de goroutines de fondo debe sobrevivir al proceso de `enu`. `grepIter.close` es
 // idempotente (`closeOnce`). Se copia el conjunto antes de iterar porque `close` llama
 // a `untrackGrep`, que toca el mapa bajo el mismo candado.
 func (s *scheduler) stopAllGreps() {

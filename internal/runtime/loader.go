@@ -17,15 +17,15 @@ package runtime
 // por construcción, sin sistema de prioridades.
 //
 // Activación (S12, ADR-010). Los plugins de DISCO (directorios pasados por
-// `WithPluginDir` o `plugins.dirs` de `nu.toml`) se cargan tal cual —son del
+// `WithPluginDir` o `plugins.dirs` de `enu.toml`) se cargan tal cual —son del
 // usuario, explícitos—. Las **extensiones oficiales embebidas** (`go:embed`,
 // embed.go) están **INACTIVAS por defecto**: solo se materializan y cargan si
-// `config.dir()/nu.toml` `plugins.enabled` las nombra (config_toml.go). El
+// `config.dir()/enu.toml` `plugins.enabled` las nombra (config_toml.go). El
 // directorio de usuario **sustituye** a la embebida del mismo nombre (§14); un
 // `enabled` que no resuelve a nada es un error accionable que nombra la línea de
-// `nu.toml`. Una embebida activada queda con `source = "builtin"`.
+// `enu.toml`. Una embebida activada queda con `source = "builtin"`.
 //
-// RELACIÓN con S13/S33. `nu.plugin.reload` (S13, ya implementado en plugin.go) se
+// RELACIÓN con S13/S33. `enu.plugin.reload` (S13, ya implementado en plugin.go) se
 // apoya en este loader: el etiquetado de handles por dueño usa el `ownerStack` que
 // este loader empuja. La **pantalla de runtime desnudo** (G21: render TTY del
 // catálogo de embebidas + activar/salir, S30/S33) es UI aparte; este loader (S12) no
@@ -59,7 +59,7 @@ const (
 // son del contrato del kernel; un plugin puede añadir los suyos al fichero y el
 // loader los ignora (forward-compatibilidad: `toml.Decode` no falla por claves de
 // más). El parseo es interno del loader —reusa la misma librería TOML pura-Go que
-// S18 expondrá como `nu.toml`, pero NO es esa API.
+// S18 expondrá como `enu.toml`, pero NO es esa API.
 type pluginManifest struct {
 	Name     string   `toml:"name"`
 	Version  string   `toml:"version"`
@@ -68,18 +68,18 @@ type pluginManifest struct {
 
 // pluginInfo es un plugin descubierto y listo para cargar: su manifiesto + su
 // directorio raíz en disco + su procedencia. El tope del `ownerStack` (runtime.go)
-// es un `*pluginInfo`, y `nu.plugin.current/list` se construyen a partir de él.
+// es un `*pluginInfo`, y `enu.plugin.current/list` se construyen a partir de él.
 type pluginInfo struct {
 	Name     string
 	Version  string
 	Requires []string
 	Dir      string       // directorio raíz del plugin (el que contiene plugin.toml)
 	Source   pluginSource // "user" en S11; "builtin" para embebidas (S12)
-	Enabled  bool         // true por defecto en S11; S12 lo gobierna desde nu.toml
+	Enabled  bool         // true por defecto en S11; S12 lo gobierna desde enu.toml
 }
 
 // loader administra el descubrimiento, la ordenación y la carga de plugins, y
-// respalda `nu.config.dir/data_dir`. Vive en el Runtime (rt.ldr) y se toca solo
+// respalda `enu.config.dir/data_dir`. Vive en el Runtime (rt.ldr) y se toca solo
 // desde el estado principal con el token tomado (el arranque es síncrono).
 type loader struct {
 	rt         *Runtime
@@ -87,18 +87,18 @@ type loader struct {
 	configDir  string
 	pluginDirs []string
 
-	// enabled es `plugins.enabled` de `nu.toml` (S12): los nombres a activar. Da
+	// enabled es `plugins.enabled` de `enu.toml` (S12): los nombres a activar. Da
 	// vida a las extensiones embebidas, INACTIVAS por defecto (ADR-010): una
 	// embebida solo se carga si su nombre está aquí. Vacío/nil = nada que activar de
 	// las embebidas (runtime desnudo).
 	enabled []string
-	// configErr es el error de parseo de `nu.toml` aplazado desde `New` (cuya firma
+	// configErr es el error de parseo de `enu.toml` aplazado desde `New` (cuya firma
 	// no devuelve error, §17). `Boot` lo devuelve antes de cargar nada: una config
 	// rota no debe dejar el arranque a medias.
 	configErr error
 
 	// ordered es el resultado de `Boot`: los plugins efectivamente cargados, en el
-	// orden topológico en que corrieron. Lo lee `nu.plugin.list`.
+	// orden topológico en que corrieron. Lo lee `enu.plugin.list`.
 	ordered []*pluginInfo
 	booted  bool
 }
@@ -116,7 +116,7 @@ func newLoader(rt *Runtime, dataDir, configDir string, pluginDirs []string) *loa
 
 // discover recorre los directorios de plugins configurados y devuelve un
 // `*pluginInfo` por cada subdirectorio que tenga `plugin.toml`, más las extensiones
-// **embebidas activadas** por `nu.toml` (S12). Valida el manifiesto (nombre no
+// **embebidas activadas** por `enu.toml` (S12). Valida el manifiesto (nombre no
 // vacío), la **unicidad de nombre** (§14) —dos plugins de DISCO con el mismo
 // nombre son un error accionable que nombra ambas rutas— y, para las embebidas
 // (ADR-010):
@@ -127,7 +127,7 @@ func newLoader(rt *Runtime, dataDir, configDir string, pluginDirs []string) *loa
 //     coexisten, §14): gana el de disco, la embebida se descarta sin error;
 //   - un nombre de `plugins.enabled` que no corresponde a ninguna extensión —ni de
 //     disco ni embebida— es un error de arranque accionable que **nombra la línea
-//     de `nu.toml`** que lo arregla (§14).
+//     de `enu.toml`** que lo arregla (§14).
 func (l *loader) discover() ([]*pluginInfo, error) {
 	byName := make(map[string]*pluginInfo)
 	var found []*pluginInfo
@@ -137,7 +137,7 @@ func (l *loader) discover() ([]*pluginInfo, error) {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// Un directorio de plugins inexistente no es fatal: simplemente no
-				// aporta plugins (p. ej. el usuario aún no creó `~/.config/nu/plugins`).
+				// aporta plugins (p. ej. el usuario aún no creó `~/.config/enu/plugins`).
 				continue
 			}
 			return nil, &StructuredError{Code: CodeEIO,
@@ -168,7 +168,7 @@ func (l *loader) discover() ([]*pluginInfo, error) {
 		}
 	}
 
-	// Extensiones embebidas (ADR-010): inactivas salvo que `nu.toml`
+	// Extensiones embebidas (ADR-010): inactivas salvo que `enu.toml`
 	// `plugins.enabled` las nombre. Las añade aquí, tras los plugins de disco, para
 	// que la sustitución por nombre sea trivial (un nombre ya presente en `byName`
 	// es un plugin de usuario que gana). El catálogo de embebidas se enumera del
@@ -190,7 +190,7 @@ func (l *loader) discover() ([]*pluginInfo, error) {
 		}
 		if !embeddedSet[name] {
 			// `plugins.enabled` nombra algo que no existe ni en disco ni embebido:
-			// error de arranque accionable que apunta a la línea de `nu.toml` (§14).
+			// error de arranque accionable que apunta a la línea de `enu.toml` (§14).
 			return nil, &StructuredError{Code: CodeEINVAL,
 				Message: fmt.Sprintf("la extensión %q activada en %s no existe (ni embebida ni en un directorio de plugins); revisa la línea `plugins.enabled` de %s",
 					name, nuTomlName, nuTomlName)}
@@ -222,7 +222,7 @@ func (l *loader) discover() ([]*pluginInfo, error) {
 }
 
 // loadManifest parsea el `plugin.toml` de un plugin con la librería TOML pura-Go
-// (la misma que S18 expone como `nu.toml`) y valida sus campos mínimos. Un
+// (la misma que S18 expone como `enu.toml`) y valida sus campos mínimos. Un
 // manifiesto sin `name`, ilegible o mal formado es un error de carga accionable que
 // nombra la ruta.
 func (l *loader) loadManifest(dir, manifestPath string) (*pluginInfo, error) {
@@ -246,7 +246,7 @@ func (l *loader) loadManifest(dir, manifestPath string) (*pluginInfo, error) {
 		Requires: m.Requires,
 		Dir:      dir,
 		Source:   sourceUser, // S11: todo lo cargado de disco es "user"; "builtin" es S12
-		Enabled:  true,       // S11: enabled por defecto; S12 lo gobierna desde nu.toml
+		Enabled:  true,       // S11: enabled por defecto; S12 lo gobierna desde enu.toml
 	}, nil
 }
 

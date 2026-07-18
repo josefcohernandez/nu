@@ -3,7 +3,7 @@ package runtime
 // Tests de la PANTALLA DE RUNTIME DESNUDO (api.md §14, G21, S33). Blindan lo
 // AUTOMATIZABLE en este entorno headless (sin TTY); la interacción de teclado, el
 // streaming visible y el resize/paste visibles son el CP-7 MANUAL con TTY (ver
-// claude_decisions.md). Lo que sí se cubre por unidad:
+// docs/worklog/README.md). Lo que sí se cubre por unidad:
 //
 //   - CONDICIÓN: la pantalla se muestra SSI hay superficie de UI (`uiActive`) Y no
 //     hay plugins activos. Sin UI (headless) → no se muestra (arranca desnudo). Con
@@ -11,13 +11,14 @@ package runtime
 //   - CONTENIDO: el render FIJO incluye la versión + nivel de API, las rutas (config
 //     y plugins) y el catálogo de embebidas y las acciones; se inspecciona tanto el
 //     modelo como la rejilla del compositor (las cadenas esperadas están pintadas).
-//   - ACCIÓN "activar conjunto oficial": escribe `plugins.enabled` en `nu.toml` (con
+//   - ACCIÓN "activar conjunto oficial": escribe `plugins.enabled` en `enu.toml` (con
 //     todas las embebidas), PRESERVA el resto del fichero, y un `Boot` posterior las
 //     carga con `source="builtin"`.
 //   - ACCIÓN "activar suelta" (p. ej. solo `example`): escribe solo esa.
 //   - NO REGRESIÓN: headless (`WithForceUI(false)`) → `bareScreenActive` es false.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,8 +26,8 @@ import (
 )
 
 // newBareRuntime construye un Runtime con UI forzada (simula TTY, como el arnés) y un
-// configDir propio, SIN plugins de disco ni `nu.toml`: el escenario de la pantalla
-// desnuda. Devuelve también el configDir para inspeccionar/escribir `nu.toml`.
+// configDir propio, SIN plugins de disco ni `enu.toml`: el escenario de la pantalla
+// desnuda. Devuelve también el configDir para inspeccionar/escribir `enu.toml`.
 func newBareRuntime(t *testing.T, opts ...Option) (*Runtime, string) {
 	t.Helper()
 	cfg := t.TempDir()
@@ -104,8 +105,11 @@ func TestBareScreenContent(t *testing.T) {
 	lines := rt.RenderBareScreen()
 	joined := strings.Join(lines, "\n")
 
-	// Versión + nivel de API (§2). El nivel subió a 2 en S38 (nu.sys.pid, G32).
-	wantVer := "nu 0.1.3 · API 2"
+	// Versión + nivel de API (§2). El nivel sube con cada adición a la superficie
+	// sagrada (G32 enu.sys.pid → 2, G52 frames binarios de enu.ws → 3, G54 control de
+	// redirects de enu.http → 4, G57 opts.mode de enu.fs.write → 5); se compone desde
+	// las constantes para no reescribirlo.
+	wantVer := fmt.Sprintf("enu %d.%d.%d · API %d", VersionMajor, VersionMinor, VersionPatch, APILevel)
 	if !strings.Contains(joined, wantVer) {
 		t.Errorf("falta la versión/API %q en la pantalla:\n%s", wantVer, joined)
 	}
@@ -162,14 +166,14 @@ func gridText(g *grid) string {
 }
 
 // TestBareScreenActivateOfficial blinda la ACCIÓN "activar el conjunto oficial"
-// (ADR-015, G33): escribe `plugins.enabled` en `nu.toml` con el CONJUNTO OFICIAL DE
+// (ADR-015, G33): escribe `plugins.enabled` en `enu.toml` con el CONJUNTO OFICIAL DE
 // PRODUCTO —las embebidas menos el andamiaje `example`—, y el `Boot` que continúa las
 // carga con `source="builtin"`, sin red (ADR-010). Es el mismo conjunto que activa el
-// flag `nu --default-config`: pantalla (TTY) y flag (sin TTY) enchufan lo mismo.
+// flag `enu --default-config`: pantalla (TTY) y flag (sin TTY) enchufan lo mismo.
 func TestBareScreenActivateOfficial(t *testing.T) {
 	rt, cfg := newBareRuntime(t)
 
-	// Antes: no hay nu.toml y la pantalla está activa.
+	// Antes: no hay enu.toml y la pantalla está activa.
 	if !rt.BareScreenActive() {
 		t.Fatal("precondición: la pantalla debería estar activa")
 	}
@@ -178,11 +182,11 @@ func TestBareScreenActivateOfficial(t *testing.T) {
 		t.Fatalf("ActivateOfficial falló: %v", err)
 	}
 
-	// El `nu.toml` se escribió con `plugins.enabled` = conjunto de producto. Debe
+	// El `enu.toml` se escribió con `plugins.enabled` = conjunto de producto. Debe
 	// contener las de producto (sonda: `providers`, raíz del grafo) y NO `example`.
 	cfgData, err := loadNuTomlForTest(cfg)
 	if err != nil {
-		t.Fatalf("nu.toml no se escribió/leyó: %v", err)
+		t.Fatalf("enu.toml no se escribió/leyó: %v", err)
 	}
 	enabled := map[string]bool{}
 	for _, n := range cfgData.Plugins.Enabled {
@@ -227,7 +231,7 @@ func TestBareScreenActivateSingle(t *testing.T) {
 
 	cfgData, err := loadNuTomlForTest(cfg)
 	if err != nil {
-		t.Fatalf("releer nu.toml: %v", err)
+		t.Fatalf("releer enu.toml: %v", err)
 	}
 	if len(cfgData.Plugins.Enabled) != 1 || cfgData.Plugins.Enabled[0] != "example" {
 		t.Fatalf("plugins.enabled debería ser [example]; got %v", cfgData.Plugins.Enabled)
@@ -240,11 +244,11 @@ func TestBareScreenActivateSingle(t *testing.T) {
 }
 
 // TestBareScreenPreservesConfig blinda que escribir `plugins.enabled` PRESERVA el
-// resto del `nu.toml` (otras secciones y claves que el core ni siquiera entiende):
+// resto del `enu.toml` (otras secciones y claves que el core ni siquiera entiende):
 // la pantalla no pisa configuración del usuario.
 func TestBareScreenPreservesConfig(t *testing.T) {
 	cfg := t.TempDir()
-	// Un nu.toml previo con watchdog, una clave desconocida y una sección ajena.
+	// Un enu.toml previo con watchdog, una clave desconocida y una sección ajena.
 	writeNuToml(t, cfg, `[plugins]
 dirs = ["/algun/dir"]
 
@@ -261,20 +265,20 @@ clave = "valor"
 
 	data, err := os.ReadFile(filepath.Join(cfg, nuTomlName))
 	if err != nil {
-		t.Fatalf("leer nu.toml: %v", err)
+		t.Fatalf("leer enu.toml: %v", err)
 	}
 	s := string(data)
 	// Se añadió enabled y se conservó dirs, el watchdog, y la sección/clave ajenas.
 	for _, want := range []string{"example", "/algun/dir", "250", "mi_seccion", "valor"} {
 		if !strings.Contains(s, want) {
-			t.Errorf("writeEnabledPlugins no preservó %q; nu.toml resultante:\n%s", want, s)
+			t.Errorf("writeEnabledPlugins no preservó %q; enu.toml resultante:\n%s", want, s)
 		}
 	}
 
-	// Y el resultado sigue siendo un nu.toml válido que el core relee.
+	// Y el resultado sigue siendo un enu.toml válido que el core relee.
 	cfgData, _, err := loadNuToml(cfg)
 	if err != nil {
-		t.Fatalf("el nu.toml escrito no es válido: %v", err)
+		t.Fatalf("el enu.toml escrito no es válido: %v", err)
 	}
 	if len(cfgData.Plugins.Enabled) != 1 || cfgData.Plugins.Enabled[0] != "example" {
 		t.Fatalf("enabled mal escrito; got %v", cfgData.Plugins.Enabled)
@@ -287,7 +291,7 @@ clave = "valor"
 	}
 }
 
-// TestBareScreenMalformedTomlNotClobbered blinda que un `nu.toml` MAL FORMADO no se
+// TestBareScreenMalformedTomlNotClobbered blinda que un `enu.toml` MAL FORMADO no se
 // sobrescribe a ciegas (perdería config del usuario): la acción devuelve un error
 // accionable y deja el fichero intacto.
 func TestBareScreenMalformedTomlNotClobbered(t *testing.T) {
@@ -297,7 +301,7 @@ func TestBareScreenMalformedTomlNotClobbered(t *testing.T) {
 
 	err := writeEnabledPlugins(cfg, []string{"example"})
 	if err == nil {
-		t.Fatal("un nu.toml mal formado debería dar error, no sobrescribirse")
+		t.Fatal("un enu.toml mal formado debería dar error, no sobrescribirse")
 	}
 	se, ok := err.(*StructuredError)
 	if !ok || se.Code != CodeEINVAL {
@@ -306,11 +310,11 @@ func TestBareScreenMalformedTomlNotClobbered(t *testing.T) {
 	// El fichero original sigue intacto.
 	data, _ := os.ReadFile(filepath.Join(cfg, nuTomlName))
 	if string(data) != bad {
-		t.Fatalf("el nu.toml mal formado no debía tocarse; got:\n%s", data)
+		t.Fatalf("el enu.toml mal formado no debía tocarse; got:\n%s", data)
 	}
 }
 
-// loadNuTomlForTest es un atajo de los tests para releer el `nu.toml` (descarta el
+// loadNuTomlForTest es un atajo de los tests para releer el `enu.toml` (descarta el
 // flag `found`).
 func loadNuTomlForTest(configDir string) (runtimeConfig, error) {
 	cfg, _, err := loadNuToml(configDir)

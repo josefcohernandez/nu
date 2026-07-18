@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f0eee9;font-family:system-ui,sans-serif}
+a{color:inherit;text-decoration:none}
+a:hover{opacity:.75}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+@keyframes nu-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t14" data-screen-label="Turno 14 — 404, plugins, búsqueda y móvil">
+<div class="dv-thd"><a class="dv-tid" href="#t14">14</a><span class="dv-tname">Cerrando el sistema: 404, sección plugins, búsqueda [/] y drafts móvil</span></div>
+<div class="dv-opts">
+
+<!-- 14a 404 -->
+<div class="dv-opt" id="14a" data-screen-label="14a 404">
+<div class="dv-olabel"><a class="dv-oid" href="#14a">14a</a>404 — el error como lo daría el editor, con sugerencia de doc parecido.</div>
+<div class="dv-card" style="width:640px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:420px;display:flex;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:18px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <div style="display:flex;gap:14px">
+        <a href="#14a" style="color:{{ p.dim }}">docs</a>
+        <a href="#14a" style="color:{{ p.dim }}">api</a>
+        <a href="#14a" style="color:{{ p.dim }}">plugins</a>
+      </div>
+    </div>
+    <a href="#14a" style="color:{{ p.key }};font-size:11px">github ↗</a>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 56px;font-size:13px;line-height:2.1">
+    <div style="color:{{ p.dim }}">$ nu docs/filosofja.md</div>
+    <div style="height:14px"></div>
+    <div style="color:{{ p.c4 }};font-weight:600">E404: no es un documento del editor: docs/filosofja.md</div>
+    <div style="height:14px"></div>
+    <div style="color:{{ p.fg }}">¿querías decir? → <a href="#14a" style="color:{{ p.key }};text-decoration:underline">docs/filosofia.md</a></div>
+    <div style="height:22px"></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">d</span><span style="color:{{ p.dim }}">]</span> índice de docs</div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">q</span><span style="color:{{ p.dim }}">]</span> portada</div>
+    <div style="height:18px"></div>
+    <div><span style="color:{{ p.dim }}">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:11px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}"><span>404 · 0/15</span><span><span style="color:{{ p.fg }}">[:]</span> comando · <span style="color:{{ p.fg }}">[/]</span> buscar</span></div>
+</div>
+</div>
+</div>
+
+<!-- 14b plugins -->
+<div class="dv-opt" id="14b" data-screen-label="14b Sección plugins">
+<div class="dv-olabel"><a class="dv-oid" href="#14b">14b</a>Sección plugins — de cero a un comando slash propio en tres pasos; los contratos a la derecha.</div>
+<div class="dv-card" style="width:940px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};display:flex;flex-direction:column;min-height:620px">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:18px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <div style="display:flex;gap:14px">
+        <a href="#12a" style="color:{{ p.dim }}">docs</a>
+        <a href="#13a" style="color:{{ p.dim }}">api</a>
+        <a href="#14b" style="color:{{ p.bg }};background:{{ p.key }};padding:0 8px;font-weight:600">plugins</a>
+      </div>
+    </div>
+    <a href="#14b" style="color:{{ p.key }}">github ↗</a>
+  </div>
+  <div style="flex:1;display:flex">
+    <div style="flex:1;padding:36px 52px;font-size:13.5px;line-height:1.9;max-width:600px">
+      <div style="color:{{ p.bright }};font-weight:600;font-size:20px">Escribe tu primer plugin</div>
+      <div style="color:{{ p.dim }};margin-bottom:18px;letter-spacing:-1px">═══════════════════════</div>
+      <p style="margin:0 0 22px;color:{{ p.fg }};font-size:13px">Un plugin es un directorio con dos ficheros. Nada de toolchains: lo escribes, lo activas, existe.</p>
+      <div style="color:{{ p.bright }};font-weight:600;margin:0 0 8px">1 · plugin.toml</div>
+      <div style="background:{{ p.border }};padding:12px 18px;font-size:12.5px;line-height:1.8;margin-bottom:20px">
+        <div><span style="color:{{ p.bright }}">name</span> = <span style="color:{{ p.c2 }}">"hola"</span></div>
+        <div><span style="color:{{ p.bright }}">version</span> = <span style="color:{{ p.c2 }}">"0.1.0"</span></div>
+      </div>
+      <div style="color:{{ p.bright }};font-weight:600;margin:0 0 8px">2 · init.lua</div>
+      <div style="background:{{ p.border }};padding:12px 18px;font-size:12.5px;line-height:1.8;margin-bottom:20px">
+        <div><span style="color:{{ p.key }}">local</span> chat = <span style="color:{{ p.key }}">require</span>(<span style="color:{{ p.c2 }}">"chat"</span>)</div>
+        <div>chat.command {</div>
+        <div>&nbsp;&nbsp;name = <span style="color:{{ p.c2 }}">"hola"</span>,</div>
+        <div>&nbsp;&nbsp;run = <span style="color:{{ p.key }}">function</span>() chat.say(<span style="color:{{ p.c2 }}">"¡hola desde tu plugin!"</span>) <span style="color:{{ p.key }}">end</span>,</div>
+        <div>}</div>
+      </div>
+      <div style="color:{{ p.bright }};font-weight:600;margin:0 0 8px">3 · actívalo en nu.toml</div>
+      <div style="background:{{ p.border }};padding:12px 18px;font-size:12.5px;line-height:1.8;margin-bottom:22px">
+        <div><span style="color:{{ p.dim }}">[plugins]</span></div>
+        <div><span style="color:{{ p.bright }}">enabled</span> = [<span style="color:{{ p.c2 }}">"chat"</span>, <span style="color:{{ p.c2 }}">"hola"</span>]</div>
+      </div>
+      <p style="margin:0;color:{{ p.dim }};font-size:12px">Escribe /hola en el chat. Ya eres autor de plugins.</p>
+    </div>
+    <div style="width:230px;flex:none;padding:36px 28px 0 0;font-size:11.5px;line-height:1.9">
+      <div style="color:{{ p.dim }};margin-bottom:2px">contratos para colgarse</div>
+      <div style="display:flex;flex-direction:column;margin-bottom:18px">
+        <a href="#13a" style="color:{{ p.key }}">agent.tool{} →</a>
+        <a href="#13a" style="color:{{ p.key }}">agent.hook() →</a>
+        <a href="#13a" style="color:{{ p.key }}">chat.command{} →</a>
+        <a href="#13a" style="color:{{ p.key }}">chat.renderer() →</a>
+        <a href="#13a" style="color:{{ p.key }}">providers.register_adapter() →</a>
+      </div>
+      <div style="border:1px solid {{ p.border }};padding:14px 16px;color:{{ p.fg }};font-size:11px;line-height:1.8">examples/ trae una TUI completa escrita en Lua puro sobre la API del core.<br><a href="#14b" style="color:{{ p.key }}">XDG_CONFIG_HOME=examples nu →</a></div>
+      <div style="margin-top:18px;color:{{ p.dim }};font-size:10.5px;line-height:1.8;border-top:1px solid {{ p.border }};padding-top:12px">la regla de oro: lua decide, go ejecuta <a href="#12a" style="color:{{ p.key }}">filosofia →</a></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:11px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}">
+    <span>plugins/primer-plugin · 1/3</span>
+    <span><span style="color:{{ p.fg }}">[j/k]</span> desplazar · <span style="color:{{ p.fg }}">[:]</span> comando · <span style="color:{{ p.fg }}">[/]</span> buscar · <span style="color:{{ p.fg }}">[q]</span> portada</span>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 14c búsqueda -->
+<div class="dv-opt" id="14c" data-screen-label="14c Búsqueda">
+<div class="dv-olabel"><a class="dv-oid" href="#14c">14c</a>Búsqueda [/] activa — resultados agrupados por doc, término invertido, [n/p] para saltar.</div>
+<div class="dv-card" style="width:760px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:520px;display:flex;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:18px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <div style="display:flex;gap:14px">
+        <a href="#12a" style="color:{{ p.bg }};background:{{ p.key }};padding:0 8px;font-weight:600">docs</a>
+        <a href="#13a" style="color:{{ p.dim }}">api</a>
+        <a href="#14b" style="color:{{ p.dim }}">plugins</a>
+      </div>
+    </div>
+    <a href="#14c" style="color:{{ p.key }}">github ↗</a>
+  </div>
+  <div style="flex:1;padding:32px 48px;font-size:12.5px;line-height:2">
+    <div style="color:{{ p.dim }};margin-bottom:16px">5 coincidencias en 3 documentos para <span style="background:{{ p.key }};color:{{ p.bg }};padding:0 5px;font-weight:600">permisos</span></div>
+    <div style="color:{{ p.bright }};font-weight:600">docs/agente.md</div>
+    <div style="padding-left:24px;margin-bottom:14px">
+      <div style="background:{{ p.border }};margin-left:-12px;padding:0 12px"><span style="color:{{ p.dim }}">§5 ·</span> cada tool que muta pasa por el pipeline de <span style="background:{{ p.key }};color:{{ p.bg }};padding:0 3px">permisos</span> <span style="color:{{ p.key }}">◂</span></div>
+      <div><span style="color:{{ p.dim }}">§11 ·</span> la config del proyecto solo puede recortar <span style="background:{{ p.border }};padding:0 3px;color:{{ p.bright }}">permisos</span>, nunca ampliarlos</div>
+    </div>
+    <div style="color:{{ p.bright }};font-weight:600">docs/chat.md</div>
+    <div style="padding-left:24px;margin-bottom:14px">
+      <div><span style="color:{{ p.dim }}">§3 ·</span> el diálogo de <span style="background:{{ p.border }};padding:0 3px;color:{{ p.bright }}">permisos</span> muestra el comando completo</div>
+      <div><span style="color:{{ p.dim }}">§3 ·</span> permitir una vez / siempre / denegar</div>
+    </div>
+    <div style="color:{{ p.bright }};font-weight:600">README.md</div>
+    <div style="padding-left:24px">
+      <div><span style="color:{{ p.dim }}">·</span> en headless las tools sensibles se deniegan por defecto…</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:11px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}">
+    <span><span style="color:{{ p.key }};font-weight:600">/</span><span style="color:{{ p.bright }}">permisos</span><span style="display:inline-block;width:8px;height:14px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></span>
+    <span><span style="color:{{ p.fg }}">[n/p]</span> saltar · <span style="color:{{ p.fg }}">[enter]</span> abrir · <span style="color:{{ p.fg }}">[esc]</span> cerrar</span>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 14d móvil portada -->
+<div class="dv-opt" id="14d" data-screen-label="14d Móvil portada">
+<div class="dv-olabel"><a class="dv-oid" href="#14d">14d</a>Portada móvil (390px) — sin prompt (no hay teclado): el menú son filas táctiles ≥48px; theme e idioma abajo.</div>
+<div class="dv-card" style="width:390px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:660px;display:flex;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+    <span style="color:{{ p.dim }}">v0.1.3</span>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:36px 24px;font-size:13px;line-height:2">
+    <div style="color:{{ p.dim }};font-size:11.5px">$ nu</div>
+    <div style="height:14px"></div>
+    <h1 style="margin:0 0 12px;font-family:'IBM Plex Mono',monospace;font-size:24px;line-height:1.4;font-weight:600;color:{{ p.bright }}">{{ L.sloganA }}<br><span style="color:{{ p.key }}">{{ L.sloganB }}</span></h1>
+    <div style="color:{{ p.fg }};font-size:12.5px;line-height:1.8">{{ L.body }}</div>
+    <div style="height:24px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <a href="#14d" style="display:flex;align-items:center;gap:10px;border:1px solid {{ p.key }};padding:13px 16px;color:{{ p.bright }};min-height:22px"><span style="color:{{ p.key }};font-weight:600">[i]</span> {{ L.k1 }} <span style="color:{{ p.dim }};font-size:11px;margin-left:auto">curl | sh</span></a>
+      <a href="#14d" style="display:flex;align-items:center;gap:10px;border:1px solid {{ p.border }};padding:13px 16px;color:{{ p.fg }};min-height:22px"><span style="color:{{ p.key }};font-weight:600">[d]</span> {{ L.k2 }}</a>
+      <a href="#14d" style="display:flex;align-items:center;gap:10px;border:1px solid {{ p.border }};padding:13px 16px;color:{{ p.fg }};min-height:22px"><span style="color:{{ p.key }};font-weight:600">[a]</span> api</a>
+      <a href="#14d" style="display:flex;align-items:center;gap:10px;border:1px solid {{ p.border }};padding:13px 16px;color:{{ p.fg }};min-height:22px"><span style="color:{{ p.key }};font-weight:600">[g]</span> github ↗</a>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;padding:14px 20px;border-top:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <span style="color:{{ p.dim }}">theme:</span>
+      <sc-for list="{{ textThemes }}" as="tt" hint-placeholder-count="4">
+        <span onClick="{{ tt.pick }}" style="cursor:pointer;color:{{ tt.col }};font-weight:{{ tt.weight }};padding:2px 0">{{ tt.display }}</span>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;color:{{ p.dim }}">
+      <span>lang: <span onClick="{{ pickEs }}" style="cursor:pointer;color:{{ esCol2 }}">{{ esDisplay }}</span> <span onClick="{{ pickEn }}" style="cursor:pointer;color:{{ enCol2 }}">{{ enDisplay }}</span></span>
+      <span>apache-2.0</span>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 14e móvil wiki -->
+<div class="dv-opt" id="14e" data-screen-label="14e Móvil wiki">
+<div class="dv-olabel"><a class="dv-oid" href="#14e">14e</a>Wiki móvil — el índice vive tras [≡]; statusline táctil abajo; prev/next como filas grandes.</div>
+<div class="dv-card" style="width:390px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:660px;display:flex;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:12px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <span style="color:{{ p.dim }}">docs/<span style="color:{{ p.bright }}">filosofia.md</span></span>
+    </div>
+    <span style="color:{{ p.key }};font-weight:600;padding:6px;font-size:14px">[≡]</span>
+  </div>
+  <div style="flex:1;padding:26px 24px;font-size:13.5px;line-height:1.95">
+    <div style="color:{{ p.bright }};font-weight:600;font-size:18px">Filosofía de nu</div>
+    <div style="color:{{ p.dim }};margin-bottom:16px;letter-spacing:-1px">═════════════</div>
+    <div style="display:flex;gap:8px;color:{{ p.dim }};font-style:italic;margin-bottom:18px;font-size:12.5px"><span>│</span><span>un runtime de Lua orientado a terminal cuya killer app es un coding harness.</span></div>
+    <p style="margin:0 0 16px;color:{{ p.fg }};font-size:13px">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <span style="color:{{ p.bright }};font-weight:600">kernel mínimo y un sistema de extensiones</span> donde todo lo demás es una extensión.</p>
+    <div style="background:{{ p.border }};padding:11px 14px;font-size:12px;margin-bottom:18px;color:{{ p.bright }}"><span style="color:{{ p.key }}">$</span> nu --default-config</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:22px">
+      <a href="#14e" style="display:flex;justify-content:space-between;border:1px solid {{ p.border }};padding:12px 14px;color:{{ p.fg }};font-size:12px"><span style="color:{{ p.dim }}">← anterior</span><span>inicio-rapido.md</span></a>
+      <a href="#14e" style="display:flex;justify-content:space-between;border:1px solid {{ p.border }};padding:12px 14px;color:{{ p.fg }};font-size:12px"><span style="color:{{ p.dim }}">siguiente →</span><span style="color:{{ p.key }}">arquitectura.md</span></a>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 20px;border-top:1px solid {{ p.border }};font-size:12px;color:{{ p.dim }}">
+    <span style="color:{{ p.fg }};padding:6px 8px">[≡] índice</span>
+    <span style="color:{{ p.fg }};padding:6px 8px">[/] buscar</span>
+    <span style="color:{{ p.fg }};padding:6px 8px">[q] portada</span>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «enséñame el drawer [≡] abierto» · «la API en móvil» · «con esto, prepara el paquete de handoff para construirlo en Astro»</p>
+</section>
+
+<section class="dv-turn" id="t13" data-screen-label="Turno 13 — sección API">
+<div class="dv-thd"><a class="dv-tid" href="#t13">13</a><span class="dv-tname">La API como sección propia: nav de primer nivel docs · api · plugins, referencia por módulos</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="13a" data-screen-label="13a Referencia API">
+<div class="dv-olabel"><a class="dv-oid" href="#13a">13a</a>Referencia de la API `nu.*` — hereda el theme. Sidebar de módulos, firmas con tipos, ejemplo ejecutable y carril para autores de plugins.</div>
+<div class="dv-card" style="width:960px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};display:flex;flex-direction:column;min-height:640px">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:18px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <div style="display:flex;gap:14px">
+        <a href="#13a" style="color:{{ p.dim }}">docs</a>
+        <a href="#13a" style="color:{{ p.bg }};background:{{ p.key }};padding:0 8px;font-weight:600">api</a>
+        <a href="#13a" style="color:{{ p.dim }}">plugins</a>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;color:{{ p.dim }}">
+      <span>api v1 · <span style="color:{{ p.key }}">estable</span></span>
+      <a href="#13a" style="color:{{ p.key }}">github ↗</a>
+    </div>
+  </div>
+  <div style="flex:1;display:flex">
+    <div style="width:210px;flex:none;border-right:1px solid {{ p.border }};padding:24px 0;font-size:12.5px;line-height:2.1">
+      <div style="padding:0 26px;color:{{ p.dim }}">nu.*</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#13a" style="color:{{ p.bg }};background:{{ p.key }};margin:0 12px 0 -14px;padding:0 8px;font-weight:600">▸ fs</a>
+        <a href="#13a" style="color:{{ p.fg }}">proc</a>
+        <a href="#13a" style="color:{{ p.fg }}">http</a>
+        <a href="#13a" style="color:{{ p.fg }}">ws</a>
+        <a href="#13a" style="color:{{ p.fg }}">search</a>
+        <a href="#13a" style="color:{{ p.fg }}">text</a>
+        <a href="#13a" style="color:{{ p.fg }}">re</a>
+        <a href="#13a" style="color:{{ p.fg }}">ui</a>
+        <a href="#13a" style="color:{{ p.fg }}">events</a>
+        <a href="#13a" style="color:{{ p.fg }}">task</a>
+        <a href="#13a" style="color:{{ p.fg }}">workers</a>
+        <a href="#13a" style="color:{{ p.fg }}">codecs</a>
+      </div>
+      <div style="padding:14px 26px 0;color:{{ p.dim }}">extensiones/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#13a" style="color:{{ p.fg }}">agent.tool</a>
+        <a href="#13a" style="color:{{ p.fg }}">chat.command</a>
+        <a href="#13a" style="color:{{ p.fg }}">providers</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:34px 48px;font-size:13.5px;line-height:1.9;max-width:580px">
+      <div style="color:{{ p.bright }};font-weight:600;font-size:20px">nu.fs</div>
+      <div style="color:{{ p.dim }};margin-bottom:16px;letter-spacing:-1px">═════</div>
+      <p style="margin:0 0 22px;color:{{ p.fg }};font-size:13px">Sistema de ficheros. Primitivas Go por dentro: paralelas, sin bloquear el hilo de Lua. <span style="color:{{ p.dim }}">Solo lectura no pide permiso; escribir pasa por el pipeline de permisos.</span></p>
+      <div style="border:1px solid {{ p.border }};margin-bottom:14px">
+        <div style="padding:10px 16px;border-bottom:1px solid {{ p.border }};font-size:13px"><span style="color:{{ p.key }};font-weight:600">read</span><span style="color:{{ p.fg }}">(path)</span> <span style="color:{{ p.dim }}">→ string, err</span></div>
+        <div style="padding:10px 16px;font-size:12px;color:{{ p.fg }}">Lee el fichero entero. <span style="color:{{ p.dim }}">path relativo al cwd del proyecto.</span></div>
+      </div>
+      <div style="border:1px solid {{ p.border }};margin-bottom:14px">
+        <div style="padding:10px 16px;border-bottom:1px solid {{ p.border }};font-size:13px"><span style="color:{{ p.key }};font-weight:600">write</span><span style="color:{{ p.fg }}">(path, data)</span> <span style="color:{{ p.dim }}">→ ok, err · [permiso]</span></div>
+        <div style="padding:10px 16px;font-size:12px;color:{{ p.fg }}">Escritura atómica. <span style="color:{{ p.dim }}">Dispara el diálogo de permisos salvo allow.</span></div>
+      </div>
+      <div style="border:1px solid {{ p.border }};margin-bottom:22px">
+        <div style="padding:10px 16px;border-bottom:1px solid {{ p.border }};font-size:13px"><span style="color:{{ p.key }};font-weight:600">glob</span><span style="color:{{ p.fg }}">(pattern)</span> <span style="color:{{ p.dim }}">→ {paths}</span></div>
+        <div style="padding:10px 16px;font-size:12px;color:{{ p.fg }}">Expansión de patrones sobre el árbol del proyecto.</div>
+      </div>
+      <div style="color:{{ p.dim }};font-size:11px;margin-bottom:6px">ejemplo — pruébalo con nu -e</div>
+      <div style="background:{{ p.border }};padding:14px 18px;font-size:12.5px;line-height:1.8;margin-bottom:20px">
+        <div><span style="color:{{ p.dim }}">-- cuenta las líneas de un doc</span></div>
+        <div><span style="color:{{ p.key }}">local</span> <span style="color:{{ p.bright }}">txt</span> = nu.fs.read(<span style="color:{{ p.fg }}">"docs/filosofia.md"</span>)</div>
+        <div><span style="color:{{ p.key }}">return</span> #nu.text.lines(txt)</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:1px solid {{ p.border }};padding-top:14px;font-size:12.5px">
+        <span style="color:{{ p.dim }}">← (primer módulo)</span>
+        <a href="#13a" style="color:{{ p.key }}">siguiente: nu.proc →</a>
+      </div>
+    </div>
+    <div style="width:190px;flex:none;padding:34px 26px 0 0;font-size:11.5px;line-height:1.9">
+      <div style="border:1px solid {{ p.key }};padding:14px 16px;margin-bottom:18px">
+        <div style="color:{{ p.key }};font-weight:600;margin-bottom:6px">¿tu primer plugin?</div>
+        <div style="color:{{ p.fg }};font-size:11px">plugin.toml + init.lua. La guía te lleva de cero a un comando slash propio.</div>
+        <a href="#13a" style="color:{{ p.key }};display:inline-block;margin-top:8px">guia-plugins.md →</a>
+      </div>
+      <div style="color:{{ p.dim }};margin-bottom:2px">§ en esta página</div>
+      <div style="display:flex;flex-direction:column">
+        <a href="#13a" style="color:{{ p.bright }}">read</a>
+        <a href="#13a" style="color:{{ p.dim }}">write</a>
+        <a href="#13a" style="color:{{ p.dim }}">glob</a>
+      </div>
+      <div style="margin-top:18px;color:{{ p.dim }};font-size:10.5px;line-height:1.8;border-top:1px solid {{ p.border }};padding-top:12px">generada desde docs/api.md · <span style="color:{{ p.key }}">a1b2c3f</span><br>la API v1 es sagrada: crece solo por adición <a href="#13a" style="color:{{ p.key }}">adr-003 →</a></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:11px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}">
+    <span>api/fs · 8% · 1/12</span>
+    <span><span style="color:{{ p.fg }}">[j/k]</span> desplazar · <span style="color:{{ p.fg }}">[n/p]</span> módulo sig/ant · <span style="color:{{ p.fg }}">[:]</span> comando · <span style="color:{{ p.fg }}">[/]</span> buscar · <span style="color:{{ p.fg }}">[q]</span> portada</span>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «añade [a] api al menú de la portada <a class="dv-oid" href="#11a">11a</a>» · «diseña la página de guia-plugins» · «la búsqueda [/] buscando una función»</p>
+</section>
+
+<section class="dv-turn" id="t12" data-screen-label="Turno 12 — wiki v2 coherente">
+<div class="dv-thd"><a class="dv-tid" href="#t12">12</a><span class="dv-tname">Wiki v2: <a class="dv-oid" href="#6b">6b</a> alineada con <a class="dv-oid" href="#11a">11a</a> — themes, wordmark, una statusline, gramática terminal, tablas y código resueltos</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="12a" data-screen-label="12a Wiki v2">
+<div class="dv-olabel"><a class="dv-oid" href="#12a">12a</a>Hereda el theme del picker de <a class="dv-oid" href="#11a">11a</a> (cámbialo allí y mira aquí). Rutas reales del repo, citas con │, títulos con ═/─, tabla y código demostrados.</div>
+<div class="dv-card" style="width:960px;background:#0a1416">
+<div tabIndex="0" onKeyDown="{{ onWikiKey }}" style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};display:flex;flex-direction:column;min-height:640px;outline:none;cursor:text" style-focus="box-shadow:inset 0 0 0 1.5px {{ p.key }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <div style="display:flex;gap:14px;align-items:center">
+      <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+      <div style="display:flex;gap:14px">
+        <a href="#12a" style="color:{{ p.bg }};background:{{ p.key }};padding:0 8px;font-weight:600">docs</a>
+        <a href="#13a" style="color:{{ p.dim }}">api</a>
+        <a href="#12a" style="color:{{ p.dim }}">plugins</a>
+      </div>
+      <span style="color:{{ p.dim }}">docs/<span style="color:{{ p.bright }}">filosofia.md</span></span>
+    </div>
+    <div style="display:flex;gap:16px;color:{{ p.dim }}">
+      <span>{{ W.langNote }}</span>
+      <a href="#12a" style="color:{{ p.key }}">github ↗</a>
+    </div>
+  </div>
+  <div style="flex:1;display:flex">
+    <div style="width:240px;flex:none;border-right:1px solid {{ p.border }};padding:24px 0;font-size:12.5px;line-height:2.1">
+      <div style="padding:0 26px;color:{{ p.dim }}">{{ W.s1 }}/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#12a" style="color:{{ p.fg }}">instalacion.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">inicio-rapido.md</a>
+      </div>
+      <div style="padding:12px 26px 0;color:{{ p.dim }}">{{ W.s2 }}/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#12a" style="color:{{ p.bg }};background:{{ p.key }};margin:0 12px 0 -14px;padding:0 8px;font-weight:600">▸ filosofia.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">arquitectura.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">modelo-ejecucion.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">api.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">adr.md</a>
+      </div>
+      <div style="padding:12px 26px 0;color:{{ p.dim }}">{{ W.s3 }}/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#12a" style="color:{{ p.fg }}">providers.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">agente.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">sesiones.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">chat.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">guia-plugins.md</a>
+      </div>
+      <div style="padding:12px 26px 0;color:{{ p.dim }}">{{ W.s4 }}/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#12a" style="color:{{ p.fg }}">problemas.md</a>
+        <a href="#12a" style="color:{{ p.fg }}">pospuesto.md</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:36px 52px;font-size:14px;line-height:1.9;max-width:600px">
+      <div style="color:{{ p.bright }};font-weight:600;font-size:20px">Filosofía de nu</div>
+      <div style="color:{{ p.dim }};margin-bottom:20px;letter-spacing:-1px">═════════════════</div>
+      <div style="display:flex;gap:10px;color:{{ p.dim }};font-style:italic;margin-bottom:22px"><span>│</span><span>un runtime de Lua orientado a terminal cuya killer app es un coding harness.</span></div>
+      <p style="margin:0 0 18px;color:{{ p.fg }}">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <span style="color:{{ p.bright }};font-weight:600">kernel mínimo y un sistema de extensiones</span> donde todo lo demás — incluido el propio agente — es una extensión.</p>
+      <div style="color:{{ p.bright }};font-weight:600;margin:26px 0 2px">5. Batteries included, pero no enchufadas</div>
+      <div style="color:{{ p.dim }};margin-bottom:12px;letter-spacing:-1px">─────────────────────────────</div>
+      <p style="margin:0 0 16px;color:{{ p.fg }}">Las extensiones oficiales vienen embebidas pero ninguna se activa sola: el harness es una elección tuya. Enchufarlas es una línea:</p>
+      <div style="background:{{ p.border }};padding:12px 18px;font-size:13px;margin-bottom:22px;color:{{ p.bright }}"><span style="color:{{ p.key }}">$</span> nu --default-config</div>
+      <p style="margin:0 0 10px;color:{{ p.fg }}">{{ W.tableIntro }}</p>
+      <div style="font-size:12.5px;line-height:2;margin-bottom:22px">
+        <div style="display:grid;grid-template-columns:190px 1fr;color:{{ p.dim }};border-bottom:1px solid {{ p.border }}"><span>{{ W.thCmd }}</span><span>{{ W.thWhat }}</span></div>
+        <div style="display:grid;grid-template-columns:190px 1fr;border-bottom:1px solid {{ p.border }}"><span style="color:{{ p.key }}">nu</span><span style="color:{{ p.fg }}">{{ W.r1 }}</span></div>
+        <div style="display:grid;grid-template-columns:190px 1fr;border-bottom:1px solid {{ p.border }}"><span style="color:{{ p.key }}">nu -p '&lt;prompt&gt;'</span><span style="color:{{ p.fg }}">{{ W.r2 }}</span></div>
+        <div style="display:grid;grid-template-columns:190px 1fr;border-bottom:1px solid {{ p.border }}"><span style="color:{{ p.key }}">nu -e '&lt;lua&gt;'</span><span style="color:{{ p.fg }}">{{ W.r3 }}</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:1px solid {{ p.border }};padding-top:14px;font-size:12.5px">
+        <span style="color:{{ p.dim }}">{{ W.prev }}</span>
+        <a href="#12a" style="color:{{ p.key }}">{{ W.next }} arquitectura.md →</a>
+      </div>
+    </div>
+    <div style="width:180px;flex:none;padding:36px 26px 0 0;font-size:11.5px;line-height:2">
+      <div style="color:{{ p.dim }};margin-bottom:2px">§ {{ W.onPage }}</div>
+      <div style="display:flex;flex-direction:column">
+        <a href="#12a" style="color:{{ p.bright }}">{{ W.toc1 }}</a>
+        <a href="#12a" style="color:{{ p.dim }}">{{ W.toc2 }}</a>
+        <a href="#12a" style="color:{{ p.dim }}">{{ W.toc3 }}</a>
+      </div>
+      <div style="margin-top:22px;color:{{ p.dim }};font-size:10.5px;line-height:1.8;border-top:1px solid {{ p.border }};padding-top:12px">{{ W.commit }}<br><span style="color:{{ p.key }}">a1b2c3f</span> · {{ W.commitAgo }}</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:11px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}">
+    <span>
+      <sc-if value="{{ wikiActive }}" hint-placeholder-val="{{ false }}"><span style="color:{{ p.key }};font-weight:600">{{ wikiPromptChar }}</span><span style="color:{{ p.bright }}">{{ wikiTyped }}</span><span style="display:inline-block;width:8px;height:14px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></sc-if>
+      <sc-if value="{{ wikiIdle }}" hint-placeholder-val="{{ true }}">{{ wikiLeft }}</sc-if>
+    </span>
+    <span><span style="color:{{ p.fg }}">[j/k]</span> {{ W.kScroll }} · <span style="color:{{ p.fg }}">[n/p]</span> {{ W.kDoc }} · <span style="color:{{ p.fg }}">[:]</span> {{ W.kCmd }} · <span style="color:{{ p.fg }}">[/]</span> {{ W.kSearch }} · <span style="color:{{ p.fg }}">[q]</span> {{ W.kBack }}</span>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «monta portada + esta wiki como prototipo navegable» · «diseña la búsqueda [/]» · «¿cómo se ve una tabla ancha tipo códigos de salida?»</p>
+</section>
+
+<section class="dv-turn" id="t11" data-screen-label="Turno 11 — review aplicada">
+<div class="dv-thd"><a class="dv-tid" href="#t11">11</a><span class="dv-tname">Review aplicada sobre <a class="dv-oid" href="#10a">10a</a>: picker como texto, teclado REAL, wordmark, un solo prompt. Haz clic en el terminal y teclea</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="11a" data-screen-label="11a Portada v2">
+<div class="dv-olabel"><a class="dv-oid" href="#11a">11a</a>Teclea i / d / g, o escribe cualquier cosa y pulsa enter. Theme e idioma persisten. La wiki en inglés queda señalada como pendiente.</div>
+<div class="dv-card" style="width:720px;background:#0a1416">
+<div tabIndex="0" onKeyDown="{{ onKey }}" style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:520px;display:flex;flex-direction:column;outline:none;cursor:text" style-focus="box-shadow:inset 0 0 0 1.5px {{ p.key }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:11px">
+    <span style="background:{{ p.bright }};color:{{ p.bg }};padding:2px 9px;font-weight:700;font-size:12px">nu</span>
+    <div style="display:flex;gap:18px;align-items:center">
+      <div style="display:flex;gap:8px">
+        <span style="color:{{ p.dim }}">theme:</span>
+        <sc-for list="{{ textThemes }}" as="tt" hint-placeholder-count="4">
+          <span onClick="{{ tt.pick }}" style="cursor:pointer;color:{{ tt.col }};font-weight:{{ tt.weight }}">{{ tt.display }}</span>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:8px">
+        <span style="color:{{ p.dim }}">lang:</span>
+        <span onClick="{{ pickEs }}" style="cursor:pointer;color:{{ esCol2 }};font-weight:{{ esW }}">{{ esDisplay }}</span>
+        <span onClick="{{ pickEn }}" style="cursor:pointer;color:{{ enCol2 }};font-weight:{{ enW }}">{{ enDisplay }}</span>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 60px;font-size:13px;line-height:2">
+    <div style="color:{{ p.dim }};font-size:12px">$ nu</div>
+    <div style="height:20px"></div>
+    <h1 style="margin:0 0 14px;font-family:'IBM Plex Mono',monospace;font-size:28px;line-height:1.4;font-weight:600;color:{{ p.bright }}">{{ L.sloganA }}<br><span style="color:{{ p.key }}">{{ L.sloganB }}</span></h1>
+    <div style="color:{{ p.fg }};font-size:12.5px;line-height:1.8;max-width:450px">{{ L.body }}</div>
+    <div style="height:26px"></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">i</span><span style="color:{{ p.dim }}">]</span> {{ L.k1 }} <span style="color:{{ p.dim }}">— curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">d</span><span style="color:{{ p.dim }}">]</span> {{ L.k2 }} <span style="color:{{ p.dim }}">— {{ L.k2d }}</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">a</span><span style="color:{{ p.dim }}">]</span> api <span style="color:{{ p.dim }}">— {{ L.kApiD }}</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">g</span><span style="color:{{ p.dim }}">]</span> github ↗</div>
+    <div style="height:22px"></div>
+    <div><span style="color:{{ promptCol }}">{{ promptLabel }}</span> <span style="color:{{ p.bright }}">{{ typedText }}</span><span style="display:inline-block;width:9px;height:17px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+    <div style="color:{{ p.dim }};font-size:12px;min-height:26px;white-space:pre-wrap">{{ feedbackText }}</div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid {{ p.border }};font-size:11px;color:{{ p.dim }}"><span>apache-2.0</span><a href="https://github.com/dbareagimeno/nu/releases" target="_blank" style="color:{{ p.dim }};text-decoration:underline">v0.1.3</a></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «monta el prototipo completo: esta portada + wiki pager <a class="dv-oid" href="#6b">6b</a>» · «haz que [d] navegue de verdad a la wiki» · «el REPL Lua easter egg»</p>
+</section>
+
+<section class="dv-turn" id="t10" data-screen-label="Turno 10 — 9c refinada con themes e idioma">
+<div class="dv-thd"><a class="dv-tid" href="#t10">10</a><span class="dv-tname">La portada candidata: <a class="dv-oid" href="#9c">9c</a> con tu copy + theme picker de <a class="dv-oid" href="#8a">8a</a> + selector de idioma. Todo funcional</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="10a" data-screen-label="10a Portada candidata">
+<div class="dv-olabel"><a class="dv-oid" href="#10a">10a</a>Coma en lugar de raya, fuera «el propio agente», menú instalar/documentación/github. Prueba themes e idioma.</div>
+<div class="dv-card" style="width:720px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:520px;display:flex;flex-direction:column;transition:background .25s">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:10.5px">
+    <span style="color:{{ p.dim }}">theme = "<span style="color:{{ p.key }}">{{ p.name }}</span>"</span>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center">
+        <sc-for list="{{ bootThemes }}" as="bt" hint-placeholder-count="4">
+          <div onClick="{{ bt.pick }}" style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 8px;border:1px solid {{ bt.borderCol }};border-radius:99px">
+            <span style="width:9px;height:9px;border-radius:99px;background:{{ bt.dot }};display:inline-block"></span>
+            <span style="color:{{ bt.labelCol }};font-size:10px">{{ bt.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;border-left:1px solid {{ p.border }};padding-left:14px;gap:2px">
+        <span onClick="{{ pickEs }}" style="cursor:pointer;padding:3px 7px;border-radius:4px;font-size:10px;color:{{ esCol }};background:{{ esBg }}">es</span>
+        <span onClick="{{ pickEn }}" style="cursor:pointer;padding:3px 7px;border-radius:4px;font-size:10px;color:{{ enCol }};background:{{ enBg }}">en</span>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:52px 60px;font-size:13px;line-height:2">
+    <div style="color:{{ p.dim }};font-size:11.5px;margin-bottom:18px">$ nu</div>
+    <h1 style="margin:0 0 14px;font-family:'IBM Plex Mono',monospace;font-size:28px;line-height:1.4;font-weight:600;color:{{ p.bright }}">{{ L.sloganA }}<br><span style="color:{{ p.key }}">{{ L.sloganB }}</span></h1>
+    <div style="color:{{ p.fg }};font-size:12.5px;line-height:1.8;max-width:450px">{{ L.body }}</div>
+    <div style="height:26px"></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">i</span><span style="color:{{ p.dim }}">]</span> {{ L.k1 }} <span style="color:{{ p.dim }}">— curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">d</span><span style="color:{{ p.dim }}">]</span> {{ L.k2 }} <span style="color:{{ p.dim }}">— {{ L.k2d }}</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">g</span><span style="color:{{ p.dim }}">]</span> github <span style="color:{{ p.dim }}">— {{ L.k3d }}</span></div>
+    <div style="height:22px"></div>
+    <div><span style="color:{{ p.dim }}">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}"><span>{{ L.footer }}</span><span>v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «monta el prototipo completo: esta portada + la wiki pager <a class="dv-oid" href="#6b">6b</a> con theme e idioma persistentes» · «otra pasada al slogan en inglés» · «añade [r] releases al menú»</p>
+</section>
+
+<section class="dv-turn" id="t9" data-screen-label="Turno 9 — copy que vende">
+<div class="dv-thd"><a class="dv-tid" href="#t9">9</a><span class="dv-tname">Copy menos técnico sobre <a class="dv-oid" href="#8a">8a</a>: tres slogans + menú reescrito a beneficios</span></div>
+<div class="dv-opts">
+
+<!-- 9a directa -->
+<div class="dv-opt" id="9a" data-screen-label="9a Directa">
+<div class="dv-olabel"><a class="dv-oid" href="#9a">9a</a>«Directa» — tu idea pulida: qué es + la promesa de personalización en una frase.</div>
+<div class="dv-card" style="width:640px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0a1416;color:#a9bfc4;min-height:480px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:52px 60px;font-size:13px;line-height:2">
+    <div style="color:#42585d;font-size:11.5px;margin-bottom:18px">$ nu</div>
+    <h1 style="margin:0 0 14px;font-family:'IBM Plex Mono',monospace;font-size:24px;line-height:1.45;font-weight:600;color:#e8f4f6">Un coding harness en tu terminal.<br>Si no te gusta cómo funciona, <span style="color:#4fcadb">lo cambias</span>.</h1>
+    <div style="color:#7d949a;font-size:12.5px;line-height:1.8;max-width:440px">Un solo binario, nada más que instalar. Y dentro, nada intocable: el agente, el chat, cada atajo están escritos en Lua — el mismo Lua que puedes escribir tú.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">i</span><span style="color:#42585d">]</span> instalar en 10 segundos <span style="color:#42585d">— curl | sh y listo</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">w</span><span style="color:#42585d">]</span> cómo funciona <span style="color:#42585d">— la wiki</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">g</span><span style="color:#42585d">]</span> github ↗</div>
+    <div style="height:22px"></div>
+    <div><span style="color:#42585d">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#4fcadb;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #16292d;font-size:10.5px;color:#42585d"><span>gratis · open source · apache-2.0</span><span>v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+<!-- 9b provocadora -->
+<div class="dv-opt" id="9b" data-screen-label="9b Provocadora">
+<div class="dv-olabel"><a class="dv-oid" href="#9b">9b</a>«Provocadora» — se posiciona contra el resto de harnesses sin nombrarlos.</div>
+<div class="dv-card" style="width:640px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0a1416;color:#a9bfc4;min-height:480px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:52px 60px;font-size:13px;line-height:2">
+    <div style="color:#42585d;font-size:11.5px;margin-bottom:18px">$ nu</div>
+    <h1 style="margin:0 0 14px;font-family:'IBM Plex Mono',monospace;font-size:24px;line-height:1.45;font-weight:600;color:#e8f4f6">Otros harness se configuran.<br><span style="color:#4fcadb">nu se reescribe.</span></h1>
+    <div style="color:#7d949a;font-size:12.5px;line-height:1.8;max-width:440px">El agente que trae de serie está construido con la misma API que te damos a ti. Cámbiale la UI, las tools, el loop entero — sin forks y sin pedir permiso.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">i</span><span style="color:#42585d">]</span> instalar <span style="color:#42585d">— un binario, cero dependencias</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">w</span><span style="color:#42585d">]</span> ver de qué está hecho <span style="color:#42585d">— la wiki</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">g</span><span style="color:#42585d">]</span> github ↗</div>
+    <div style="height:22px"></div>
+    <div><span style="color:#42585d">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#4fcadb;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #16292d;font-size:10.5px;color:#42585d"><span>gratis · open source · apache-2.0</span><span>v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+<!-- 9c simple -->
+<div class="dv-opt" id="9c" data-screen-label="9c Simple">
+<div class="dv-olabel"><a class="dv-oid" href="#9c">9c</a>«Simple» — cuatro palabras y a correr. La más memorable.</div>
+<div class="dv-card" style="width:640px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0a1416;color:#a9bfc4;min-height:480px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:52px 60px;font-size:13px;line-height:2">
+    <div style="color:#42585d;font-size:11.5px;margin-bottom:18px">$ nu</div>
+    <h1 style="margin:0 0 14px;font-family:'IBM Plex Mono',monospace;font-size:28px;line-height:1.4;font-weight:600;color:#e8f4f6">Tu agente de código.<br><span style="color:#4fcadb">Tus reglas.</span></h1>
+    <div style="color:#7d949a;font-size:12.5px;line-height:1.8;max-width:440px">Instálalo con una línea. Úsalo tal cual — o cámbialo entero. nu es el coding harness donde todo, hasta el propio agente, es tuyo de verdad.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">i</span><span style="color:#42585d">]</span> empezar <span style="color:#42585d">— curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">w</span><span style="color:#42585d">]</span> conocer nu <span style="color:#42585d">— la wiki</span></div>
+    <div><span style="color:#42585d">[</span><span style="color:#4fcadb;font-weight:600">g</span><span style="color:#42585d">]</span> github ↗</div>
+    <div style="height:22px"></div>
+    <div><span style="color:#42585d">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#4fcadb;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #16292d;font-size:10.5px;color:#42585d"><span>gratis · open source · apache-2.0</span><span>v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «el slogan de <a class="dv-oid" href="#9c">9c</a> con el cuerpo de <a class="dv-oid" href="#9a">9a</a>» · «más variantes del slogan» · «monta el prototipo final: esta portada + pager <a class="dv-oid" href="#6b">6b</a> + themes de <a class="dv-oid" href="#8a">8a</a>»</p>
+</section>
+
+<section class="dv-turn" id="t8" data-screen-label="Turno 8 — identidad cian + theme picker">
+<div class="dv-thd"><a class="dv-tid" href="#t8">8</a><span class="dv-tname">Identidad cian por defecto + theme picker funcional: nu · dracula · gruvbox · solarized light. Pruébalo</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="8a" data-screen-label="8a Boot con themes">
+<div class="dv-olabel"><a class="dv-oid" href="#8a">8a</a>Portada <a class="dv-oid" href="#5b">5b</a> con theme «nu» cian de serie; el picker cambia la paleta entera en vivo, como haría init.lua.</div>
+<div class="dv-card" style="width:700px;background:#0a1416">
+<div style="font-family:'IBM Plex Mono',monospace;background:{{ p.bg }};color:{{ p.fg }};min-height:500px;display:flex;flex-direction:column;transition:background .25s">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid {{ p.border }};font-size:10.5px">
+    <span style="color:{{ p.dim }}">theme = "<span style="color:{{ p.key }}">{{ p.name }}</span>"</span>
+    <div style="display:flex;gap:10px;align-items:center">
+      <sc-for list="{{ bootThemes }}" as="bt" hint-placeholder-count="4">
+        <div onClick="{{ bt.pick }}" style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 8px;border:1px solid {{ bt.borderCol }};border-radius:99px">
+          <span style="width:9px;height:9px;border-radius:99px;background:{{ bt.dot }};display:inline-block"></span>
+          <span style="color:{{ bt.labelCol }};font-size:10px">{{ bt.label }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:52px 60px;font-size:13px;line-height:2">
+    <div style="color:{{ p.bright }};font-weight:600">nu 0.1.3 — runtime desnudo</div>
+    <div style="color:{{ p.dim }}">ninguna extensión activa. el harness es una elección tuya.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">a</span><span style="color:{{ p.dim }}">]</span> activar el conjunto oficial <span style="color:{{ p.dim }}">—</span> <span style="color:{{ p.c2 }}">agent · chat · providers · mcp</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">w</span><span style="color:{{ p.dim }}">]</span> leer la wiki <span style="color:{{ p.dim }}">—</span> <span style="color:{{ p.c3 }}">filosofia · arquitectura · api</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">i</span><span style="color:{{ p.dim }}">]</span> instalar <span style="color:{{ p.dim }}">—</span> <span style="color:{{ p.c4 }}">curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:{{ p.dim }}">[</span><span style="color:{{ p.key }};font-weight:600">g</span><span style="color:{{ p.dim }}">]</span> github ↗</div>
+    <div style="height:26px"></div>
+    <div><span style="color:{{ p.dim }}">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:{{ p.key }};vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid {{ p.border }};font-size:10.5px;color:{{ p.dim }}"><span><span style="color:{{ p.c2 }}">go</span> · <span style="color:{{ p.c3 }}">lua</span> · apache-2.0</span><span>modelo emacs, no neovim</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «aplica esto al pager <a class="dv-oid" href="#6b">6b</a> con el theme persistente» · «cambia solarized por catppuccin latte» · «monta el prototipo completo portada + wiki con este sistema»</p>
+</section>
+
+<section class="dv-turn" id="t7" data-screen-label="Turno 7 — color sin un acento de marca">
+<div class="dv-thd"><a class="dv-tid" href="#t7">7</a><span class="dv-tname">Color sin casarse con uno: la marca es una PALETA de terminal, no un acento. Tres themes sobre <a class="dv-oid" href="#5b">5b</a></span></div>
+<div class="dv-opts">
+
+<!-- 7a theme nu (ANSI cálido) -->
+<div class="dv-opt" id="7a" data-screen-label="7a Theme nu ANSI">
+<div class="dv-olabel"><a class="dv-oid" href="#7a">7a</a>«theme nu» — carbón cálido + colores ANSI usados semánticamente (teclas ámbar, rutas cian, strings verde). Colorido como un TUI real, sin acento único.</div>
+<div class="dv-card" style="width:640px;background:#161310">
+<div style="font-family:'IBM Plex Mono',monospace;background:#161310;color:#b5aa98;min-height:460px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:56px 60px;font-size:13px;line-height:2">
+    <div style="color:#efe6d5">nu 0.1.3 — runtime desnudo</div>
+    <div style="color:#6b6152">ninguna extensión activa. el harness es una elección tuya.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#6b6152">[</span><span style="color:#e0a458">a</span><span style="color:#6b6152">]</span> activar el conjunto oficial <span style="color:#6b6152">—</span> <span style="color:#8fb573">agent · chat · providers · mcp</span></div>
+    <div><span style="color:#6b6152">[</span><span style="color:#e0a458">w</span><span style="color:#6b6152">]</span> leer la wiki <span style="color:#6b6152">—</span> <span style="color:#72b3b8">filosofia · arquitectura · api</span></div>
+    <div><span style="color:#6b6152">[</span><span style="color:#e0a458">i</span><span style="color:#6b6152">]</span> instalar <span style="color:#6b6152">—</span> <span style="color:#c98a8a">curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:#6b6152">[</span><span style="color:#e0a458">g</span><span style="color:#6b6152">]</span> github ↗</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#6b6152">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#e0a458;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #2a251e;font-size:10.5px;color:#6b6152"><span><span style="color:#8fb573">go</span> · <span style="color:#72b3b8">lua</span> · apache-2.0</span><span>modelo emacs, no neovim</span></div>
+</div>
+</div>
+</div>
+
+<!-- 7b azul DOS -->
+<div class="dv-opt" id="7b" data-screen-label="7b Azul DOS">
+<div class="dv-olabel"><a class="dv-oid" href="#7b">7b</a>«Azul» — el fondo ES el color: azul profundo tipo Turbo Pascal/edit.com. Icónico de terminal, y nadie en el espacio harness lo usa.</div>
+<div class="dv-card" style="width:640px;background:#101a3a">
+<div style="font-family:'IBM Plex Mono',monospace;background:#101a3a;color:#a9b4d6;min-height:460px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:56px 60px;font-size:13px;line-height:2">
+    <div style="color:#f0f3fc">nu 0.1.3 — runtime desnudo</div>
+    <div style="color:#5a6798">ninguna extensión activa. el harness es una elección tuya.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#5a6798">[</span><span style="color:#ffd866">a</span><span style="color:#5a6798">]</span> activar el conjunto oficial <span style="color:#5a6798">— agent · chat · providers · mcp</span></div>
+    <div><span style="color:#5a6798">[</span><span style="color:#ffd866">w</span><span style="color:#5a6798">]</span> leer la wiki <span style="color:#5a6798">— filosofia, arquitectura, api</span></div>
+    <div><span style="color:#5a6798">[</span><span style="color:#ffd866">i</span><span style="color:#5a6798">]</span> instalar <span style="color:#5a6798">— curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:#5a6798">[</span><span style="color:#ffd866">g</span><span style="color:#5a6798">]</span> github ↗</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#5a6798">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#ffd866;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #1e2c56;font-size:10.5px;color:#5a6798"><span>un binario go · sin cgo · apache-2.0</span><span>modelo emacs, no neovim</span></div>
+</div>
+</div>
+</div>
+
+<!-- 7c crema con tinta ANSI -->
+<div class="dv-opt" id="7c" data-screen-label="7c Crema ANSI">
+<div class="dv-olabel"><a class="dv-oid" href="#7c">7c</a>«Crema» — terminal en modo claro: papel cálido con tinta de colores ANSI apagados. Ni negro ni blanco puros; nadie asocia esto a un harness.</div>
+<div class="dv-card" style="width:640px;background:#f3ecdd">
+<div style="font-family:'IBM Plex Mono',monospace;background:#f3ecdd;color:#4a453a;min-height:460px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:56px 60px;font-size:13px;line-height:2">
+    <div style="color:#26221a;font-weight:600">nu 0.1.3 — runtime desnudo</div>
+    <div style="color:#948a72">ninguna extensión activa. el harness es una elección tuya.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#948a72">[</span><span style="color:#b3591f;font-weight:600">a</span><span style="color:#948a72">]</span> activar el conjunto oficial <span style="color:#948a72">—</span> <span style="color:#5a7a3a">agent · chat · providers · mcp</span></div>
+    <div><span style="color:#948a72">[</span><span style="color:#b3591f;font-weight:600">w</span><span style="color:#948a72">]</span> leer la wiki <span style="color:#948a72">—</span> <span style="color:#2a7a80">filosofia · arquitectura · api</span></div>
+    <div><span style="color:#948a72">[</span><span style="color:#b3591f;font-weight:600">i</span><span style="color:#948a72">]</span> instalar <span style="color:#948a72">—</span> <span style="color:#9a4a5a">curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:#948a72">[</span><span style="color:#b3591f;font-weight:600">g</span><span style="color:#948a72">]</span> github ↗</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#948a72">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#b3591f;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #ddd2ba;font-size:10.5px;color:#948a72"><span><span style="color:#5a7a3a">go</span> · <span style="color:#2a7a80">lua</span> · apache-2.0</span><span>modelo emacs, no neovim</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «aplica <a class="dv-oid" href="#7a">7a</a> al pager <a class="dv-oid" href="#6b">6b</a>» · «<a class="dv-oid" href="#7b">7b</a> más apagado / menos saturado» · «<a class="dv-oid" href="#7a">7a</a> y <a class="dv-oid" href="#7c">7c</a> como modo oscuro/claro del mismo theme»</p>
+</section>
+
+<section class="dv-turn" id="t6" data-screen-label="Turno 6 — cómo escala 5b a la wiki">
+<div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Cómo escala <a class="dv-oid" href="#5b">5b</a>: el arranque es la portada; la wiki es un pager. Dos grados de pureza</span></div>
+<div class="dv-opts">
+
+<!-- 6a pager puro -->
+<div class="dv-opt" id="6a" data-screen-label="6a Pager puro">
+<div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a>«Pager» — la wiki como less(1): todo mono, una columna, navegación por teclas abajo. Pureza total del concepto.</div>
+<div class="dv-card" style="width:760px;background:#0b0b0b">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0b0b0b;color:#a8a8a8;display:flex;flex-direction:column;min-height:560px">
+  <div style="display:flex;justify-content:space-between;padding:12px 28px;border-bottom:1px solid #1e1e1e;font-size:11px">
+    <span style="color:#555">nu://wiki/<span style="color:#f2f2f2">filosofia</span></span>
+    <span style="color:#555">doc 1 de 15 · 8%</span>
+  </div>
+  <div style="flex:1;padding:44px 72px;font-size:13px;line-height:1.95;max-width:560px">
+    <div style="color:#555;margin-bottom:6px">═══ FILOSOFÍA DE NU ═══</div>
+    <div style="color:#666;font-style:italic;margin-bottom:24px">un runtime de Lua orientado a terminal cuya killer app es un coding harness.</div>
+    <p style="margin:0 0 18px;color:#c8c8c8">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <span style="color:#f2f2f2;font-weight:600">kernel mínimo y un sistema de extensiones</span> donde todo lo demás — incluido el propio agente — es una extensión.</p>
+    <div style="color:#f2f2f2;font-weight:600;margin:26px 0 10px">## 2. el core no sabe lo que es un agente</div>
+    <p style="margin:0 0 18px;color:#c8c8c8">El modelo no es Neovim (core grande + hooks), es Emacs/Textadept: un kernel diminuto que solo aporta primitivas y un intérprete de Lua. El loop del agente, MCP, el chat: <span style="color:#f2f2f2">todo son extensiones Lua</span>, incluidas las oficiales.</p>
+    <div style="border-left:2px solid #2e2e2e;padding-left:16px;color:#777;margin:22px 0">si una feature oficial no se puede construir con la API pública de extensiones, la API está incompleta.</div>
+    <div style="color:#444;margin-top:28px">: <span style="display:inline-block;width:8px;height:15px;background:#a8a8a8;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;gap:22px;padding:12px 28px;border-top:1px solid #1e1e1e;font-size:10.5px;color:#444">
+    <span><span style="color:#888">[j/k]</span> desplazar</span><span><span style="color:#888">[n/p]</span> doc sig/ant</span><span><span style="color:#888">[i]</span> índice</span><span><span style="color:#888">[/]</span> buscar</span><span><span style="color:#888">[q]</span> volver</span>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 6b pager con índice -->
+<div class="dv-opt" id="6b" data-screen-label="6b Pager con índice">
+<div class="dv-olabel"><a class="dv-oid" href="#6b">6b</a>«Pager + índice» — el pragmático: árbol persistente a la izquierda (el [i] siempre abierto) y ratón bienvenido. Mismo lenguaje, escala a 20+ docs.</div>
+<div class="dv-card" style="width:920px;background:#0b0b0b">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0b0b0b;color:#a8a8a8;display:flex;flex-direction:column;min-height:560px">
+  <div style="display:flex;justify-content:space-between;padding:12px 28px;border-bottom:1px solid #1e1e1e;font-size:11px">
+    <span style="color:#555">nu://wiki/<span style="color:#f2f2f2">filosofia</span></span>
+    <div style="display:flex;gap:18px"><a href="#6b" style="color:#555">instalar</a><a href="#6b" style="color:#555">github ↗</a></div>
+  </div>
+  <div style="flex:1;display:flex">
+    <div style="width:230px;flex:none;border-right:1px solid #1e1e1e;padding:26px 0;font-size:12px;line-height:2.1">
+      <div style="padding:0 26px;color:#444">wiki/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#6b" style="color:#f2f2f2;font-weight:600">▸ filosofia</a>
+        <a href="#6b" style="color:#777">arquitectura</a>
+        <a href="#6b" style="color:#777">modelo-ejecucion</a>
+        <a href="#6b" style="color:#777">api</a>
+        <a href="#6b" style="color:#777">adr</a>
+      </div>
+      <div style="padding:14px 26px 0;color:#444">extensiones/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#6b" style="color:#777">agente</a>
+        <a href="#6b" style="color:#777">chat</a>
+        <a href="#6b" style="color:#777">providers</a>
+        <a href="#6b" style="color:#777">sesiones</a>
+        <a href="#6b" style="color:#777">guia-plugins</a>
+      </div>
+      <div style="padding:14px 26px 0;color:#444">proceso/</div>
+      <div style="padding:0 26px 0 40px;display:flex;flex-direction:column">
+        <a href="#6b" style="color:#777">problemas</a>
+        <a href="#6b" style="color:#777">pospuesto</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:40px 56px;font-size:13px;line-height:1.95;max-width:520px">
+      <div style="color:#555;margin-bottom:6px">═══ FILOSOFÍA DE NU ═══</div>
+      <div style="color:#666;font-style:italic;margin-bottom:24px">un runtime de Lua orientado a terminal cuya killer app es un coding harness.</div>
+      <p style="margin:0 0 18px;color:#c8c8c8">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <span style="color:#f2f2f2;font-weight:600">kernel mínimo y un sistema de extensiones</span> donde todo lo demás — incluido el propio agente — es una extensión.</p>
+      <div style="color:#f2f2f2;font-weight:600;margin:26px 0 10px">## 3. lua puede hacer cualquier cosa</div>
+      <p style="margin:0;color:#c8c8c8">No hay «zona privilegiada» reservada al core. El usuario que quiere un harness distinto no hace fork: <span style="color:#f2f2f2">escribe Lua</span>.</p>
+    </div>
+    <div style="width:160px;flex:none;padding:40px 26px 0 0;font-size:11px;line-height:2">
+      <div style="color:#444;margin-bottom:4px">§ en esta página</div>
+      <div style="display:flex;flex-direction:column">
+        <a href="#6b" style="color:#f2f2f2">principios</a>
+        <a href="#6b" style="color:#666">inspiraciones</a>
+        <a href="#6b" style="color:#666">lo que nu no es</a>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:22px;padding:12px 28px;border-top:1px solid #1e1e1e;font-size:10.5px;color:#444">
+    <span><span style="color:#888">[j/k]</span> desplazar</span><span><span style="color:#888">[n/p]</span> doc sig/ant</span><span><span style="color:#888">[/]</span> buscar</span><span><span style="color:#888">[q]</span> portada</span>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «monta <a class="dv-oid" href="#5b">5b</a> + <a class="dv-oid" href="#6b">6b</a> como prototipo navegable con teclado real» · «<a class="dv-oid" href="#6a">6a</a> pero con la búsqueda [/] abierta» · «¿y los bloques de código/tablas del README en este formato?»</p>
+</section>
+
+<section class="dv-turn" id="t5" data-screen-label="Turno 5 — conceptos originales">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Tres conceptos que solo nu puede tener: la web como man page, como arranque desnudo, y como init.lua</span></div>
+<div class="dv-opts">
+
+<!-- 5a MAN PAGE -->
+<div class="dv-opt" id="5a" data-screen-label="5a Man page">
+<div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>«NU(1)» — la landing ES una man page. Formato sagrado de Unix, nadie lo usa como web. La wiki serían las demás páginas del manual.</div>
+<div class="dv-card" style="width:640px;background:#f7f7f5">
+<div style="font-family:'IBM Plex Mono',monospace;color:#26251f;background:#f7f7f5;padding:38px 48px 34px;font-size:13px;line-height:1.75">
+  <div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:34px"><span>NU(1)</span><span>Manual del usuario</span><span>NU(1)</span></div>
+  <div style="font-weight:700;margin-bottom:4px">NAME</div>
+  <div style="padding-left:40px;margin-bottom:22px"><span style="font-weight:700">nu</span> — runtime de Lua orientado a terminal cuya killer app es un coding harness</div>
+  <div style="font-weight:700;margin-bottom:4px">SYNOPSIS</div>
+  <div style="padding-left:40px;margin-bottom:22px;background:#eceae4;padding-top:10px;padding-bottom:10px;padding-right:16px"><span style="font-weight:700">nu</span> [<span style="text-decoration:underline">-p</span> <em>prompt</em>] [<span style="text-decoration:underline">-e</span> <em>lua</em>] [<span style="text-decoration:underline">--default-config</span>] [<span style="text-decoration:underline">--model</span> <em>prov/modelo</em>]</div>
+  <div style="font-weight:700;margin-bottom:4px">DESCRIPTION</div>
+  <div style="padding-left:40px;margin-bottom:22px">Un binario Go estático: un kernel diminuto de primitivas sobre un intérprete de Lua. El core no sabe lo que es un agente — el harness entero son extensiones Lua, las mismas que podría escribir cualquiera.</div>
+  <div style="font-weight:700;margin-bottom:4px">INSTALL</div>
+  <div style="padding-left:40px;margin-bottom:22px">curl -fsSL nu.sh/install | sh</div>
+  <div style="font-weight:700;margin-bottom:4px">SEE ALSO</div>
+  <div style="padding-left:40px;margin-bottom:30px"><a href="#5a" style="text-decoration:underline">filosofia(7)</a>, <a href="#5a" style="text-decoration:underline">agente(5)</a>, <a href="#5a" style="text-decoration:underline">chat(1)</a>, <a href="#5a" style="text-decoration:underline">plugins(7)</a>, <a href="#5a" style="text-decoration:underline">github ↗</a></div>
+  <div style="display:flex;justify-content:space-between;color:#8a887e"><span>Apache-2.0</span><span>13 de julio de 2026</span><span>v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+<!-- 5b BOOT -->
+<div class="dv-opt" id="5b" data-screen-label="5b Arranque desnudo">
+<div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>«Runtime desnudo» — la web replica el primer arranque de nu: casi vacía, y tú decides qué activar. La navegación son teclas.</div>
+<div class="dv-card" style="width:640px;background:#0b0b0b">
+<div style="font-family:'IBM Plex Mono',monospace;background:#0b0b0b;color:#a8a8a8;min-height:460px;display:flex;flex-direction:column">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:56px 60px;font-size:13px;line-height:2">
+    <div style="color:#f2f2f2">nu 0.1.3 — runtime desnudo</div>
+    <div style="color:#555">ninguna extensión activa. el harness es una elección tuya.</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#555">[</span><span style="color:#f2f2f2">a</span><span style="color:#555">]</span> activar el conjunto oficial <span style="color:#555">— agent · chat · providers · mcp</span></div>
+    <div><span style="color:#555">[</span><span style="color:#f2f2f2">w</span><span style="color:#555">]</span> leer la wiki <span style="color:#555">— filosofía, arquitectura, api</span></div>
+    <div><span style="color:#555">[</span><span style="color:#f2f2f2">i</span><span style="color:#555">]</span> instalar <span style="color:#555">— curl -fsSL nu.sh/install | sh</span></div>
+    <div><span style="color:#555">[</span><span style="color:#f2f2f2">g</span><span style="color:#555">]</span> github ↗</div>
+    <div style="height:26px"></div>
+    <div><span style="color:#555">&gt;</span> <span style="display:inline-block;width:9px;height:17px;background:#f2f2f2;vertical-align:text-bottom;animation:nu-blink 1.1s step-end infinite"></span></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:12px 24px;border-top:1px solid #1e1e1e;font-size:10.5px;color:#444"><span>un binario go · sin cgo · apache-2.0</span><span>modelo emacs, no neovim</span></div>
+</div>
+</div>
+</div>
+
+<!-- 5c INIT.LUA -->
+<div class="dv-opt" id="5c" data-screen-label="5c init.lua">
+<div class="dv-olabel"><a class="dv-oid" href="#5c">5c</a>«init.lua» — la landing es un fichero Lua real: los comentarios son el copy, el código es config verdadera. Leer la web = leer nu.</div>
+<div class="dv-card" style="width:640px;background:#101112">
+<div style="font-family:'IBM Plex Mono',monospace;background:#101112;color:#c8ccd0;font-size:12.5px;line-height:1.9">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #1f2124;font-size:11px">
+    <span style="color:#6b7078">~/.config/nu/init.lua</span>
+    <div style="display:flex;gap:16px"><a href="#5c" style="color:#6b7078">wiki</a><a href="#5c" style="color:#6b7078">extensiones</a><a href="#5c" style="color:#c8ccd0;border-bottom:1px solid #c8ccd0">github ↗</a></div>
+  </div>
+  <div style="display:flex;padding:26px 0 30px">
+    <div style="width:52px;flex:none;text-align:right;padding-right:16px;color:#33373c;user-select:none">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16</div>
+    <div style="flex:1;padding-right:28px">
+      <div style="color:#5f6b5f">-- nu · un runtime de Lua orientado a terminal</div>
+      <div style="color:#5f6b5f">-- cuya killer app es un coding harness.</div>
+      <div style="color:#5f6b5f">--</div>
+      <div style="color:#5f6b5f">-- un binario Go. un kernel diminuto. todo lo demás,</div>
+      <div style="color:#5f6b5f">-- <span style="color:#a8c8a8;font-weight:600">incluido el propio agente</span>, extensiones Lua como esta.</div>
+      <div style="height:1.9em"></div>
+      <div><span style="color:#8fa3c8">local</span> nu = <span style="color:#8fa3c8">require</span>(<span style="color:#c8b48f">"nu"</span>)</div>
+      <div style="height:1.9em"></div>
+      <div style="color:#5f6b5f">-- instalar: <span style="color:#a8c8a8">curl -fsSL nu.sh/install | sh</span></div>
+      <div style="color:#5f6b5f">-- el harness no se activa solo; lo enchufas tú:</div>
+      <div>nu.plugins.enable { <span style="color:#c8b48f">"agent"</span>, <span style="color:#c8b48f">"chat"</span>, <span style="color:#c8b48f">"providers"</span> }</div>
+      <div style="height:1.9em"></div>
+      <div style="color:#5f6b5f">-- y si el harness oficial no te gusta,</div>
+      <div style="color:#5f6b5f">-- no haces fork: escribes Lua.</div>
+      <div>nu.agent.tool { <span style="color:#c8b48f">name</span> = <span style="color:#c8b48f">"el_tuyo"</span>, run = <span style="color:#8fa3c8">function</span>() … <span style="color:#8fa3c8">end</span> }</div>
+      <div><a href="#5c" style="color:#a8c8a8;border-bottom:1px solid #3a4a3a">leer la filosofía →</a></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:10px 20px;border-top:1px solid #1f2124;font-size:10.5px;color:#33373c"><span>lua · utf-8</span><span>apache-2.0 · v0.1.3</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «desarrolla <a class="dv-oid" href="#5a">5a</a> con su wiki como páginas de manual» · «<a class="dv-oid" href="#5b">5b</a> pero que al pulsar [w] se despliegue la wiki» · «mezcla <a class="dv-oid" href="#5c">5c</a> con el theme selector de <a class="dv-oid" href="#4b">4b</a>»</p>
+</section>
+
+<section class="dv-turn" id="t4" data-screen-label="Turno 4 — sin color de marca">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Sin cerrarse a un color: el Spec (<a class="dv-oid" href="#1b">1b</a>) desarrollado vs. TTY con theme configurable</span></div>
+<div class="dv-opts">
+
+<!-- 4a Spec refinado -->
+<div class="dv-opt" id="4a" data-screen-label="4a Spec refinado">
+<div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>«Spec» empujado — solo tinta y papel. La identidad es la tipografía y el §, no un color.</div>
+<div class="dv-card" style="width:620px;background:#faf7f1">
+<div style="font-family:'Newsreader',serif;color:#1f1c17;background:#faf7f1">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:18px 36px;border-bottom:1px solid #1f1c17">
+    <span style="font-size:20px;font-weight:500;font-style:italic">nu</span>
+    <div style="display:flex;gap:22px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em"><a href="#4a">WIKI</a><a href="#4a">EXTENSIONES</a><a href="#4a" style="border-bottom:1px solid #1f1c17">GITHUB ↗</a></div>
+  </div>
+  <div style="padding:60px 36px 48px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:#8a8072;margin-bottom:18px">§0 · ABSTRACT</div>
+    <h1 style="margin:0;font-size:42px;line-height:1.14;font-weight:300">El binario trae el harness.<br><em style="font-weight:400">Enchufarlo es decisión tuya.</em></h1>
+    <p style="margin:22px 0 0;font-size:16px;line-height:1.65;color:#4a443a;max-width:440px;font-weight:300">Runtime de Lua para terminal. Kernel mínimo, extensiones para todo — el agente incluido. Los documentos son la espec; el código la implementa.</p>
+    <div style="margin-top:32px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;background:#1f1c17;color:#faf7f1;padding:12px 18px">curl -fsSL nu.sh/install | sh</div>
+      <a href="#4a" style="font-size:14px;font-style:italic;border-bottom:1px solid #b8ad99;padding-bottom:2px">Leer la espec</a>
+    </div>
+  </div>
+  <div style="margin:0 36px;border-top:1px solid #1f1c17;display:grid;grid-template-columns:1fr 1fr 1fr;font-size:12.5px;line-height:1.6;color:#6a6255">
+    <div style="padding:20px 20px 24px 0;border-right:1px solid #ddd4c4"><span style="display:block;font-size:22px;font-weight:300;color:#1f1c17;margin-bottom:4px">§1</span>Cero dependency hell. Un binario estático, curl | sh.</div>
+    <div style="padding:20px 20px 24px;border-right:1px solid #ddd4c4"><span style="display:block;font-size:22px;font-weight:300;color:#1f1c17;margin-bottom:4px">§2</span>El core no sabe qué es un agente. Modelo Emacs, no Neovim.</div>
+    <div style="padding:20px 0 24px 20px"><span style="display:block;font-size:22px;font-weight:300;color:#1f1c17;margin-bottom:4px">§4</span>Lua decide, Go ejecuta. Lo pesado es primitiva nativa.</div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 4b TTY themeable -->
+<div class="dv-opt" id="4b" data-screen-label="4b TTY themeable">
+<div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>TTY themeable — base tinta neutra (<a class="dv-oid" href="#2d">2d</a>) y el acento es un theme que el visitante elige, como su init.lua. Interactivo: prueba el selector.</div>
+<div class="dv-card" style="width:620px;background:#0b0b0b">
+<div style="font-family:'IBM Plex Mono',monospace;color:#a8a8a8;background:#0b0b0b">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:1px solid #222">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:600;font-size:15px;background:{{ themeAccent }};color:#0b0b0b;padding:1px 6px">nu</span><span style="color:#444;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:16px;font-size:11.5px;align-items:center">
+      <a href="#4b" style="color:#a8a8a8">wiki</a><a href="#4b" style="color:#a8a8a8">extensiones</a><a href="#4b" style="color:{{ themeAccent }}">github ↗</a>
+      <div style="display:flex;gap:6px;align-items:center;border-left:1px solid #222;padding-left:14px">
+        <span style="color:#444;font-size:10px">theme</span>
+        <sc-for list="{{ themes }}" as="t" hint-placeholder-count="4">
+          <div onClick="{{ t.pick }}" title="{{ t.name }}" style="width:14px;height:14px;border-radius:99px;cursor:pointer;background:{{ t.color }};border:{{ t.ring }}"></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <div style="padding:48px 26px 40px">
+    <div style="color:#444;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu · <span style="color:{{ themeAccent }}">theme = "{{ themeName }}"</span></div>
+    <h1 style="margin:0;font-size:28px;line-height:1.3;font-weight:500;color:#f2f2f2;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:{{ themeAccent }}">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#777;max-width:440px">Hiperconfigurable hasta en la web: el acento lo eliges tú, como todo lo demás en nu. Sin theme, tinta pura.</p>
+    <div style="margin-top:28px;display:inline-flex;align-items:center;gap:10px;background:#141414;border:1px solid #2e2e2e;padding:11px 15px;font-size:12px;color:#e0e0e0"><span style="color:{{ themeAccent }}">$</span> curl -fsSL nu.sh/install | sh</div>
+  </div>
+  <div style="padding:11px 26px;border-top:1px solid #222;display:flex;justify-content:space-between;font-size:10px;color:#444"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «desarrolla <a class="dv-oid" href="#4a">4a</a> con su wiki completa» · «<a class="dv-oid" href="#4b">4b</a> con los acentos del turno 3 como themes» · «mezcla: papel de <a class="dv-oid" href="#4a">4a</a> de día, TTY de noche»</p>
+</section>
+
+<section class="dv-turn" id="t3" data-screen-label="Turno 3 — acentos del usuario">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">TTY negro con tus tres acentos: violeta #6E56CF · magenta #C4477A · cian #1FA6B8</span></div>
+<div class="dv-opts">
+
+<!-- 3a violeta 6E56CF -->
+<div class="dv-opt" id="3a" data-screen-label="3a Violeta 6E56CF">
+<div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Violeta #6E56CF — sobre negro se aclara a #9B8AE8 para texto; el puro queda para fondos/inversión.</div>
+<div class="dv-card" style="width:520px;background:#0c0b10">
+<div style="font-family:'IBM Plex Mono',monospace;color:#b2adc2;background:#0c0b10">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #1f1c2b">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#9b8ae8;font-weight:600;font-size:15px">nu</span><span style="color:#3e3855;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#3a" style="color:#b2adc2">wiki</a><a href="#3a" style="color:#b2adc2">extensiones</a><a href="#3a" style="color:#9b8ae8">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#3e3855;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#ebe8f6;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#9b8ae8">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#817b96">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:inline-flex;align-items:center;gap:10px;background:#131019;border:1px solid #2c2545;padding:11px 15px;font-size:12px;color:#d2c8f2"><span style="color:#9b8ae8">$</span> curl -fsSL nu.sh/install | sh</div>
+      <a href="#3a" style="font-size:12px;background:#6e56cf;color:#fff;padding:11px 16px">filosofía →</a>
+    </div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #1f1c2b;display:flex;justify-content:space-between;font-size:10px;color:#3e3855"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+<!-- 3b magenta C4477A -->
+<div class="dv-opt" id="3b" data-screen-label="3b Magenta C4477A">
+<div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Magenta #C4477A — aclarado a #E87BA8 para texto; el más inesperado de los tres en dev tools.</div>
+<div class="dv-card" style="width:520px;background:#100b0d">
+<div style="font-family:'IBM Plex Mono',monospace;color:#c2adb6;background:#100b0d">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #2b1c23">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#e87ba8;font-weight:600;font-size:15px">nu</span><span style="color:#553844;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#3b" style="color:#c2adb6">wiki</a><a href="#3b" style="color:#c2adb6">extensiones</a><a href="#3b" style="color:#e87ba8">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#553844;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#f6e8ee;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#e87ba8">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#967b87">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:inline-flex;align-items:center;gap:10px;background:#191013;border:1px solid #45252f;padding:11px 15px;font-size:12px;color:#f2c8d8"><span style="color:#e87ba8">$</span> curl -fsSL nu.sh/install | sh</div>
+      <a href="#3b" style="font-size:12px;background:#c4477a;color:#fff;padding:11px 16px">filosofía →</a>
+    </div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #2b1c23;display:flex;justify-content:space-between;font-size:10px;color:#553844"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+<!-- 3c cian 1FA6B8 -->
+<div class="dv-opt" id="3c" data-screen-label="3c Cian 1FA6B8">
+<div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>Cian #1FA6B8 — aclarado a #4FCADB para texto; sobrio, técnico, el más legible de los tres.</div>
+<div class="dv-card" style="width:520px;background:#0a0e0f">
+<div style="font-family:'IBM Plex Mono',monospace;color:#a8bcc0;background:#0a0e0f">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #1a272a">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#4fcadb;font-weight:600;font-size:15px">nu</span><span style="color:#35494e;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#3c" style="color:#a8bcc0">wiki</a><a href="#3c" style="color:#a8bcc0">extensiones</a><a href="#3c" style="color:#4fcadb">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#35494e;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#e8f4f6;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#4fcadb">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#7a9196">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:inline-flex;align-items:center;gap:10px;background:#0e1517;border:1px solid #1d3a40;padding:11px 15px;font-size:12px;color:#c8ecf2"><span style="color:#4fcadb">$</span> curl -fsSL nu.sh/install | sh</div>
+      <a href="#3c" style="font-size:12px;background:#1fa6b8;color:#fff;padding:11px 16px">filosofía →</a>
+    </div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #1a272a;display:flex;justify-content:space-between;font-size:10px;color:#35494e"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «aplica <a class="dv-oid" href="#3a">3a</a> a la landing + wiki completa de <a class="dv-oid" href="#1a">1a</a>» · «los tres pero con el fondo neutro puro de <a class="dv-oid" href="#2d">2d</a>» · «prueba dos acentos a la vez»</p>
+</section>
+
+<section class="dv-turn" id="t2" data-screen-label="Turno 2 — acentos alternativos sobre negro">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Riffs de <a class="dv-oid" href="#1a">1a</a> — mismo TTY negro, acento desmarcado del verde</span></div>
+<div class="dv-opts">
+
+<!-- 2a ámbar -->
+<div class="dv-opt" id="2a" data-screen-label="2a Ámbar">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>«Ámbar P3» — el fósforo de los VT220. Cálido, retro pero mucho menos visto que el verde.</div>
+<div class="dv-card" style="width:520px;background:#0d0c09">
+<div style="font-family:'IBM Plex Mono',monospace;color:#c2b89e;background:#0d0c09">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #26221a">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#ffb454;font-weight:600;font-size:15px">nu</span><span style="color:#4a4232;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#2a" style="color:#c2b89e">wiki</a><a href="#2a" style="color:#c2b89e">extensiones</a><a href="#2a" style="color:#ffb454">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#4a4232;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#f0e8d8;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#ffb454">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#8f8570">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:inline-flex;align-items:center;gap:10px;background:#151209;border:1px solid #33290f;padding:11px 15px;font-size:12px;color:#e8d8b0"><span style="color:#ffb454">$</span> curl -fsSL nu.sh/install | sh</div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #26221a;display:flex;justify-content:space-between;font-size:10px;color:#4a4232"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+<!-- 2b hielo -->
+<div class="dv-opt" id="2b" data-screen-label="2b Hielo">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>«Hielo» — cian frío casi blanco. Clínico, moderno, cero nostalgia.</div>
+<div class="dv-card" style="width:520px;background:#0a0d0f">
+<div style="font-family:'IBM Plex Mono',monospace;color:#a8bcc4;background:#0a0d0f">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #1a2328">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#7fe8ff;font-weight:600;font-size:15px">nu</span><span style="color:#354449;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#2b" style="color:#a8bcc4">wiki</a><a href="#2b" style="color:#a8bcc4">extensiones</a><a href="#2b" style="color:#7fe8ff">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#354449;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#e8f4f8;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#7fe8ff">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#7a8f97">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:inline-flex;align-items:center;gap:10px;background:#0e1418;border:1px solid #1d3038;padding:11px 15px;font-size:12px;color:#c8e8f0"><span style="color:#7fe8ff">$</span> curl -fsSL nu.sh/install | sh</div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #1a2328;display:flex;justify-content:space-between;font-size:10px;color:#354449"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+<!-- 2c violeta -->
+<div class="dv-opt" id="2c" data-screen-label="2c Violeta">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>«Violeta» — guiño a Lua (su logo es azul-violeta). Identidad propia con justificación de marca.</div>
+<div class="dv-card" style="width:520px;background:#0c0b10">
+<div style="font-family:'IBM Plex Mono',monospace;color:#b4aec4;background:#0c0b10">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #201d2b">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#a78bfa;font-weight:600;font-size:15px">nu</span><span style="color:#403a52;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#2c" style="color:#b4aec4">wiki</a><a href="#2c" style="color:#b4aec4">extensiones</a><a href="#2c" style="color:#a78bfa">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#403a52;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#ece8f8;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#a78bfa">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#847c99">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:inline-flex;align-items:center;gap:10px;background:#121018;border:1px solid #2a2440;padding:11px 15px;font-size:12px;color:#d4c8f0"><span style="color:#a78bfa">$</span> curl -fsSL nu.sh/install | sh</div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #201d2b;display:flex;justify-content:space-between;font-size:10px;color:#403a52"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+<!-- 2d tinta -->
+<div class="dv-opt" id="2d" data-screen-label="2d Sin acento">
+<div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>«Tinta» — sin acento de color: solo blanco sobre negro e inversión. El desmarque máximo.</div>
+<div class="dv-card" style="width:520px;background:#0b0b0b">
+<div style="font-family:'IBM Plex Mono',monospace;color:#a8a8a8;background:#0b0b0b">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #222">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#fff;font-weight:600;font-size:15px;background:#fff;color:#0b0b0b;padding:1px 6px">nu</span><span style="color:#444;font-size:11px">v0.1.3</span></div>
+    <div style="display:flex;gap:18px;font-size:11.5px"><a href="#2d" style="color:#a8a8a8">wiki</a><a href="#2d" style="color:#a8a8a8">extensiones</a><a href="#2d" style="color:#fff;border-bottom:1px solid #fff">github ↗</a></div>
+  </div>
+  <div style="padding:44px 24px 36px">
+    <div style="color:#444;font-size:11.5px;margin-bottom:14px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:500;color:#f2f2f2;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="background:#f2f2f2;color:#0b0b0b;padding:0 4px">coding harness</span>.</h1>
+    <p style="margin:18px 0 0;font-size:12.5px;line-height:1.7;color:#777">Un binario Go. Un kernel diminuto. Todo lo demás — incluido el agente — extensiones Lua.</p>
+    <div style="margin-top:26px;display:inline-flex;align-items:center;gap:10px;background:#141414;border:1px solid #2e2e2e;padding:11px 15px;font-size:12px;color:#e0e0e0"><span style="color:#fff">$</span> curl -fsSL nu.sh/install | sh</div>
+  </div>
+  <div style="padding:11px 24px;border-top:1px solid #222;display:flex;justify-content:space-between;font-size:10px;color:#444"><span>Apache-2.0</span><span>go 78% · lua 20%</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «aplica <a class="dv-oid" href="#2c">2c</a> a todo <a class="dv-oid" href="#1a">1a</a> (landing + wiki completa)» · «<a class="dv-oid" href="#2a">2a</a> pero más apagado» · «combina <a class="dv-oid" href="#2d">2d</a> con un solo toque de color»</p>
+</section>
+
+<section class="dv-turn" id="t1" data-screen-label="Turno 1 — primeros drafts">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">nu — landing + wiki · tres direcciones (basadas en filosofia.md y el README)</span></div>
+<div class="dv-opts">
+
+<!-- ============ 1a — TTY ============ -->
+<div class="dv-opt" id="1a" data-screen-label="1a TTY">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>«TTY» — la web ES un terminal. Fósforo verde, monospace puro, cero adornos.</div>
+<div class="dv-card" style="width:1060px;background:#0b0d0b">
+
+<!-- 1a landing -->
+<div style="font-family:'IBM Plex Mono',monospace;color:#b8c4b8;background:#0b0d0b">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid #1d241d">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="color:#4ade80;font-weight:600;font-size:16px">nu</span>
+      <span style="color:#3a453a;font-size:12px">v0.1.3</span>
+    </div>
+    <div style="display:flex;gap:26px;font-size:12.5px">
+      <a href="#1a" style="color:#b8c4b8">wiki</a>
+      <a href="#1a" style="color:#b8c4b8">extensiones</a>
+      <a href="#1a" style="color:#b8c4b8">releases</a>
+      <a href="#1a" style="color:#4ade80">github ↗</a>
+    </div>
+  </div>
+  <div style="padding:72px 32px 56px;max-width:760px">
+    <div style="color:#3a453a;font-size:12.5px;margin-bottom:18px">~/proyecto $ nu</div>
+    <h1 style="margin:0;font-size:40px;line-height:1.25;font-weight:500;color:#e8f0e8;font-family:'IBM Plex Mono',monospace">Un runtime de Lua orientado a terminal cuya killer app es un <span style="color:#4ade80">coding harness</span>.</h1>
+    <p style="margin:26px 0 0;font-size:14.5px;line-height:1.75;color:#8a988a;max-width:620px">Un binario Go estático. Un kernel diminuto de primitivas. Todo lo demás — incluido el propio agente — extensiones Lua. Modelo Emacs, no Neovim.</p>
+    <div style="margin-top:40px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px;background:#111611;border:1px solid #243024;padding:13px 18px;font-size:13px;color:#c8e0c8">
+        <span style="color:#4ade80">$</span> curl -fsSL nu.sh/install | sh
+        <span style="color:#3a453a;cursor:pointer" title="copiar">⧉</span>
+      </div>
+      <a href="#1a" style="font-size:13px;color:#4ade80;border-bottom:1px solid #2b4a2b;padding-bottom:2px">leer la filosofía →</a>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid #1d241d">
+    <div style="padding:28px 32px;border-right:1px solid #1d241d">
+      <div style="color:#4ade80;font-size:11px;margin-bottom:10px">01 · CERO DEPENDENCY HELL</div>
+      <p style="margin:0;font-size:12.5px;line-height:1.7;color:#8a988a">Sin Node, sin npm, sin toolchain. Un único binario estático, <span style="color:#c8e0c8">curl | sh</span> y a trabajar.</p>
+    </div>
+    <div style="padding:28px 32px;border-right:1px solid #1d241d">
+      <div style="color:#4ade80;font-size:11px;margin-bottom:10px">02 · EL CORE NO SABE QUÉ ES UN AGENTE</div>
+      <p style="margin:0;font-size:12.5px;line-height:1.7;color:#8a988a">El chat, los providers, MCP, el loop del agente: todo son extensiones Lua, incluidas las oficiales.</p>
+    </div>
+    <div style="padding:28px 32px">
+      <div style="color:#4ade80;font-size:11px;margin-bottom:10px">03 · LUA DECIDE, GO EJECUTA</div>
+      <p style="margin:0;font-size:12.5px;line-height:1.7;color:#8a988a">Lua orquesta; el trabajo pesado es una primitiva Go, paralela por dentro.</p>
+    </div>
+  </div>
+  <div style="padding:14px 32px;border-top:1px solid #1d241d;display:flex;justify-content:space-between;font-size:11px;color:#3a453a">
+    <span>Apache-2.0 · Diego Barea</span><span>go 78% · lua 20%</span>
+  </div>
+</div>
+
+<!-- 1a wiki -->
+<div style="border-top:1px dashed #243024;font-family:'IBM Plex Mono',monospace;background:#0b0d0b">
+  <div style="display:flex;min-height:520px">
+    <div style="width:230px;flex:none;border-right:1px solid #1d241d;padding:24px 0">
+      <div style="padding:0 24px 12px;color:#3a453a;font-size:11px">docs/</div>
+      <div style="display:flex;flex-direction:column;font-size:12.5px">
+        <a href="#1a" style="padding:7px 24px;color:#0b0d0b;background:#4ade80;font-weight:600">filosofia.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">arquitectura.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">modelo-ejecucion.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">api.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">adr.md</a>
+      </div>
+      <div style="padding:20px 24px 12px;color:#3a453a;font-size:11px">extensiones/</div>
+      <div style="display:flex;flex-direction:column;font-size:12.5px">
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">agente.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">chat.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">providers.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">sesiones.md</a>
+        <a href="#1a" style="padding:7px 24px;color:#8a988a">guia-plugins.md</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:36px 44px;max-width:640px">
+      <div style="color:#3a453a;font-size:11px;margin-bottom:20px">docs / filosofia.md</div>
+      <h2 style="margin:0 0 8px;font-size:24px;font-weight:600;color:#e8f0e8;font-family:'IBM Plex Mono',monospace">Filosofía de nu</h2>
+      <p style="margin:0 0 26px;font-size:13px;line-height:1.75;color:#8a988a;border-left:2px solid #243024;padding-left:14px;font-style:italic">Un runtime de Lua orientado a terminal cuya killer app es un coding harness.</p>
+      <p style="margin:0 0 20px;font-size:13px;line-height:1.85;color:#b8c4b8">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <span style="color:#e8f0e8;font-weight:600">kernel mínimo y un sistema de extensiones</span> donde todo lo demás — incluido el propio agente — es una extensión.</p>
+      <h3 style="margin:28px 0 12px;font-size:14px;color:#4ade80;font-weight:600"># 5. Batteries included, pero no enchufadas</h3>
+      <p style="margin:0 0 16px;font-size:13px;line-height:1.85;color:#b8c4b8">El binario distribuye las extensiones oficiales embebidas, pero ninguna se activa sola: nu instalado es un runtime desnudo, y el harness es una elección del usuario, no un hecho consumado.</p>
+      <div style="background:#111611;border:1px solid #243024;padding:14px 18px;font-size:12.5px;color:#c8e0c8;margin-top:22px"><span style="color:#4ade80">$</span> nu --default-config</div>
+    </div>
+    <div style="width:170px;flex:none;padding:36px 24px;font-size:11px;color:#3a453a;border-left:1px solid #1d241d">
+      <div style="margin-bottom:12px;color:#576457">EN ESTA PÁGINA</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <a href="#1a" style="color:#8a988a">Principios</a>
+        <a href="#1a" style="color:#8a988a">Inspiraciones</a>
+        <a href="#1a" style="color:#8a988a">Lo que nu no es</a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ============ 1b — SPEC ============ -->
+<div class="dv-opt" id="1b" data-screen-label="1b Spec">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>«Spec» — editorial en papel. Los docs SON la espec: serif, reglas finas, tono de documento.</div>
+<div class="dv-card" style="width:1060px;background:#faf7f1">
+
+<!-- 1b landing -->
+<div style="font-family:'Newsreader',serif;color:#1f1c17;background:#faf7f1">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:22px 48px;border-bottom:1px solid #1f1c17">
+    <span style="font-size:22px;font-weight:500;font-style:italic">nu</span>
+    <div style="display:flex;gap:30px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em">
+      <a href="#1b">WIKI</a><a href="#1b">EXTENSIONES</a><a href="#1b">ADR</a><a href="#1b" style="border-bottom:1px solid #1f1c17">GITHUB ↗</a>
+    </div>
+  </div>
+  <div style="padding:88px 48px 64px;display:grid;grid-template-columns:1fr 300px;gap:48px">
+    <div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;color:#8a8072;margin-bottom:22px">UN RUNTIME DE LUA ORIENTADO A TERMINAL</div>
+      <h1 style="margin:0;font-size:58px;line-height:1.12;font-weight:300;letter-spacing:-.01em">El kernel es diminuto.<br>Todo lo demás <em style="font-weight:400">es una extensión.</em></h1>
+      <p style="margin:30px 0 0;font-size:18px;line-height:1.65;color:#4a443a;max-width:520px;font-weight:300">Un binario Go sin dependencias. Un intérprete de Lua. Y un coding harness que resulta venir de serie — escrito con la misma API que usaría cualquiera.</p>
+      <div style="margin-top:42px;display:flex;align-items:center;gap:22px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:#1f1c17;color:#faf7f1;padding:13px 20px">curl -fsSL nu.sh/install | sh</div>
+        <a href="#1b" style="font-size:15px;font-style:italic;border-bottom:1px solid #b8ad99;padding-bottom:2px">Leer la filosofía</a>
+      </div>
+    </div>
+    <div style="border-left:1px solid #ddd4c4;padding-left:32px;font-size:13.5px;line-height:1.7;color:#6a6255">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:#8a8072;margin-bottom:14px">EL MÉTODO</div>
+      <p style="margin:0">El diseño se decide en <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">docs/</span> y la API se valida con pseudocódigo antes de congelarla.</p>
+      <p style="margin:12px 0 0;font-style:italic">Los documentos son la espec; el código la implementa. Nunca al revés.</p>
+    </div>
+  </div>
+  <div style="border-top:1px solid #1f1c17;display:grid;grid-template-columns:repeat(3,1fr)">
+    <div style="padding:34px 48px;border-right:1px solid #ddd4c4">
+      <div style="font-size:34px;font-weight:300;margin-bottom:6px">§1</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:8px">Cero dependency hell</div>
+      <p style="margin:0;font-size:13.5px;line-height:1.65;color:#6a6255">Sin Node, sin npm, sin runtime que instalar. La instalación es una operación trivial en cualquier plataforma.</p>
+    </div>
+    <div style="padding:34px 48px;border-right:1px solid #ddd4c4">
+      <div style="font-size:34px;font-weight:300;margin-bottom:6px">§2</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:8px">El core no sabe qué es un agente</div>
+      <p style="margin:0;font-size:13.5px;line-height:1.65;color:#6a6255">Modelo Emacs, no Neovim: primitivas + Lua. El agente, el chat y MCP son extensiones sin privilegios.</p>
+    </div>
+    <div style="padding:34px 48px">
+      <div style="font-size:34px;font-weight:300;margin-bottom:6px">§4</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:8px">Lua decide, Go ejecuta</div>
+      <p style="margin:0;font-size:13.5px;line-height:1.65;color:#6a6255">Lua es el orquestador, nunca el caballo de tiro. Lo pesado es una primitiva Go, paralela por dentro.</p>
+    </div>
+  </div>
+  <div style="padding:16px 48px;border-top:1px solid #ddd4c4;display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8a8072;letter-spacing:.08em">
+    <span>APACHE-2.0 · DIEGO BAREA</span><span>V0.1.3 · KERNEL CONSTRUIDO</span>
+  </div>
+</div>
+
+<!-- 1b wiki -->
+<div style="border-top:3px double #1f1c17;font-family:'Newsreader',serif;background:#faf7f1;color:#1f1c17">
+  <div style="display:flex;min-height:520px">
+    <div style="width:250px;flex:none;padding:40px 0 40px 48px;border-right:1px solid #ddd4c4">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:#8a8072;margin-bottom:16px">ÍNDICE DE LA ESPEC</div>
+      <div style="display:flex;flex-direction:column;gap:1px;font-size:15px">
+        <a href="#1b" style="padding:8px 0;font-style:italic;font-weight:500;border-bottom:1px solid #1f1c17;display:flex;justify-content:space-between;padding-right:28px"><span>1 · Filosofía</span></a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255;display:flex;justify-content:space-between;padding-right:28px"><span>2 · Arquitectura</span></a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255">3 · Modelo de ejecución</a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255">4 · API del core</a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255">5 · ADR</a>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:#8a8072;margin:28px 0 16px">CONTRATOS</div>
+      <div style="display:flex;flex-direction:column;font-size:15px;gap:1px">
+        <a href="#1b" style="padding:8px 0;color:#6a6255">Providers</a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255">Agente</a>
+        <a href="#1b" style="padding:8px 0;color:#6a6255">Sesiones · Chat</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:40px 48px;max-width:600px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:#8a8072;margin-bottom:18px">DOCUMENTO 1 · 92 LÍNEAS · 4,4 KB</div>
+      <h2 style="margin:0 0 14px;font-size:38px;font-weight:300">Filosofía de <em>nu</em></h2>
+      <p style="margin:0 0 28px;font-size:17px;line-height:1.6;font-style:italic;color:#6a6255">«Un runtime de Lua orientado a terminal cuya killer app es un coding harness.»</p>
+      <p style="margin:0 0 18px;font-size:16px;line-height:1.8;font-weight:300">nu es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el proyecto. El proyecto es un <strong style="font-weight:500">kernel mínimo y un sistema de extensiones</strong> donde todo lo demás — incluido el propio agente — es una extensión.</p>
+      <h3 style="margin:30px 0 10px;font-size:20px;font-weight:500">§3 · Lua puede hacer cualquier cosa</h3>
+      <p style="margin:0;font-size:16px;line-height:1.8;font-weight:300">No hay «zona privilegiada» reservada al core. El usuario que quiere un harness distinto al oficial no hace fork: <em>escribe Lua</em>.</p>
+    </div>
+    <div style="width:190px;flex:none;padding:40px 48px 40px 0;font-size:12.5px;line-height:1.65;color:#8a8072">
+      <div style="border-top:1px solid #ddd4c4;padding-top:14px;font-style:italic">Nota al margen — la única excepción deliberada son los providers de LLM, que se declaran como datos (TOML), no como código. Ver ADR-005.</div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ============ 1c — KERNEL ============ -->
+<div class="dv-opt" id="1c" data-screen-label="1c Kernel">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>«Kernel» — sistemas moderno. Diagrama kernel/extensiones como protagonista, grotesk + un acento.</div>
+<div class="dv-card" style="width:1060px;background:#f4f5f7">
+
+<!-- 1c landing -->
+<div style="font-family:'Space Grotesk',sans-serif;color:#15171c;background:#f4f5f7">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 44px;background:#fff;border-bottom:1px solid #e2e4e9">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:26px;height:26px;background:#15171c;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;border-radius:6px">ν</div>
+      <span style="font-weight:600;font-size:15px">nu</span>
+    </div>
+    <div style="display:flex;gap:28px;font-size:13.5px;font-weight:500;align-items:center">
+      <a href="#1c">Wiki</a><a href="#1c">Extensiones</a><a href="#1c">Plugins</a>
+      <a href="#1c" style="background:#15171c;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px">GitHub ↗</a>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 400px;gap:56px;padding:76px 44px 68px;align-items:center">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:oklch(.93 .04 265);color:oklch(.45 .16 265);padding:6px 12px;border-radius:99px;margin-bottom:24px">● kernel construido — 45/45 sesiones</div>
+      <h1 style="margin:0;font-size:52px;line-height:1.08;font-weight:700;letter-spacing:-.025em">Un kernel diminuto.<br>Un agente que es<br><span style="color:oklch(.52 .19 265)">solo otra extensión.</span></h1>
+      <p style="margin:24px 0 0;font-size:16.5px;line-height:1.65;color:#565b66;max-width:480px">Runtime de Lua para terminal en un único binario Go. El coding harness viene de serie, pero desenchufado: enchufarlo es tu decisión, y reescribirlo también.</p>
+      <div style="margin-top:36px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:#15171c;color:#d6f2d6;padding:14px 20px;border-radius:10px">$ curl -fsSL nu.sh/install | sh</div>
+        <a href="#1c" style="font-size:14.5px;font-weight:600;color:oklch(.52 .19 265)">Inicio rápido →</a>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:16px;padding:22px;box-shadow:0 2px 12px rgba(21,23,28,.05)">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b909c;letter-spacing:.1em;margin-bottom:14px">ARQUITECTURA</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="grid-column:1/3;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <div style="background:oklch(.93 .04 265);color:oklch(.4 .15 265);border-radius:8px;padding:10px 8px;font-size:11.5px;font-weight:600;text-align:center">agent</div>
+          <div style="background:oklch(.93 .04 265);color:oklch(.4 .15 265);border-radius:8px;padding:10px 8px;font-size:11.5px;font-weight:600;text-align:center">chat</div>
+          <div style="background:oklch(.93 .04 265);color:oklch(.4 .15 265);border-radius:8px;padding:10px 8px;font-size:11.5px;font-weight:600;text-align:center">mcp</div>
+          <div style="background:oklch(.93 .04 265);color:oklch(.4 .15 265);border-radius:8px;padding:10px 8px;font-size:11.5px;font-weight:600;text-align:center">repl</div>
+        </div>
+        <div style="grid-column:1/3;background:oklch(.93 .04 265);color:oklch(.4 .15 265);border-radius:8px;padding:10px;font-size:11.5px;font-weight:600;text-align:center;border:1.5px dashed oklch(.7 .1 265)">tus extensiones Lua</div>
+      </div>
+      <div style="background:#15171c;color:#fff;border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:13px;font-weight:600">kernel</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b909c;margin-top:4px">fs · proc · http · search · ui · task</div>
+      </div>
+      <div style="background:#e9ebef;border-radius:10px;padding:10px;text-align:center;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#565b66">un binario Go estático · sin CGO</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:0 44px 56px">
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:12px;padding:20px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:oklch(.52 .19 265);margin-bottom:8px">nu</div>
+      <div style="font-size:13px;line-height:1.55;color:#565b66">Chat interactivo con transcript, permisos y comandos slash.</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:12px;padding:20px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:oklch(.52 .19 265);margin-bottom:8px">nu -p '…'</div>
+      <div style="font-size:13px;line-height:1.55;color:#565b66">Agente headless para scripts y CI, con códigos de salida coherentes.</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:12px;padding:20px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:oklch(.52 .19 265);margin-bottom:8px">nu -e '&lt;lua&gt;'</div>
+      <div style="font-size:13px;line-height:1.55;color:#565b66">Evalúa Lua sobre la API pública. El REPL sin arrastrar el harness.</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e4e9;border-radius:12px;padding:20px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:oklch(.52 .19 265);margin-bottom:8px">init.lua</div>
+      <div style="font-size:13px;line-height:1.55;color:#565b66">La última palabra es tuya: tools, hooks, comandos, theme.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1c wiki -->
+<div style="border-top:1px solid #e2e4e9;font-family:'Space Grotesk',sans-serif;background:#fff;color:#15171c">
+  <div style="display:flex;min-height:520px">
+    <div style="width:250px;flex:none;background:#f4f5f7;border-right:1px solid #e2e4e9;padding:28px 0">
+      <div style="padding:0 24px 18px;display:flex;align-items:center;gap:8px">
+        <div style="width:20px;height:20px;background:#15171c;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;border-radius:5px">ν</div>
+        <span style="font-weight:600;font-size:13.5px">Wiki</span>
+      </div>
+      <div style="padding:0 24px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#8b909c">EMPEZAR</div>
+      <div style="display:flex;flex-direction:column;font-size:13.5px;padding:0 12px;margin-bottom:16px">
+        <a href="#1c" style="padding:7px 12px;border-radius:7px;color:#565b66">Instalación</a>
+        <a href="#1c" style="padding:7px 12px;border-radius:7px;color:#565b66">Inicio rápido</a>
+        <a href="#1c" style="padding:7px 12px;border-radius:7px;background:oklch(.93 .04 265);color:oklch(.4 .15 265);font-weight:600">Filosofía</a>
+      </div>
+      <div style="padding:0 24px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#8b909c">LA ESPEC</div>
+      <div style="display:flex;flex-direction:column;font-size:13.5px;padding:0 12px;margin-bottom:16px">
+        <a href="#1c" style="padding:7px 12px;color:#565b66">Arquitectura</a>
+        <a href="#1c" style="padding:7px 12px;color:#565b66">Modelo de ejecución</a>
+        <a href="#1c" style="padding:7px 12px;color:#565b66">API del core</a>
+        <a href="#1c" style="padding:7px 12px;color:#565b66">ADR</a>
+      </div>
+      <div style="padding:0 24px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#8b909c">EXTENSIONES</div>
+      <div style="display:flex;flex-direction:column;font-size:13.5px;padding:0 12px">
+        <a href="#1c" style="padding:7px 12px;color:#565b66">Agente · Chat</a>
+        <a href="#1c" style="padding:7px 12px;color:#565b66">Providers · Sesiones</a>
+        <a href="#1c" style="padding:7px 12px;color:#565b66">Guía de plugins</a>
+      </div>
+    </div>
+    <div style="flex:1;padding:36px 48px;max-width:620px">
+      <div style="font-size:12px;color:#8b909c;margin-bottom:16px;display:flex;gap:6px"><a href="#1c">Wiki</a><span>/</span><a href="#1c">Empezar</a><span>/</span><span style="color:#15171c;font-weight:500">Filosofía</span></div>
+      <h2 style="margin:0 0 10px;font-size:32px;font-weight:700;letter-spacing:-.02em">Filosofía de nu</h2>
+      <p style="margin:0 0 26px;font-size:15px;line-height:1.65;color:#565b66">El proyecto no es el agente: es un kernel mínimo y un sistema de extensiones donde todo lo demás — incluido el agente — es una extensión.</p>
+      <div style="background:#f4f5f7;border:1px solid #e2e4e9;border-radius:12px;padding:18px 22px;margin-bottom:26px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8b909c;margin-bottom:10px">LA VARA PARA CASOS DUDOSOS</div>
+        <p style="margin:0;font-size:14px;line-height:1.65">Si algo se describe con vocabulario del kernel (plugins, rutas, versiones), es del kernel. Si necesita vocabulario de producto (agente, chat, tools), es de una extensión.</p>
+      </div>
+      <h3 style="margin:0 0 10px;font-size:19px;font-weight:600">6. La API del core es sagrada</h3>
+      <p style="margin:0;font-size:14.5px;line-height:1.75;color:#3a3e47">Si todo se construye sobre las primitivas, romperlas rompe el mundo. La API v1 debe ser deliberadamente pequeña y aburrida, y crecer solo por adición.</p>
+    </div>
+    <div style="width:180px;flex:none;padding:36px 28px 36px 0;font-size:12.5px">
+      <div style="color:#8b909c;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;margin-bottom:12px">EN ESTA PÁGINA</div>
+      <div style="display:flex;flex-direction:column;gap:9px;border-left:2px solid #e2e4e9;padding-left:14px">
+        <a href="#1c" style="color:oklch(.52 .19 265);font-weight:600">Principios</a>
+        <a href="#1c" style="color:#565b66">Inspiraciones</a>
+        <a href="#1c" style="color:#565b66">Lo que nu no es</a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Prueba: «desarrolla <a class="dv-oid" href="#1a">1a</a> en página completa» · «mezcla la wiki de <a class="dv-oid" href="#1c">1c</a> con la tipografía de <a class="dv-oid" href="#1b">1b</a>» · «dame 3 direcciones más arriesgadas»</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    theme: 0,
+    bootTheme: (() => { try { const v = parseInt(localStorage.getItem("nu-drafts-theme")); return v >= 0 && v <= 3 ? v : 0; } catch (e) { return 0; } })(),
+    lang: (() => { try { return localStorage.getItem("nu-drafts-lang") === "en" ? "en" : "es"; } catch (e) { return "es"; } })(),
+    typed: "",
+    feedbackText: "",
+    wikiMode: "",
+    wikiTyped: "",
+    wikiFb: ""
+  };
+  strings = {
+    es: {
+      sloganA: "Tu agente de código.",
+      sloganB: "Tus reglas.",
+      body: "Instálalo con una línea. Úsalo tal cual, o cámbialo entero escribiendo Lua. nu es el coding harness que es tuyo de verdad.",
+      k1: "instalar",
+      k2: "documentación", k2d: "la wiki de nu",
+      k3d: "repo",
+      footer: "apache-2.0",
+      fb_i: "→ copia y pega: curl -fsSL nu.sh/install | sh",
+      fb_d: "→ abriendo la wiki de nu…",
+      fb_g: "→ github.com/dbareagimeno/nu",
+      fb_nf: "no encontrado — prueba [i], [d], [g] o help",
+      fb_help: "comandos: i · d · g · theme <nu|dracula|gruvbox|solarized> · lang <es|en>\n…y si sabes lua, ya sabes qué hacer",
+      fb_theme: "theme = ",
+      fb_theme_nf: "theme no encontrado: nu · dracula · gruvbox · solarized",
+      fb_lang: "lang = ",
+      fb_repl: "lua 5.4 (embebido en nu) — escribe salir para volver",
+      fb_repl_out: "hasta luego",
+      fb_a: "→ abriendo la referencia de la api…",
+      kApiD: "referencia nu.*"
+    },
+    en: {
+      sloganA: "Your coding agent.",
+      sloganB: "Your rules.",
+      body: "Install it with one line. Use it as is, or rewrite the whole thing in Lua. nu is the coding harness that is truly yours.",
+      k1: "install",
+      k2: "documentation", k2d: "the nu wiki · in spanish for now",
+      k3d: "repo",
+      footer: "apache-2.0",
+      fb_i: "→ copy & paste: curl -fsSL nu.sh/install | sh",
+      fb_d: "→ opening the nu wiki…",
+      fb_g: "→ github.com/dbareagimeno/nu",
+      fb_nf: "not found — try [i], [d], [g] or help",
+      fb_help: "commands: i · d · g · theme <nu|dracula|gruvbox|solarized> · lang <es|en>\n…and if you know lua, you know what to do",
+      fb_theme: "theme = ",
+      fb_theme_nf: "theme not found: nu · dracula · gruvbox · solarized",
+      fb_lang: "lang = ",
+      fb_repl: "lua 5.4 (embedded in nu) — type exit to leave",
+      fb_repl_out: "see you",
+      fb_a: "→ opening the api reference…",
+      kApiD: "nu.* reference"
+    }
+  };
+  onWikiKeyEvent = (e) => {
+    const m = this.state.wikiMode;
+    const es = this.state.lang === "es";
+    if (!m) {
+      if (e.key === ":" || e.key === "/") {
+        this.setState({ wikiMode: e.key === ":" ? "cmd" : "search", wikiTyped: "", wikiFb: "" });
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === "Enter") {
+      const cmd = this.state.wikiTyped.trim();
+      let fb = "";
+      if (m === "search") {
+        fb = "/" + cmd + " — 3 " + (es ? "coincidencias · [n] siguiente" : "matches · [n] next");
+      } else if (cmd.startsWith("theme")) {
+        const name = cmd.slice(5).trim().replace(/^=/, "").trim();
+        const idx = this.bootPalettes.findIndex(t => t.label === name || t.name === name);
+        if (idx >= 0) {
+          this.setState({ wikiMode: "", wikiTyped: "", bootTheme: idx, wikiFb: 'theme = "' + this.bootPalettes[idx].name + '"' });
+          try { localStorage.setItem("nu-drafts-theme", String(idx)); } catch (err) {}
+          return;
+        }
+        fb = es ? "theme no encontrado: nu · dracula · gruvbox · solarized" : "theme not found: nu · dracula · gruvbox · solarized";
+      } else if (cmd.startsWith("lang")) {
+        const lg = cmd.slice(4).trim().replace(/^=/, "").trim();
+        if (lg === "es" || lg === "en") {
+          this.setState({ wikiMode: "", wikiTyped: "", lang: lg, wikiFb: 'lang = "' + lg + '"' });
+          try { localStorage.setItem("nu-drafts-lang", lg); } catch (err) {}
+          return;
+        }
+        fb = 'lang = "' + this.state.lang + '"';
+      } else if (cmd === "q") {
+        fb = es ? "→ volviendo a la portada…" : "→ back to the home screen…";
+      } else if (cmd.startsWith("open ")) {
+        fb = "→ docs/" + cmd.slice(5).trim().replace(/\.md$/, "") + ".md";
+      } else {
+        fb = "E492: " + (es ? "no es un comando del editor" : "not an editor command") + ": " + cmd;
+      }
+      this.setState({ wikiMode: "", wikiTyped: "", wikiFb: fb });
+    } else if (e.key === "Backspace") {
+      if (this.state.wikiTyped === "") this.setState({ wikiMode: "" });
+      else this.setState({ wikiTyped: this.state.wikiTyped.slice(0, -1) });
+      e.preventDefault();
+    } else if (e.key === "Escape") {
+      this.setState({ wikiMode: "", wikiTyped: "" });
+    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      this.setState({ wikiTyped: this.state.wikiTyped + e.key });
+      e.preventDefault();
+    }
+  };
+  evalLua(src) {
+    const s = src.trim();
+    if (!s) return "";
+    if (s === "nu.version" || s === "nu.version.api") return '"0.1.3"';
+    if (s === "os.date()") return '"' + new Date().toString() + '"';
+    const pr = s.match(/^print\((["'])(.*)\1\)$/);
+    if (pr) return pr[2];
+    const rt = s.replace(/^return\s+/, "");
+    if (/^[0-9+\-*/%^(). ]+$/.test(rt)) {
+      try {
+        const v = Function('"use strict";return (' + rt.replace(/\^/g, "**") + ")")();
+        return String(v);
+      } catch (e) { return "stdin: syntax error"; }
+    }
+    if (/^(["']).*\1\s*\.\.\s*(["']).*\2$/.test(rt)) {
+      const parts = rt.split("..").map(x => x.trim().slice(1, -1));
+      return '"' + parts.join("") + '"';
+    }
+    return "nil";
+  }
+  onKeyEvent = (e) => {
+    const L = this.strings[this.state.lang];
+    if (e.key === "Enter") {
+      const cmd = this.state.typed.trim();
+      let fb;
+      if (this.state.replMode) {
+        if (cmd === "salir" || cmd === "exit" || cmd === "q") {
+          this.setState({ typed: "", replMode: false, feedbackText: L.fb_repl_out });
+          return;
+        }
+        fb = this.evalLua(cmd);
+      } else if (cmd === "i" || cmd === "install" || cmd === "instalar") fb = L.fb_i;
+      else if (cmd === "d" || cmd === "docs") fb = L.fb_d;
+      else if (cmd === "g" || cmd === "github") fb = L.fb_g;
+      else if (cmd === "a" || cmd === "api") fb = L.fb_a;
+      else if (cmd === "help" || cmd === "ayuda" || cmd === "?") fb = L.fb_help;
+      else if (cmd.startsWith("theme")) {
+        const name = cmd.slice(5).trim().replace(/^=/, "").trim();
+        const idx = this.bootPalettes.findIndex(t => t.label === name || t.name === name);
+        if (idx >= 0) {
+          this.setState({ typed: "", bootTheme: idx, feedbackText: L.fb_theme + '"' + this.bootPalettes[idx].name + '"' });
+          try { localStorage.setItem("nu-drafts-theme", String(idx)); } catch (err) {}
+          return;
+        }
+        fb = name ? L.fb_theme_nf : L.fb_theme + '"' + this.bootPalettes[this.state.bootTheme].name + '"';
+      }
+      else if (cmd.startsWith("lang")) {
+        const lg = cmd.slice(4).trim().replace(/^=/, "").trim();
+        if (lg === "es" || lg === "en") {
+          this.setState({ typed: "", lang: lg, feedbackText: this.strings[lg].fb_lang + '"' + lg + '"' });
+          try { localStorage.setItem("nu-drafts-lang", lg); } catch (err) {}
+          return;
+        }
+        fb = L.fb_lang + '"' + this.state.lang + '"';
+      }
+      else if (cmd === "lua") {
+        this.setState({ typed: "", replMode: true, feedbackText: L.fb_repl });
+        return;
+      }
+      else fb = "nu: \u00ab" + (cmd || "") + "\u00bb " + L.fb_nf;
+      this.setState({ typed: "", feedbackText: fb });
+    } else if (e.key === "Backspace") {
+      this.setState({ typed: this.state.typed.slice(0, -1) });
+    } else if (e.key === "Escape") {
+      this.setState({ typed: "", replMode: false, feedbackText: "" });
+    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!this.state.replMode && this.state.typed === "" && (e.key === "i" || e.key === "d" || e.key === "g" || e.key === "a")) {
+        this.setState({ feedbackText: L["fb_" + e.key] });
+      } else {
+        this.setState({ typed: this.state.typed + e.key, feedbackText: this.state.replMode ? this.state.feedbackText : "" });
+      }
+      e.preventDefault();
+    }
+  };
+  bootPalettes = [
+    { name: "nu", label: "nu", bg: "#0a1416", fg: "#a9bfc4", bright: "#e8f4f6", dim: "#4e686e", border: "#16292d", key: "#4fcadb", c2: "#7fc8a8", c3: "#4fcadb", c4: "#c9a06a" },
+    { name: "dracula", label: "dracula", bg: "#282a36", fg: "#f8f8f2", bright: "#ffffff", dim: "#6272a4", border: "#3b3d51", key: "#ff79c6", c2: "#50fa7b", c3: "#8be9fd", c4: "#f1fa8c" },
+    { name: "gruvbox", label: "gruvbox", bg: "#282828", fg: "#ebdbb2", bright: "#fbf1c7", dim: "#a89984", border: "#3c3836", key: "#fe8019", c2: "#b8bb26", c3: "#8ec07c", c4: "#fabd2f" },
+    { name: "solarized-light", label: "solarized", bg: "#fdf6e3", fg: "#657b83", bright: "#073642", dim: "#7d8e91", border: "#eee8d5", key: "#2aa198", c2: "#859900", c3: "#268bd2", c4: "#cb4b16" }
+  ];
+  renderVals() {
+    const bp = this.bootPalettes;
+    const bi = this.state.bootTheme;
+    const p = bp[bi];
+    const lang = this.state.lang;
+    const setLang = (l) => { this.setState({ lang: l }); try { localStorage.setItem("nu-drafts-lang", l); } catch (e) {} };
+    const bootVals = {
+      p,
+      L: this.strings[lang],
+      W: lang === "es" ? {
+        langNote: "es", s1: "empezar", s2: "espec", s3: "extensiones", s4: "proceso",
+        tableIntro: "Los modos del binario:", thCmd: "invocación", thWhat: "qué hace",
+        r1: "arranque interactivo: el chat, o runtime desnudo",
+        r2: "un turno de agente headless, apto para CI",
+        r3: "evalúa Lua y devuelve el resultado",
+        prev: "← (primer documento)", next: "siguiente:",
+        onPage: "en esta página", toc1: "Principios", toc2: "Inspiraciones", toc3: "Lo que nu no es",
+        commit: "última edición", commitAgo: "hace 3 días",
+        docPos: "doc 1 de 15", kScroll: "desplazar", kDoc: "doc sig/ant", kCmd: "comando", kSearch: "buscar", kBack: "portada"
+      } : {
+        langNote: "en · content in spanish for now", s1: "start", s2: "spec", s3: "extensions", s4: "process",
+        tableIntro: "The binary's modes:", thCmd: "invocation", thWhat: "what it does",
+        r1: "interactive start: the chat, or bare runtime",
+        r2: "one headless agent turn, CI-friendly",
+        r3: "evaluate Lua and print the result",
+        prev: "← (first document)", next: "next:",
+        onPage: "on this page", toc1: "Principles", toc2: "Inspirations", toc3: "What nu is not",
+        commit: "last edited", commitAgo: "3 days ago",
+        docPos: "doc 1 of 15", kScroll: "scroll", kDoc: "next/prev doc", kCmd: "command", kSearch: "search", kBack: "home"
+      },
+      pickEs: () => setLang("es"),
+      pickEn: () => setLang("en"),
+      onKey: this.onKeyEvent,
+      typedText: this.state.typed,
+      feedbackText: this.state.feedbackText,
+      promptLabel: this.state.replMode ? "lua>" : ">",
+      promptCol: this.state.replMode ? p.key : p.dim,
+      onWikiKey: this.onWikiKeyEvent,
+      wikiActive: !!this.state.wikiMode,
+      wikiIdle: !this.state.wikiMode,
+      wikiPromptChar: this.state.wikiMode === "search" ? "/" : ":",
+      wikiTyped: this.state.wikiTyped,
+      wikiLeft: this.state.wikiFb || "docs/filosofia.md · 8% · 1/15",
+      textThemes: bp.map((t, idx) => ({
+        display: idx === bi ? "[" + t.label + "]" : t.label,
+        col: idx === bi ? p.key : p.dim,
+        weight: idx === bi ? 600 : 400,
+        pick: () => { this.setState({ bootTheme: idx }); try { localStorage.setItem("nu-drafts-theme", String(idx)); } catch (e) {} }
+      })),
+      esDisplay: lang === "es" ? "[es]" : "es",
+      enDisplay: lang === "en" ? "[en]" : "en",
+      esCol2: lang === "es" ? p.key : p.dim,
+      enCol2: lang === "en" ? p.key : p.dim,
+      esW: lang === "es" ? 600 : 400,
+      enW: lang === "en" ? 600 : 400,
+      esCol: lang === "es" ? p.bg : p.dim,
+      esBg: lang === "es" ? p.key : "transparent",
+      enCol: lang === "en" ? p.bg : p.dim,
+      enBg: lang === "en" ? p.key : "transparent",
+      bootThemes: bp.map((t, idx) => ({
+        label: t.label,
+        dot: t.key,
+        borderCol: idx === bi ? t.key : p.border,
+        labelCol: idx === bi ? p.bright : p.dim,
+        pick: () => this.setState({ bootTheme: idx })
+      }))
+    };
+    const defs = [
+      { name: "tinta", color: "#f2f2f2" },
+      { name: "violeta", color: "#9b8ae8" },
+      { name: "magenta", color: "#e87ba8" },
+      { name: "cian", color: "#4fcadb" }
+    ];
+    const i = this.state.theme;
+    return {
+      ...bootVals,
+      themeName: defs[i].name,
+      themeAccent: defs[i].color,
+      themes: defs.map((d, idx) => ({
+        name: d.name,
+        color: d.color,
+        ring: idx === i ? "2px solid #fff" : "2px solid #333",
+        pick: () => this.setState({ theme: idx })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

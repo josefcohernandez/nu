@@ -1,7 +1,7 @@
 package runtime
 
-// Parseo de `nu.toml` (api.md §14, S12). `config.dir()/nu.toml` es la
-// configuración del PROPIO core (no la API Lua `nu.toml` —esa es un codec, S18—,
+// Parseo de `enu.toml` (api.md §14, S12). `config.dir()/enu.toml` es la
+// configuración del PROPIO core (no la API Lua `enu.toml` —esa es un codec, S18—,
 // aunque ambas reusan la misma librería TOML pura-Go añadida en S11). Gobierna
 // (§14, ADR-010):
 //
@@ -9,12 +9,12 @@ package runtime
 //     vida a las extensiones embebidas, INACTIVAS por defecto (ADR-010): si una
 //     embebida no aparece aquí, no se carga. Un nombre de `enabled` que no
 //     corresponde a ninguna extensión (ni embebida ni en disco) es un error de
-//     arranque ACCIONABLE que nombra la línea de `nu.toml` que lo arregla.
+//     arranque ACCIONABLE que nombra la línea de `enu.toml` que lo arregla.
 //   - `plugins.dirs` — directorios extra donde buscar plugins de disco, sumados a
 //     los pasados por `WithPluginDir`. Rutas UTF-8 (§1).
 //   - `watchdog.slice_budget_ms` — el presupuesto por slice del watchdog (S09), en
 //     milisegundos (§1: tiempos en ms). Cablea el gancho `WithSliceBudget`.
-//   - `[net].ca_file` / `[net].proxy` — defaults globales de red para `nu.http`
+//   - `[net].ca_file` / `[net].proxy` — defaults globales de red para `enu.http`
 //     (§8, G12, S19): una CA corporativa que añadir a la raíz de confianza de TLS
 //     y un proxy por defecto. Cualquiera de los dos es **sobreescribible por
 //     petición** (`opts.tls.ca_file`, `opts.proxy`); sin `[net]` rige el
@@ -23,7 +23,7 @@ package runtime
 //
 // Forward-compatibilidad: claves desconocidas se ignoran (igual que en
 // `plugin.toml`, S11) para que una config de una versión más nueva no rompa el
-// arranque de una más vieja. Un `nu.toml` AUSENTE es lo normal en un runtime
+// arranque de una más vieja. Un `enu.toml` AUSENTE es lo normal en un runtime
 // desnudo (ADR-010): no es un error, simplemente no activa nada.
 
 import (
@@ -37,9 +37,9 @@ import (
 
 // nuTomlName es el nombre del fichero de configuración del runtime dentro de
 // `config.dir()` (§14).
-const nuTomlName = "nu.toml"
+const nuTomlName = "enu.toml"
 
-// runtimeConfig es el `nu.toml` decodificado: solo los campos que el core entiende
+// runtimeConfig es el `enu.toml` decodificado: solo los campos que el core entiende
 // en v1. La estructura refleja las secciones del TOML (`[plugins]`, `[watchdog]`).
 type runtimeConfig struct {
 	Plugins struct {
@@ -52,7 +52,7 @@ type runtimeConfig struct {
 		// de "especificado como 0" (0 → desactiva el watchdog explícitamente, §9).
 		SliceBudgetMs *int `toml:"slice_budget_ms"`
 	} `toml:"watchdog"`
-	// Net son los defaults globales de red para `nu.http` (§8, G12, S19): una CA
+	// Net son los defaults globales de red para `enu.http` (§8, G12, S19): una CA
 	// corporativa y un proxy por defecto, ambos sobreescribibles por petición. Un
 	// `[net]` ausente deja el comportamiento estándar (CAs del sistema, proxy del
 	// entorno).
@@ -69,7 +69,7 @@ type runtimeConfig struct {
 	} `toml:"vm"`
 }
 
-// loadNuToml lee y parsea `config.dir()/nu.toml`. Devuelve un `runtimeConfig` cero
+// loadNuToml lee y parsea `config.dir()/enu.toml`. Devuelve un `runtimeConfig` cero
 // (todo vacío) y `found=false` si el fichero no existe —el caso normal de un
 // runtime desnudo, ADR-010—; un fichero ilegible o mal formado es un error de
 // arranque accionable que nombra la ruta y la causa. La línea del TOML que el

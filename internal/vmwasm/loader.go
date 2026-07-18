@@ -50,7 +50,7 @@ func (p *Pool) SetModule(name, source string) {
 // preludio. Se registra en todo Pool (newBarePool) para que también los workers
 // tengan require (api.md §13: las rutas del loader están disponibles en el worker).
 func (p *Pool) registerLoader() {
-	// nu.loader._source(name) -> source | nil. La consulta que hace require.
+	// enu.loader._source(name) -> source | nil. La consulta que hace require.
 	p.Register("loader._source", func(inst *Instance, args []any) ([]any, error) {
 		name, _ := args[0].(string)
 		if src, ok := inst.pool.modules[name]; ok {

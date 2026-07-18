@@ -34,7 +34,7 @@ func TestUsageCostAcumulado(t *testing.T) {
 	h, _ := bootAgent(t, providersTomlCost, false)
 	h.eval(`
 		out, errc = nil, nil
-		nu.task.spawn(function()
+		enu.task.spawn(function()
 			local ok, e = pcall(function()
 				local agent = require("agent")
 				` + registerCtl + `

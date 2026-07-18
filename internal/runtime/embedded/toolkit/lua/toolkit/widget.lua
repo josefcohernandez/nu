@@ -7,7 +7,7 @@
 --   * tiene un ÁREA (`x,y,w,h`) en coordenadas locales de la región de la app,
 --     que el layout del padre le asigna (un widget hoja no decide dónde va);
 --   * sabe `compose(w, h) -> Block`: producir el `Block` (api.md §9.2) que pinta
---     su área, vía `nu.text`/`nu.ui.block`. Es lo único específico de cada tipo
+--     su área, vía `enu.text`/`enu.ui.block`. Es lo único específico de cada tipo
 --     de widget; el resto (árbol, dirty, focus) es común y vive aquí.
 --
 -- DIRTY TRACKING (el porqué: eficiencia, no recomponer todo el árbol cada frame).
@@ -150,7 +150,7 @@ end
 
 -- Widget:render() -> Block. Devuelve el Block del nodo, RECOMPONIÉNDOLO solo si
 -- está sucio o si el caché se compuso a otro tamaño. Si no, reusa `_block` (el
--- corazón del ahorro: un nodo limpio no vuelve a llamar a `nu.text`/`nu.ui`).
+-- corazón del ahorro: un nodo limpio no vuelve a llamar a `enu.text`/`enu.ui`).
 -- `compose(w, h)` es lo que cada tipo de widget implementa. Tras componer, el
 -- nodo queda limpio. Un widget de tamaño 0 (no le tocó área) devuelve nil: no hay
 -- nada que pintar.

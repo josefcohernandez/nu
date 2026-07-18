@@ -10,11 +10,11 @@ import (
 // integración tras S27, **cierra la Fase 5 — Texto y búsqueda**). Prueba de humo
 // **todo inspeccionable en tests sin pintar pantalla** (plan, §"CP-6"):
 //
-//	(a) `nu.text.markdown` (S23) de un documento → un `Block` con dimensiones.
-//	(b) `nu.text.highlight` (S24) de un `.go` → un `Block` con varios spans.
-//	(c) `nu.text.diff` (S25) de dos versiones de un fichero → hunks correctos
+//	(a) `enu.text.markdown` (S23) de un documento → un `Block` con dimensiones.
+//	(b) `enu.text.highlight` (S24) de un `.go` → un `Block` con varios spans.
+//	(c) `enu.text.diff` (S25) de dos versiones de un fichero → hunks correctos
 //	    y, con render, un `Block`.
-//	(d) `nu.search.grep` (S27) y `nu.search.fuzzy` (S27) sobre un árbol de
+//	(d) `enu.search.grep` (S27) y `enu.search.fuzzy` (S27) sobre un árbol de
 //	    prueba → matches con su forma y un ranking estable.
 //
 // Las piezas pesadas (las que la UI de la Fase 6 solo *coloca*) quedan así
@@ -54,7 +54,7 @@ func TestCP6RenderYBusqueda(t *testing.T) {
 	mdSrc := mustRead(t, filepath.Join(root, "README.md"))
 	h.regStringFn("MD", mdSrc)
 	h.eval(`
-		MDB = nu.text.markdown(MD(), { width = 40 })
+		MDB = enu.text.markdown(MD(), { width = 40 })
 		MD_W, MD_H = MDB.width, MDB.height
 	`)
 	h.expectEval(`return tostring(MD_W <= 40 and MD_H >= 1)`, "true")
@@ -63,7 +63,7 @@ func TestCP6RenderYBusqueda(t *testing.T) {
 	goSrc := mustRead(t, filepath.Join(root, "main.go"))
 	h.regStringFn("GOSRC", goSrc)
 	h.eval(`
-		HLB = nu.text.highlight(GOSRC(), "go")
+		HLB = enu.text.highlight(GOSRC(), "go")
 		HL_H = HLB.height
 	`)
 	// main.go tiene 7 líneas; el Block las conserva (una línea de código → una de Block).
@@ -74,11 +74,11 @@ func TestCP6RenderYBusqueda(t *testing.T) {
 	newGo := goSrc + "\n// una línea nueva al final\n"
 	h.regStringFn("NEW", newGo)
 	h.eval(`
-		local d = nu.text.diff(OLD(), NEW(), { render = true })
+		local d = enu.text.diff(OLD(), NEW(), { render = true })
 		DIFF_HUNKS = #d.hunks
 		DIFF_HAS_BLOCK = d.block ~= nil
 		-- a == b → sin hunks (control de que el diff distingue cambio de no-cambio).
-		local same = nu.text.diff(OLD(), OLD())
+		local same = enu.text.diff(OLD(), OLD())
 		DIFF_SAME = #same.hunks
 	`)
 	h.expectEval(`return tostring(DIFF_HUNKS >= 1)`, "true")
@@ -91,8 +91,8 @@ func TestCP6RenderYBusqueda(t *testing.T) {
 	h.eval(`
 		GREP_N = 0
 		GREP_SUBOK = true
-		nu.task.spawn(function()
-			for r in nu.search.grep("TODO", { root = ROOT() }) do
+		enu.task.spawn(function()
+			for r in enu.search.grep("TODO", { root = ROOT() }) do
 				GREP_N = GREP_N + 1
 				local rg = r.ranges[1]
 				if r.line:sub(rg[1], rg[2]) ~= "TODO" then GREP_SUBOK = false end
@@ -105,12 +105,12 @@ func TestCP6RenderYBusqueda(t *testing.T) {
 	// files + fuzzy: lista los ficheros del repo y rankea "util" → util.go primero.
 	h.eval(`
 		FUZZY_TOP = nil
-		nu.task.spawn(function()
-			local files = nu.search.files(ROOT())
+		enu.task.spawn(function()
+			local files = enu.search.files(ROOT())
 			-- nombres base relativos para el picker.
 			local names = {}
 			for _, f in ipairs(files) do names[#names+1] = f end
-			local ranked = nu.search.fuzzy("util", names)
+			local ranked = enu.search.fuzzy("util", names)
 			if #ranked > 0 then
 				FUZZY_TOP = names[ranked[1].index]
 			end
