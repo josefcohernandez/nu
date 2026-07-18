@@ -93,6 +93,66 @@ func sessionEntries(t *testing.T, ws *Workspace) (string, []map[string]any) {
 	return path, entries
 }
 
+// waitSessionEntries sondea EL fichero de sesión hasta que tenga al menos `n`
+// entradas JSONL persistidas y decodificables, y las devuelve. Falla el test si se
+// agota `timeout`.
+//
+// Existe porque "ver el texto en pantalla" (un `agent:delta`) NO implica que el
+// turno se haya persistido: durante el streaming no se escribe nada, y el mensaje
+// del asistente se escribe con UN único `enu.fs.append` al completarse el turno
+// (`done` del adaptador), DESPUÉS del render (sesiones.md §4). Un test que quiera
+// actuar "tras el turno" —salir y comprobar lo que quedó en disco— debe esperar a
+// ESTA señal de disco, no al delta pintado, o corre contra el append.
+//
+// A diferencia de sessionEntries, tolera los estados transitorios de una escritura
+// en vuelo —cero ficheros todavía, o una última línea a medio escribir— sondeando
+// en vez de fallar (ver sessionEntriesBestEffort).
+func waitSessionEntries(t *testing.T, ws *Workspace, n int, timeout time.Duration) []map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		entries := sessionEntriesBestEffort(ws)
+		if len(entries) >= n {
+			return entries
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("la sesión no alcanzó %d entradas persistidas en %s; hay %d: %v",
+				n, timeout, len(entries), entries)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// sessionEntriesBestEffort lee el fichero de sesión "a lo mejor esfuerzo": si aún no
+// hay exactamente un `.jsonl`, o la última línea está a medio escribir (append en
+// vuelo), devuelve las entradas decodificadas hasta ese punto SIN fallar. Es la
+// variante sondeable de sessionEntries (que exige un único fichero y toda línea
+// válida): aquella FALLA justo en los casos que esta TOLERA, por eso no comparten
+// código. Como el JSONL es append-only con una entrada entera por línea, una línea
+// que no decodifica solo puede ser la última a medio escribir: se corta ahí.
+func sessionEntriesBestEffort(ws *Workspace) []map[string]any {
+	matches, err := filepath.Glob(filepath.Join(ws.DataDir, "sessions", "*", "*.jsonl"))
+	if err != nil || len(matches) != 1 {
+		return nil
+	}
+	raw, err := os.ReadFile(matches[0])
+	if err != nil {
+		return nil
+	}
+	var entries []map[string]any
+	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal([]byte(line), &m) != nil {
+			break // última línea a medio escribir: el prefijo es lo ya persistido.
+		}
+		entries = append(entries, m)
+	}
+	return entries
+}
+
 // entryType es el campo `t` (discriminante de la entrada JSONL: "meta"/"message"…).
 func entryType(t *testing.T, e map[string]any) string {
 	t.Helper()
@@ -151,6 +211,12 @@ func TestChatE2EHappyPathPromptStreamingQuitPersiste(t *testing.T) {
 
 	// El texto del fake llega por `agent:delta`, pintado con markdown en el transcript.
 	p.Expect(t, "confirmo-e2e-streaming", 5*time.Second)
+	// Esperar a que el turno esté PERSISTIDO antes de salir (sesiones.md §4): ver el
+	// delta pintado no implica que el append del asistente haya ocurrido. Hoy este
+	// escenario no es flaky porque `/quit` sale de forma diferida (task async + nudges)
+	// y da tiempo al append; sincronizar en el disco lo hace robusto por diseño, igual
+	// que el escenario de ctrl+c, en vez de depender de esa holgura incidental.
+	waitSessionEntries(t, ws, 3, 5*time.Second)
 
 	// /quit: el comando delega en Chat:quit(), que emite core:shutdown → el driver de
 	// TTY lo convierte en apagado limpio (exit 0).
@@ -244,10 +310,19 @@ func TestChatE2EArranqueDegradadoSaleLimpio(t *testing.T) {
 }
 
 // TestChatE2ECtrlCSaleLimpioTrasElTurno — [Escenario 3]. Misma coreografía que el
-// escenario 1 pero se sale con ctrl+c (`\x03`) en vez de `/quit` (chat.md §7: ctrl+c
+// escenario 1 pero se sale con ctrl+c (`\x03`) en vez de `/quit` (chat.md §8: ctrl+c
 // es el atajo global de salida, otra vía en el código —keymap global, no comando—
 // hacia el mismo Chat:quit()→core:shutdown). El proceso sale con 0 y el turno YA
 // completado quedó persistido: la salida no lo revierte (append-only).
+//
+// Clave de sincronización: se espera a que el turno esté PERSISTIDO (3 entradas en
+// disco) ANTES de mandar ctrl+c, no solo a que el texto se pinte. El delta se pinta
+// durante el streaming, pero el mensaje del asistente se escribe con un único append
+// al completar el turno, DESPUÉS del render (sesiones.md §4). ctrl+c apaga sin drenar
+// (cancela la task del turno y corta el pump): si llegara antes del append, el turno
+// "simplemente no existe" (§4) y quedarían 2 líneas —correcto por contrato, pero no
+// es lo que este escenario ("tras el turno") quiere probar. Esperar el disco elimina
+// esa carrera y deja el test determinista.
 func TestChatE2ECtrlCSaleLimpioTrasElTurno(t *testing.T) {
 	fp := NewFakeProvider(t)
 	fp.PushText("confirmo-e2e-streaming")
@@ -257,6 +332,9 @@ func TestChatE2ECtrlCSaleLimpioTrasElTurno(t *testing.T) {
 	p.Expect(t, "Bienvenido a enu", startupTimeout)
 	p.Send(t, "hola\r")
 	p.Expect(t, "confirmo-e2e-streaming", 5*time.Second)
+	// El turno debe estar YA completado (persistido) antes de salir: si no, el ctrl+c
+	// carrera con el append y el escenario deja de tener sentido (sesiones.md §4).
+	waitSessionEntries(t, ws, 3, 5*time.Second)
 
 	p.Send(t, "\x03") // ctrl+c
 	code := p.Wait(t, 5*time.Second)

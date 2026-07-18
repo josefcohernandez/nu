@@ -243,6 +243,37 @@ func sessionsWaitForLock(t *testing.T, dir string, timeout time.Duration) (strin
 	}
 }
 
+// sessionsWaitForUserMessage sondea el ÚNICO transcript de `dir` hasta que el mensaje
+// de usuario esté ANEXADO (meta + message[user]) y devuelve sus entradas. Falla si se
+// agota `timeout`.
+//
+// El `.jsonl.lock` aparece en `sessions.open`, ANTES de que `_drain_queue` anexe el
+// mensaje de usuario (sesiones.md §4). Esperar solo al lock (sessionsWaitForLock) y
+// matar acto seguido corre contra ese append: bajo carga (CI, -race, contención de
+// CPU) el SIGKILL puede llegar antes de que el 'user' toque disco, dejando el
+// transcript vacío/solo-meta —una carrera del TEST, no del runtime—. Esta espera lo
+// vuelve determinista sin cambiar lo que el escenario prueba (el provider tarda
+// segundos, así que el 'assistant' sigue sin poder aparecer: el turno queda truncado
+// en el 'user', que es justo la precondición del crash a mitad de turno).
+func sessionsWaitForUserMessage(t *testing.T, dir string, timeout time.Duration) []sessionEntry {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if files := sessionsJSONLFiles(t, dir); len(files) == 1 {
+			entries := sessionsReadEntries(t, filepath.Join(dir, files[0]))
+			for _, e := range entries {
+				if e["t"] == "message" && sessionMessageRole(e) == "user" {
+					return entries
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("el mensaje de usuario no se persistió en %s dentro de %s", dir, timeout)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HeadlessProc: costura de arnés (ver nota 2 de arriba). `Workspace` solo da `Run`
 // (bloqueante, sin TTY) y `Start` (con PTY, para interactivo); aquí hace falta un
@@ -741,6 +772,10 @@ func TestSessionsE2EOrphanLockReclaimedAfterRealCrash(t *testing.T) {
 	if pidF, ok := lockMeta["pid"].(float64); !ok || int(pidF) != proc.Pid() {
 		t.Fatalf("el lock debía ser del proceso a matar (pid %d); got %v", proc.Pid(), lockMeta)
 	}
+	// El lock aparece en `sessions.open`, antes de que se anexe el 'user': esperar a
+	// que ese mensaje esté YA en disco antes de matar, o el SIGKILL corre contra el
+	// append bajo carga y el transcript queda vacío/solo-meta (ver helper).
+	sessionsWaitForUserMessage(t, dir, 2*time.Second)
 
 	killedPid := proc.Pid()
 	if err := proc.Kill(); err != nil {
