@@ -1,0 +1,169 @@
+# Smoke de instalación en SISTEMAS LIMPIOS (S48, Fase 9 · refina la matriz de
+# ADR-013). El smoke de `ci.yml` arranca el binario en los runners de GitHub, que
+# vienen con toolchain y utilidades de sobra; este workflow prueba la promesa de
+# ADR-025 —«corre en una Debian limpia o una máquina air-gapped»— metiendo el
+# MISMO binario estático (CGO_ENABLED=0, ADR-001) en contenedores MÍNIMOS sin Go
+# ni utilidades, y en macOS Intel y ARM. Si el binario arrastrara una dependencia
+# oculta (glibc, un .so), alpine (musl) o una imagen slim lo destaparían aquí.
+#
+# DevOps del operador (ADR-013): esto son STEPS, no la API sagrada. Las DECISIONES
+# (qué matriz, qué humo) se registran en el worklog de S48. Comentarios y `name:`
+# en español; claves YAML en inglés (igual que ci.yml).
+name: Smoke instalación
+
+on:
+  push:
+    branches: [develop]
+    paths: &rutas
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'install.sh'
+      - 'internal/runtime/embedded/**'
+      - '.github/workflows/smoke-instalacion.yml'
+  pull_request:
+    branches: [main, develop]
+    paths: *rutas
+
+# Una PR de solo-docs (README, contratos) no toca el binario: el filtro de rutas
+# evita gastar seis jobs de contenedor en cambios que no pueden romper el arranque.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Construye el artefacto UNA vez con las flags de release (las mismas que
+  # release.yml / el smoke de ci.yml): estático, reproducible, pequeño. Todos los
+  # contenedores prueban ESTE binario — la portabilidad del mismo artefacto es
+  # justo lo que se afirma.
+  construir:
+    name: Construir binario estático (linux/amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Binario estático (flags de release)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o enu .
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: enu-linux-amd64
+          path: enu
+          retention-days: 1
+
+  # Mete el binario en cada imagen mínima vía `docker run` (no como `container:` del
+  # job: las imágenes slim/alpine no traen node y las actions de JS fallarían dentro;
+  # ejecutar docker como STEP en el runner esquiva ese problema). Cada imagen es su
+  # propio check.
+  linux:
+    name: Limpio ${{ matrix.image }}
+    needs: construir
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:stable-slim
+          - ubuntu:latest
+          - fedora:latest
+          - alpine:latest
+    steps:
+      - name: Bajar artefacto
+        uses: actions/download-artifact@v4
+        with:
+          name: enu-linux-amd64
+      - name: Arranque en contenedor limpio
+        run: |
+          chmod +x enu
+          docker run --rm \
+            -e HOME=/tmp -e XDG_CONFIG_HOME=/tmp/cfg \
+            -v "$PWD/enu:/usr/local/bin/enu:ro" \
+            "${{ matrix.image }}" sh -c '
+              set -e
+              api=$(enu -e "return enu.version.api")
+              [ -n "$api" ] || { echo "arranque headless vacío (¿embed roto?)" >&2; exit 1; }
+              echo "api=$api"
+              enu --default-config
+              api2=$(enu -e "return enu.version.api")
+              [ -n "$api2" ] || { echo "arranque tras --default-config vacío" >&2; exit 1; }
+              echo "conjunto oficial activo, api=$api2"
+            '
+      - name: Anotar resultado
+        if: always()
+        run: |
+          echo "- \`${{ matrix.image }}\`: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # macOS no corre contenedores Linux; el runner es el objetivo «limpio» nativo.
+  # Intel (macos-13) y ARM (macos-14) por separado: paths, señales y arranque
+  # difieren por arquitectura.
+  macos:
+    name: Limpio ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-13, macos-14]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Binario estático (flags de release)
+        run: CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o enu .
+      - name: Arranque headless
+        run: |
+          export HOME="$(mktemp -d)"
+          export XDG_CONFIG_HOME="$HOME/cfg"
+          api=$(./enu -e 'return enu.version.api')
+          [ -n "$api" ] || { echo "arranque headless vacío" >&2; exit 1; }
+          echo "api=$api"
+          ./enu --default-config
+          ./enu -e 'return enu.version.api' >/dev/null
+          echo "conjunto oficial activo en ${{ matrix.runner }}"
+      - name: Anotar resultado
+        if: always()
+        run: |
+          echo "- \`${{ matrix.runner }}\`: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # Consolida la matriz como DATO: `needs` de todos los legs, así que este job solo
+  # corre —y publica el JSON en verde— si TODAS las plataformas pasaron. Un fallo en
+  # cualquier leg deja este job sin ejecutar (rojo visible por leg) y sin JSON verde.
+  matriz:
+    name: Matriz de instalación (resultado)
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar matriz verde
+        run: |
+          cat > matriz-instalacion.json <<'JSON'
+          {
+            "schema": "smoke-instalacion.v1",
+            "estado": "verde",
+            "linux": ["debian:stable-slim", "ubuntu:latest", "fedora:latest", "alpine:latest"],
+            "macos": ["macos-13 (intel)", "macos-14 (arm)"],
+            "humo": ["enu -e 'return enu.version.api'", "enu --default-config", "enu -e (con oficial activo)"]
+          }
+          JSON
+          cat matriz-instalacion.json
+          {
+            echo "## Matriz de instalación — verde"
+            echo "El binario estático arranca en todas las plataformas limpias:"
+            echo "- Linux (contenedores mínimos): debian-slim · ubuntu · fedora · alpine (musl)"
+            echo "- macOS: Intel (macos-13) · ARM (macos-14)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Subir el dato de la matriz
+        uses: actions/upload-artifact@v4
+        with:
+          name: matriz-instalacion
+          path: matriz-instalacion.json
+          retention-days: 30
