@@ -461,20 +461,18 @@ func TestChatE2EDosTurnosAcumulanEnOrdenEnJSONL(t *testing.T) {
 	}
 }
 
-// quitViaSlashCommand envía el comando `/quit` y espera el apagado del proceso,
-// DESPERTANDO al bucle del driver con pulsaciones inocuas hasta que muere.
+// quitViaSlashCommand envía el comando `/quit` y espera el apagado del proceso SIN
+// más input: tras `/quit` + enter, el proceso debe morir solo, sin despertadores.
 //
-// Por qué el despertador: `/quit` NO es un keymap síncrono como ctrl+c; el editor lo
-// somete (enter → Chat:submit) y el despacho del comando corre en `enu.task.spawn`
-// (una task async). Esa task emite `core:shutdown`, que enciende el flag
-// `__driver_quit`. Pero el bucle del driver solo SONDEA ese flag en `feed()` —tras
-// procesar un lote de input o al vencer el timeout de una secuencia ESC pendiente
-// (driver.go)—; cuando el flag lo enciende una task de fondo, el `select` del driver
-// puede estar bloqueado esperando el próximo trozo de teclado y NO se entera hasta que
-// llega otra tecla. ctrl+c/esc/q, keymaps síncronos, apagan al instante; `/quit` no.
-// (Candidato a hallazgo — documentado en la respuesta al orquestador.) El nudge con
-// esc es determinista: una secuencia ESC pendiente arma el timeout del select, y su
-// flush llama a `feed`→`pollWasmQuit`, que ya ve el flag encendido por la task.
+// Esto BLINDA G58. `/quit` no es un keymap síncrono como ctrl+c: el editor lo somete
+// (enter → Chat:submit) y el despacho del comando corre en `enu.task.spawn` (una task
+// async) que emite `core:shutdown`. Antes de G58, ese `core:shutdown` sólo encendía el
+// flag `__driver_quit`, que el bucle del driver sondeaba en `feed()` —tras procesar
+// input—; entre pulsaciones el `select` seguía bloqueado en `<-chunks` y el proceso no
+// moría hasta la siguiente tecla, así que este helper tenía que enviar «nudges» de esc
+// cada 150ms. Resuelto G58 (el driver escucha el canal de quit de la Instance en su
+// `select`, driver.go), el apagado es inmediato: si el proceso NO muere tras `/quit`
+// sin más input, el plazo vence y el test falla — justo lo que verifica el arreglo.
 func quitViaSlashCommand(t *testing.T, p *PTY) int {
 	t.Helper()
 	p.Send(t, "/quit")
@@ -497,19 +495,12 @@ func quitViaSlashCommand(t *testing.T, p *PTY) int {
 		exited <- code
 	}()
 
-	deadline := time.After(8 * time.Second)
-	for {
-		select {
-		case code := <-exited:
-			return code
-		case <-deadline:
-			t.Fatalf("/quit no apagó el proceso ni con nudges de esc\n--- salida ---\n%s", p.Output())
-			return -1
-		case <-time.After(150 * time.Millisecond):
-			// esc directo al maestro, TOLERANTE al error: si el proceso ya salió, el
-			// write falla con EIO y no debe tumbar el test (p.Send sí lo haría).
-			_, _ = p.master.WriteString("\x1b")
-		}
+	select {
+	case code := <-exited:
+		return code
+	case <-time.After(8 * time.Second):
+		t.Fatalf("/quit no apagó el proceso sin más input (G58 regresó)\n--- salida ---\n%s", p.Output())
+		return -1
 	}
 }
 

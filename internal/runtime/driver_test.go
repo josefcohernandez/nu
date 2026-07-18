@@ -140,6 +140,61 @@ func TestDriverEndToEnd(t *testing.T) {
 	_ = inW.Close()
 }
 
+// TestDriverQuitFromBackgroundTaskG58 blinda G58: un `core:shutdown` emitido por una
+// TASK de fondo (no un keymap síncrono) debe apagar el bucle del driver SIN que llegue
+// más teclado. Es el caso exacto de `/quit`, que el editor somete por `enter` y despacha
+// en `enu.task.spawn`: la task emite `core:shutdown` cuando el `select` del driver ya
+// está bloqueado en `<-chunks` esperando una tecla que nunca llega. Antes del arreglo
+// (canal de quit en el select, opción (a)), el flag `__driver_quit` se encendía pero
+// nadie lo miraba hasta la siguiente pulsación, y el proceso quedaba vivo. Aquí NO se
+// escribe ni un byte tras montar la app: si el bucle no despierta por el canal, el test
+// vence su plazo. El bombeo continuo (PumpTasks, que arranca `drive`) es lo que corre la
+// task; el `select` la escucha por `QuitSignal`.
+func TestDriverQuitFromBackgroundTaskG58(t *testing.T) {
+	h := newHarnessUI(t, 24, 4)
+	if err := h.rt.Boot(); err != nil {
+		t.Fatalf("Boot falló: %v", err)
+	}
+
+	// La "app" reproduce el mecanismo EXACTO de `/quit`: una tecla (`x`) no emite
+	// core:shutdown directamente, sino que SPAWNEA una task que —tras un respiro, ya con
+	// el driver bloqueado en su select sin más input pendiente— lo emite. Es la
+	// diferencia entre un keymap síncrono (ctrl+c, que apaga en el acto) y `/quit`, que
+	// el editor despacha en `enu.task.spawn`. La `x` es el ÚLTIMO byte que se escribe:
+	// el apagado debe venir de la task async, no de una pulsación posterior.
+	h.eval(`
+		enu.ui.keymap("x", function()
+		  enu.task.spawn(function()
+		    enu.task.sleep(15)
+		    enu.events.emit("core:shutdown")
+		  end)
+		end)
+	`)
+
+	inR, inW := io.Pipe()
+	out := &syncBuf{}
+	d := newDriver(h.rt, inR, out)
+	d.installShutdownHandler()
+	d.attachOutput()
+
+	done := make(chan struct{})
+	go func() { d.drive(); close(done) }()
+
+	// Una sola pulsación arma la task; después NO se escribe nada más. Antes de G58 el
+	// flag `__driver_quit` se encendería pero el select seguiría dormido en `<-chunks`
+	// hasta otra tecla; con el arreglo, el canal de quit despierta el bucle.
+	if _, err := inW.Write([]byte("x")); err != nil {
+		t.Fatalf("write x: %v", err)
+	}
+	select {
+	case <-done:
+		// apagado limpio despertado por el canal de quit (G58).
+	case <-time.After(3 * time.Second):
+		t.Fatal("G58: el driver no se apagó tras un core:shutdown emitido por una task async (sin más teclado)")
+	}
+	_ = inW.Close()
+}
+
 // screenContains compone toda la pantalla y comprueba si alguna fila contiene `sub`.
 // Bajo el token y el candado de la UI (G44, como readRow).
 func screenContains(h *harness, sub string) bool {

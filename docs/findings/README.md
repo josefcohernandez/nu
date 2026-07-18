@@ -14,13 +14,18 @@ resolución se aplica a los documentos afectados y la entrada pasa a
 aquello es lo que decidimos no decidir; esto son agujeros que la v1 sí
 necesita cerrados.
 
-**Estado: 57 registradas, 55 resueltas, 2 abiertas** (G58 y G59 añadidas
-2026-07-18 desde la misma suite e2e de los plugins oficiales, esta vez
-caracterizando dos bugs de producto PREEXISTENTES en vez de un hueco de API —
-**quedan ABIERTAS**, el arreglo se pospone: G58, el bucle del driver del chat
-(`select` sin timeout sobre `<-chunks`) no observa el `core:shutdown` que
-`/quit` emite desde una task hasta que llega otra pulsación de teclado, pese a
-que `chat.md` §8 promete que salir del chat apaga el runtime; G59, el
+**Estado: 57 registradas, 56 resueltas, 1 abierta** (G58 y G59 añadidas
+2026-07-18 desde la misma suite e2e de los plugins oficiales, caracterizando
+dos bugs de producto PREEXISTENTES en vez de un hueco de API: G58, el bucle del
+driver del chat (`select` sin timeout sobre `<-chunks`) no observaba el
+`core:shutdown` que `/quit` emite desde una task hasta que llegaba otra
+pulsación de teclado, pese a que `chat.md` §8 promete que salir del chat apaga
+el runtime — **resuelta 2026-07-18** con la opción (a): la `Instance` expone un
+canal `quitSignal` (cerrado por la primitiva interna `__driver_notify_quit`
+desde el handler de `core:shutdown`) que el `select` de `drive()` escucha junto
+al input, sin API pública nueva ni polling (ADR-004); el `.jsonl.lock` resultó
+un bug DISTINTO que se orfana en el arranque (será G60, en discusión). Queda
+**ABIERTA** G59, el
 auto-connect de servidores de `mcp.toml` es una task efímera cuyo `cleanup`
 desconecta las tools ANTES de que corra el turno de `enu -p` (contradice el
 propio módulo, que documenta `connect_configured` para una task de larga
@@ -181,5 +186,5 @@ añaden aquí con el mismo método.
 | G55 | Los secretos del provider se heredan por defecto en el entorno de todo subproceso lanzado por la tool `bash`/`enu.proc` | extensión `agent` / `enu.proc` §6 | RESUELTO | [g55-los-secretos-del-provider.md](g55-los-secretos-del-provider.md) |
 | G56 | El contrato [W] no define la identidad/dueño de un worker para las primitivas atribuidas por owner | `api.md` §13/§16 / `agente.md` | RESUELTO | [g56-el-contrato-w-no-define.md](g56-el-contrato-w-no-define.md) |
 | G57 | El transcript y el lock de sesiones no alcanzan el `0600` prometido: la API no dejaba fijar el modo de creación | `api.md` §5/§17 / `sesiones.md` §2/§6/§8 / `guia-plugins.md` §7 | RESUELTO | [g57-transcript-y-lock-de-sesiones-no-alcanzan-0600.md](g57-transcript-y-lock-de-sesiones-no-alcanzan-0600.md) |
-| G58 | El chat no se cierra hasta la siguiente tecla: `/quit` despacha `core:shutdown` desde una task, pero el driver solo lo sondea al llegar más input | `chat.md` §8 / driver | ABIERTO | [g58-el-chat-no-se-cierra-hasta.md](g58-el-chat-no-se-cierra-hasta.md) |
+| G58 | El chat no se cierra hasta la siguiente tecla: `/quit` despacha `core:shutdown` desde una task, pero el driver solo lo sondea al llegar más input | `chat.md` §8 / driver | RESUELTO | [g58-el-chat-no-se-cierra-hasta.md](g58-el-chat-no-se-cierra-hasta.md) |
 | G59 | El auto-connect de `mcp.toml` es inservible en headless `-p`: la task efímera desconecta las tools antes del turno, y `env` (array) no llega al subproceso | extensión `mcp` / `enu.proc` | ABIERTO | [g59-el-auto-connect-de-mcp-toml.md](g59-el-auto-connect-de-mcp-toml.md) |

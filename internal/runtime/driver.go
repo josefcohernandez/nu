@@ -44,8 +44,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dbareagimeno/enu/internal/vmwasm"
 	"golang.org/x/term"
 )
+
+// registerDriverWasm registra la primitiva INTERNA con la que el handler de
+// core:shutdown del driver (installShutdownHandler) DESPIERTA el bucle de TTY sin
+// esperar a la siguiente tecla (G58): cierra el canal de quit de la Instance, que
+// `drive` escucha en su `select` junto al input. No es superficie pública de `enu.*`
+// —doble guion bajo, como `enu.__handle_call`—: no aparece en api.md ni bumpea
+// `enu.version.api`; es plomería del kernel que sólo el driver invoca. Se registra
+// para todas las instancias (inofensivo: quien no monta driver nunca la llama).
+func registerDriverWasm(p *vmwasm.Pool) {
+	p.Register("__driver_notify_quit", func(inst *vmwasm.Instance, args []any) ([]any, error) {
+		inst.SignalQuit()
+		return nil, nil
+	})
+}
 
 // escFlushTimeout es cuánto espera el driver más bytes tras un ESC pendiente antes de
 // resolverlo como la tecla `esc` (la ambigüedad "ESC tecla vs. prefijo de secuencia",
@@ -79,10 +94,14 @@ func (d *ttyDriver) requestQuit() {
 }
 
 // installShutdownHandler suscribe en el bus de la Instance wasm un handler de
-// `core:shutdown` que enciende un flag global; el bucle lo sondea tras cada lote de
-// input (`pollWasmQuit`). Así un `core:shutdown` emitido por la UI Lua (una app que
-// mapea su tecla de salida) termina el bucle. Corre bajo el token (lo toma por forma,
-// aunque en wasm el bus lo gobierna el mutex de la Instance).
+// `core:shutdown` que (1) enciende un flag global —sondeado tras cada lote de input
+// por `pollWasmQuit`, la vía del input síncrono— y (2) cierra el canal de quit de la
+// Instance vía la primitiva interna `__driver_notify_quit`, que el `select` del bucle
+// escucha directamente (G58). El flag por sí solo no bastaba: un `core:shutdown`
+// emitido por una TASK de fondo (`/quit`, que corre en `enu.task.spawn`) encendía el
+// flag pero el `select` seguía bloqueado en `<-chunks` hasta la siguiente tecla; el
+// canal lo despierta en el acto. Corre bajo el token (lo toma por forma, aunque en
+// wasm el bus lo gobierna el mutex de la Instance).
 func (d *ttyDriver) installShutdownHandler() {
 	s := d.rt.sched
 	s.acquire()
@@ -91,7 +110,7 @@ func (d *ttyDriver) installShutdownHandler() {
 		return
 	}
 	_, _, _ = d.rt.wasm.Eval("_G.__driver_quit = false\n" +
-		`enu.events.on("core:shutdown", function() _G.__driver_quit = true end)`)
+		`enu.events.on("core:shutdown", function() _G.__driver_quit = true; enu.__driver_notify_quit() end)`)
 }
 
 // pollWasmQuit sondea el flag `__driver_quit` que el handler Lua de `core:shutdown`
@@ -161,6 +180,16 @@ func (d *ttyDriver) drive() {
 	chunks := make(chan []byte, 8)
 	go d.readChunks(chunks)
 
+	// Canal de apagado de la Instance (G58): se cierra al emitirse core:shutdown en el
+	// bus wasm —incluida la emisión ASÍNCRONA de una task (`/quit`)—, y aquí es un caso
+	// más del `select` para que interrumpa la espera de teclado sin depender de que
+	// llegue más input. Nil si no hay backend wasm (headless de test): un canal nil
+	// bloquea para siempre, así que nunca se elige — comportamiento intacto.
+	var quitSignal <-chan struct{}
+	if d.rt.wasm != nil {
+		quitSignal = d.rt.wasm.QuitSignal()
+	}
+
 	var pending []byte
 	for {
 		// Si hay una secuencia ESC a medias, espera más bytes pero con un timeout que la
@@ -171,6 +200,10 @@ func (d *ttyDriver) drive() {
 		}
 		select {
 		case <-d.quit:
+			return
+		case <-quitSignal:
+			// core:shutdown emitido (por una task de fondo o un handler): apaga sin
+			// esperar más teclado. Idempotente con d.quit (ambos pueden cerrarse).
 			return
 		case chunk, ok := <-chunks:
 			if !ok {

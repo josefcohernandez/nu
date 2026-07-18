@@ -207,6 +207,19 @@ func (inst *Instance) EmitEvent(name string, payload map[string]any) error {
 	return nil
 }
 
+// QuitSignal devuelve el canal que se CIERRA al emitirse el primer core:shutdown en
+// esta Instance (G58). Lo escucha el bucle del driver de TTY (driver.go) en su
+// `select`, junto al canal de input, para despertar cuando el apagado nace de una
+// task de fondo (`/quit`) en vez de un keymap síncrono. Sólo-lectura: quien lo cierra
+// es SignalQuit.
+func (inst *Instance) QuitSignal() <-chan struct{} { return inst.quitSignal }
+
+// SignalQuit cierra `quitSignal` una sola vez (idempotente, G58). La invoca la
+// primitiva interna __driver_notify_quit desde el handler de core:shutdown del
+// driver; también es segura de llamar por más de una vía (una señal + una task que
+// emiten a la vez) gracias a quitOnce.
+func (inst *Instance) SignalQuit() { inst.quitOnce.Do(func() { close(inst.quitSignal) }) }
+
 // WithLock ejecuta `fn` con el mutex de la Instance tomado —el mismo que serializa
 // los Call a la VM (Eval/schedStep)—. Es la vía por la que el PINTOR (armPainter) y
 // el driver de TTY leen el compositor de forma EXCLUYENTE con las host functions de
@@ -419,6 +432,18 @@ type Instance struct {
 	pumpReqCancels  map[int64]context.CancelFunc
 	pumpOrphans     []context.CancelFunc
 	pumpActive      atomic.Bool
+
+	// quitSignal se CIERRA la primera vez que algo emite core:shutdown en el bus de
+	// esta Instance (G58). Lo dispara la primitiva interna __driver_notify_quit
+	// —que el handler de core:shutdown del driver de TTY (driver.go) invoca— y lo
+	// escucha el `select` de ese driver JUNTO al canal de input: así un
+	// core:shutdown nacido en una task de fondo (`/quit`, que corre en
+	// enu.task.spawn) despierta el bucle sin depender de que llegue más teclado. El
+	// cierre es idempotente (quitOnce); se firma bajo la goroutine que conduce la VM
+	// (bajo `mu`), pero el canal lo lee otra goroutine —cerrar un canal es seguro de
+	// observar desde fuera, y sync.Once ordena el único cierre—.
+	quitSignal chan struct{}
+	quitOnce   sync.Once
 }
 
 // NewInstance instancia el módulo compilado (memoria fresca), cablea el
@@ -430,6 +455,7 @@ func (p *Pool) NewInstance() (*Instance, error) {
 		pumpCh:         make(chan asyncResult, 64),
 		pumpKick:       make(chan struct{}, 1),
 		pumpReqCancels: make(map[int64]context.CancelFunc),
+		quitSignal:     make(chan struct{}),
 	}
 	// ctx con el snapshotter (lo exige el trampolín), cancelable (worker:terminate,
 	// M12) y con la propia instancia.
