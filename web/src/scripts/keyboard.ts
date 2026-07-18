@@ -159,7 +159,7 @@ function renderTyped(): void {
 function evalLua(src: string): string {
   const s = src.trim();
   if (!s) return '';
-  // La versión sale de const.ts (VERSION es "v0.1.4"); el REPL la muestra sin la
+  // La versión sale de const.ts (VERSION es "v0.2.0"); el REPL la muestra sin la
   // `v`, como enu.version en el binario real, y así sigue a la versión de verdad.
   if (s === 'enu.version' || s === 'enu.version.api')
     return '"' + VERSION.replace(/^v/, '') + '"';

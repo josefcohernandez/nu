@@ -24,7 +24,7 @@ package runtime
 // vía `Pool.SetAPIVersion`/`Pool.SetVersion` (buildWasmState).
 const (
 	VersionMajor = 0
-	VersionMinor = 1
-	VersionPatch = 4
+	VersionMinor = 2
+	VersionPatch = 0
 	APILevel     = 5
 )
