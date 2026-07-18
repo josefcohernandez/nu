@@ -1,199 +1,200 @@
 # enu
 
 [![CI](https://github.com/dbareagimeno/enu/actions/workflows/ci.yml/badge.svg)](https://github.com/dbareagimeno/enu/actions/workflows/ci.yml)
-[![Licencia: Apache 2.0](https://img.shields.io/badge/licencia-Apache%202.0-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-> **enu** (*e/nu — Extensible Native Userland*) es un agente de código para
-> terminal que cabe en **un solo binario** y donde **todo — hasta el propio
-> agente — es una extensión Lua que puedes reescribir**.
+> **A self-extensible coding harness shipped as a single static binary.**
+> No Node. No npm. No Python.
 
-<!-- TODO(R-05): sustituir por una demo real (GIF/asciinema de 20-40 s):
-     chat → la tool pide permiso → el agente edita un archivo → un plugin Lua →
-     `enu -p` headless. Colócala aquí, arriba del todo. -->
+enu ships a coding agent, a terminal UI, model providers, sessions and MCP
+support — but none of them live in the core. They are **Lua plugins built on
+the same public API available to you**. Replace a tool. Redesign the TUI.
+Rewrite the agent loop. Or drop the agent entirely and use enu as a native
+runtime for your own terminal automation.
 
----
+<!-- TODO(S47): demo real aquí (GIF/asciinema de 30-45 s): chat → la tool pide
+     permiso → el agente edita un archivo → un plugin Lua → `enu -p` headless. -->
 
-## En 30 segundos
-
-Los agentes de código de hoy son excelentes, pero llegan atados a su base
-material: un runtime de Node o Python que instalar y mantener, y un núcleo
-cerrado que solo dejas configurar por los bordes. Si quieres cambiar cómo
-funciona el agente de verdad —el loop, las tools, la UI— haces un fork o te
-aguantas.
-
-**enu invierte eso.** Es un runtime de Lua orientado a terminal que *resulta*
-que trae un agente de código de serie. El binario es un **kernel diminuto** de
-primitivas rápidas (ficheros, procesos, HTTP, búsqueda, UI de terminal,
-concurrencia) sobre un intérprete de Lua. El agente, el chat, los providers de
-LLM, el soporte de MCP: **todos son extensiones Lua**, sin ningún privilegio de
-kernel — las mismas que podrías escribir tú.
-
-Qué te llevas de ahí:
-
-- **Un solo binario estático, cero dependency hell.** Sin Node, sin npm, sin
-  Python, sin toolchain. `curl | sh` y a trabajar; corre igual en tu portátil,
-  en un contenedor o en CI.
-- **El agente es tuyo, no una caja negra.** Remapea el chat, añade tools y
-  comandos slash, engancha hooks o **reemplaza el loop del agente entero** con
-  la misma API pública que usa la versión oficial. Si algo oficial no se puede
-  construir con esa API, se considera un bug de la API.
-- **Modo headless de primera clase.** El motor del agente no pinta nada por
-  diseño: `enu -p '...'` ejecuta un turno y escribe el resultado a stdout. Apto
-  para scripts, pipes y CI sin ceremonia.
-- **Trae tu propio modelo.** Los providers se declaran como datos (TOML), no
-  como código: Anthropic, cualquier endpoint compatible con OpenAI (OpenAI,
-  Groq, OpenRouter, vLLM, Ollama…) y Gemini van embebidos; el resto es un plugin.
+[Install](#quickstart) · [Write a plugin](#show-dont-tell) · [How it works](#how-it-works) · [Docs](docs/README.md)
 
 ---
 
-## Un vistazo
+## Quickstart
 
 ```sh
-# 1. Instalar (binario estático; detecta SO/arquitectura y verifica el checksum).
+# 1. One static binary — detects OS/arch and verifies the checksum.
 curl -fsSL https://raw.githubusercontent.com/dbareagimeno/enu/main/install.sh | sh
 
-# 2. Activar el conjunto oficial (agente, chat, providers, sesiones, MCP…).
-#    Viene embebido pero apagado: enchufarlo es una elección tuya, explícita.
+# 2. Enable the official set (agent, chat, providers, sessions, MCP…).
 enu --default-config
 
-# 3. Declarar un modelo y su clave, y lanzar un turno headless.
-export ANTHROPIC_API_KEY="sk-..."
-enu -p 'Resume qué hace este repositorio' --model anthropic/opus
-
-#    …o, en un terminal interactivo, abrir el chat:
-enu
+# 3. Point it at a model and go — interactive chat, or headless with `-p`.
+export ANTHROPIC_API_KEY=sk-...
+enu                              # interactive TUI
+enu -p 'Summarize this repo'     # one headless turn to stdout
 ```
 
-Recién instalado, enu es un **runtime desnudo**: las extensiones oficiales
-vienen embebidas pero **inactivas por defecto**, así que el harness es una
-elección explícita y reversible, no un hecho consumado. El detalle completo del
-onramp, la configuración y los modos del binario está en la
-[**guía de inicio**](docs/README.md).
+A freshly installed enu is a **bare runtime**: the official extensions are
+embedded but **off by default**, so turning them on is an explicit, reversible
+choice. Full onramp and configuration in the [getting-started guide](docs/README.md).
 
 ---
 
-## En qué se diferencia (honestamente)
+## Why enu
 
-enu no compite en madurez con los agentes establecidos; compite en **forma**.
-Esta tabla es deliberadamente honesta en ambas direcciones:
+### Deploy it anywhere
 
-| | **enu** | Claude Code | Aider | Cursor |
-|---|---|---|---|---|
-| **Base material** | Un binario estático Go, sin runtime | CLI sobre Node/TS | CLI sobre Python (pip) | App de escritorio (Electron) |
-| **Extensibilidad** | **Todo es Lua**: el agente, el chat y las tools se reescriben con la API pública | Config + hooks alrededor de un núcleo fijo | Config + scripting | Ajustes + extensiones del editor |
-| **Modelo mental** | Runtime que trae un agente; el core **no sabe qué es un agente** | Agente cerrado con puntos de extensión | Agente de pair-programming en CLI | IDE con IA integrada |
-| **Providers** | Datos en TOML; trae tu propio endpoint | Anthropic | Muchos | Integrados |
-| **Headless / CI** | De primera clase (`enu -p`, códigos de salida estables) | Sí | Sí | No (es un editor) |
-| **Madurez** | **Temprana / pre-1.0** — ver abajo | Producto maduro y muy usado | Maduro y muy usado | Producto comercial pulido |
-| **Ecosistema de plugins** | Aún no existe | — | — | Grande (extensiones de editor) |
+Download one binary and run it on your laptop, in a container, or in CI. No
+host-language runtime, no package manager, no plugin toolchain to provision
+first. The same binary runs on a clean Debian box or an air-gapped machine.
 
-**Dónde enu está peor, y hay que decirlo:** es un proyecto **joven y liderado
-por el diseño**. El kernel está implementado (las 45 sesiones del plan de
-construcción están cerradas en la rama de desarrollo), pero **no hay todavía una
-release estable que demuestre el onramp completo de punta a punta contra un
-modelo vivo en una máquina limpia**, la release publicada va por detrás del
-código, no hay ecosistema de plugins de terceros, y no hay integración con
-editores. Si buscas una herramienta probada para tu trabajo diario **hoy**,
-Claude Code, Aider o Cursor son la elección responsable. enu es para quien le
-atrae la **idea** —un agente que es del todo suyo, en un binario que no arrastra
-un runtime— y quiere verla crecer (o darle forma).
+### Rewrite everything
+
+The official agent has **no private API**. Remap the chat, add tools and slash
+commands, hook the lifecycle, or replace the agent loop wholesale — all through
+the public `enu.*` surface. If an official feature can't be built as an ordinary
+plugin, that's a bug in the API, not a reason for a shortcut.
+
+### Automate without a UI
+
+The agent engine draws nothing by design. `enu -p '…'` runs a turn and writes
+the result to stdout, with stable exit codes — built for scripts, pipes and CI,
+not a TUI bolted onto a headless environment.
 
 ---
 
-## Cómo funciona, por dentro
+## Show, don't tell
 
-La tesis, en cuatro ideas (detalle en [docs/core/filosofia.md](docs/core/filosofia.md)):
+A plugin is a directory with a `plugin.toml` and an `init.lua`. Here is a
+complete one that adds a `/review` command:
 
-1. **El core no sabe lo que es un agente.** Modelo Emacs/Textadept, no Neovim:
-   un kernel diminuto de primitivas + un intérprete de Lua. El agente, MCP, el
-   chat, los comandos slash y los providers son extensiones Lua, incluidas las
-   oficiales — sin privilegio arquitectónico.
-2. **Corolario de completitud.** Si una feature oficial no se puede construir con
-   la API pública, la API está incompleta y el arreglo va en la API, nunca en un
-   atajo privilegiado.
-3. **Lua decide, Go ejecuta.** Todo el trabajo pesado (búsqueda, diff, markdown,
-   highlighting, streaming HTTP) es una primitiva Go paralela por dentro; Lua
-   solo orquesta.
-4. **Batteries included, pero no enchufadas.** Las extensiones oficiales viajan
-   embebidas (`go:embed`) pero apagadas: enchufarlas es trivial pero explícito.
+```lua
+-- ~/.config/enu/plugins/review/init.lua
+local chat = require("chat")
 
-Las extensiones oficiales del conjunto de producto: `providers` (registro de
-modelos y adaptadores de LLM), `sessions` (persistencia JSONL append-only),
-`agent` (el motor headless: turno, tools, permisos, hooks, subagentes), `chat`
-(la UI de terminal), `mcp` (puente con servidores MCP), `toolkit` (widgets sobre
-`enu.ui`) y `repl` (un intérprete de Lua sobre la API pública, activable sin el
-harness). Ninguna tiene privilegio de kernel: una alternativa de terceros puede
-sustituir cualquiera.
-
----
-
-## Escribir un plugin
-
-Un plugin es un directorio con un `plugin.toml` (`name`, `version`, `requires?`)
-y un `init.lua`. Tiene a su disposición la **API del core** `enu.*` (fs, proc,
-http, ws, search, text, re, ui, events, task, workers, codecs — pequeña y
-estable) y los contratos de las extensiones oficiales para colgarse de ellas:
-`agent.tool{}`, `agent.hook(...)`, `chat.command{}`,
-`providers.register_adapter(...)`.
-
-Empieza por la [**guía de plugins**](docs/contracts/guia-plugins.md) y por
-[`examples/`](examples/), que trae una TUI funcional escrita en Lua puro sobre la
-API del core:
-
-```sh
-XDG_CONFIG_HOME=examples enu   # una TUI de demostración (regiones, teclado, resize)
+chat.command{
+  name = "review",
+  description = "Review the current git diff",
+  run = function()
+    chat.prompt("Review the current git diff. Focus on correctness.")
+  end,
+}
 ```
 
----
+Save it, reload, done — no SDK, no compiler, no package manager.
 
-## Estado del proyecto
-
-enu es **pre-1.0** y liderado por el diseño: los documentos en
-[`docs/`](docs/) **son** la especificación y el código los implementa, no al
-revés. La API se valida escribiendo pseudocódigo contra ella antes de
-congelarla, y el kernel se construye en sesiones incrementales (una feature por
-sesión) con tests y checkpoints. Ese método es deliberado, pero también implica
-que hay superficie por endurecer: trátalo como una **versión inicial**.
-
-El feedback es exactamente lo que este proyecto busca ahora — sobre la tesis,
-sobre la API, o sobre dónde chirría.
+**This is not a special extension API.** The official chat registers its own
+commands through the exact same `chat.command{}` surface. Everything an official
+plugin can do, yours can too.
 
 ---
 
-## Documentación
+## How it works
 
-El mapa completo por capas está en [docs/README.md](docs/README.md). Orden de
-lectura sugerido:
+```
+┌─────────────────────────────────────────────┐
+│ Lua userland                                │
+│   agent · chat · providers · sessions · mcp │
+│   your plugins                              │
+├─────────────────────────────────────────────┤
+│ public  enu.*  API                          │
+├─────────────────────────────────────────────┤
+│ static Go kernel                            │
+│   fs · proc · http · search · ui · workers  │
+└─────────────────────────────────────────────┘
+        Official plugins use no private APIs.
+```
 
-1. [Filosofía](docs/core/filosofia.md) — los principios y lo que enu **no** es
-2. [Arquitectura](docs/core/arquitectura.md) — la forma del sistema (vista estática)
-3. [Modelo de ejecución](docs/core/modelo-ejecucion.md) — concurrencia y límites (vista dinámica)
-4. [API del core](docs/contracts/api.md) — la superficie sagrada v1
-5. [ADR](docs/decisions/adr/README.md) — el registro de decisiones y su razonamiento
+Three ideas hold it together (full rationale in
+[docs/core/filosofia.md](docs/core/filosofia.md)):
 
-**Contratos de las extensiones oficiales:**
-[Providers](docs/contracts/providers.md) ·
-[Agente](docs/contracts/agente.md) ·
-[Sesiones](docs/contracts/sesiones.md) ·
-[Chat](docs/contracts/chat.md)
+1. **The core doesn't know what an agent is.** Emacs/Textadept, not Neovim: a
+   tiny kernel of primitives plus a Lua interpreter. Agent, MCP, chat, slash
+   commands and providers are all Lua extensions — the official ones included,
+   with no architectural privilege.
+2. **Completeness corollary.** If an official feature can't be built on the
+   public API, the API is incomplete — the fix goes into the API, never into a
+   privileged shortcut. This is what keeps the surface honest.
+3. **Lua decides, Go executes.** The heavy lifting (search, diff, markdown,
+   highlighting, HTTP streaming) is a Go primitive, parallel underneath; Lua
+   only orchestrates.
 
-**Para autores de plugins:** [Guía de plugins](docs/contracts/guia-plugins.md)
+The official product set — `providers`, `sessions`, `agent`, `mcp`, `chat`,
+`toolkit`, `repl` — are all plugins. A third-party alternative can replace any
+of them.
 
 ---
 
-## Contribuir
+## enu vs Pi
 
-Las aportaciones son bienvenidas; lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de
-enviar un Pull Request. Como el proyecto tiene un método de trabajo explícito, el
-mejor primer paso es leer [docs/core/filosofia.md](docs/core/filosofia.md) y
-[docs/decisions/adr/README.md](docs/decisions/adr/README.md) para entender el *porqué* antes de proponer el *qué*.
+[Pi](https://github.com/earendil-works/pi) is the closest thing to enu: a
+hackable, extensible coding harness. It is more mature than enu in every way
+that comes from having users — a real plugin ecosystem, a polished UX, a stable
+SDK. The honest difference is **how each one ships**:
 
-El autor conserva la titularidad del proyecto, por lo que al incorporar código de
-terceros puede pedir una cesión de derechos o un acuerdo de contribución (CLA).
+| | **enu** | Pi |
+|---|---|---|
+| Distribution | Single static Go binary | Node / npm |
+| Runtime required | None | Node |
+| Extension language | Lua | TypeScript |
+| Toolchain for a basic plugin | None | Node ecosystem |
+| Replaceable agent loop | Yes | Yes |
+| Public API as an architectural boundary | Explicit principle (completeness corollary) | Extensible architecture |
+| Plugin ecosystem | Early | Mature |
+| Headless / RPC | Headless today; RPC on the roadmap | Headless + RPC, mature |
+| Maturity | Pre-1.0 | Production, broad community |
 
-## Licencia
+Pi is more mature. enu is easier to deploy as infrastructure — one binary, no
+host runtime, plugins that are just Lua files.
 
-enu es software libre bajo la [Apache License 2.0](LICENSE) (permisiva, con
-concesión de patentes). Eres libre de usarlo, estudiarlo, modificarlo y
-distribuirlo, incluso comercialmente. Copyright de Diego Barea; ver
-[NOTICE](NOTICE).
+---
+
+## Project status
+
+enu is **pre-1.0**. The kernel is built and the official extensions run on top
+of it, but the API is still experimental and may change (breaking changes are
+made deliberately, via a recorded decision, never by accident). Supported on
+Linux and macOS (native), and on Windows through WSL2.
+
+Signals you can check rather than take on faith:
+
+- Official plugins run **exclusively** through the public API.
+- End-to-end tests exercise the **real compiled binary** (agent loop, MCP,
+  sessions), plus interactive TUI tests over a PTY.
+- The race detector runs in CI, and releases ship signed checksums.
+
+This is a great time to build a plugin, wire enu into CI, or point it at a local
+model — and to tell us where the API or the design creaks.
+
+---
+
+## Documentation
+
+The full map lives in [docs/README.md](docs/README.md). Pick your path:
+
+- **I want to use enu** → [Getting started](docs/README.md) · [CLI & configuration](docs/contracts/agente.md)
+- **I want to build a plugin** → [Plugin guide](docs/contracts/guia-plugins.md) · [Core API](docs/contracts/api.md)
+- **I want to understand the design** → [Philosophy](docs/core/filosofia.md) · [Architecture](docs/core/arquitectura.md) · [Decisions (ADR)](docs/decisions/adr/README.md)
+- **I want to contribute** → [CONTRIBUTING.md](CONTRIBUTING.md)
+
+The internal design source (contracts, ADRs, findings) is written in Spanish;
+the public-facing docs are in English.
+
+---
+
+## Contributing
+
+Contributions are welcome — read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+Because the project is design-led, the best first step is
+[docs/core/filosofia.md](docs/core/filosofia.md) and the
+[ADR index](docs/decisions/adr/README.md): understand the *why* before proposing
+the *what*.
+
+The author retains ownership of the project, so incorporating third-party code
+may require a contribution agreement (CLA).
+
+## License
+
+enu is free software under the [Apache License 2.0](LICENSE) (permissive, with a
+patent grant). Use it, study it, modify it and distribute it, including
+commercially. Copyright Diego Barea; see [NOTICE](NOTICE).

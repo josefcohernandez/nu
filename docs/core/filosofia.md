@@ -8,11 +8,15 @@ status: "vigente"
 ---
 # Filosofía de enu
 
-> *Un runtime de Lua orientado a terminal cuya killer app es un coding harness.*
+> *Un motor para construir coding harnesses a medida: kernel mínimo, Lua como
+> userland, y hasta el agente oficial es una extensión.*
 
-`enu` es un coding harness de CLI/TUI. Pero esa frase describe el producto, no el
-proyecto. El proyecto es un **kernel mínimo y un sistema de extensiones donde
-todo lo demás — incluido el propio agente — es una extensión**.
+`enu` se usa como un coding harness de CLI/TUI —trae uno oficial de serie—, pero
+el proyecto no es *ese* harness: es el **motor** con el que se construyen
+(«a self-extensible coding harness with no host runtime», ADR-025). Un kernel
+mínimo y un sistema de extensiones donde todo lo demás —incluido el agente
+oficial, que es la demo de referencia— es una extensión Lua sobre la API
+pública.
 
 ## Principios
 
