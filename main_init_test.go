@@ -232,7 +232,8 @@ func TestDispatchSubcommandRouting(t *testing.T) {
 		{"producto_chat_vetado", []string{"chat"}, true, exitUsage},
 		{"producto_run_vetado", []string{"run"}, true, exitUsage},
 		{"desconocido", []string{"frobnicate"}, true, exitUsage},
-		{"reservado_doctor", []string{"doctor"}, true, exitError},
+		// `init`/`doctor` construyen un Runtime real: su enrutado se prueba aparte
+		// con XDG aislado (TestDispatchInitYesWritesConfig, TestDoctorUsageExit2).
 		{"reservado_update", []string{"update"}, true, exitError},
 		{"reservado_uninstall", []string{"uninstall"}, true, exitError},
 		{"flag_e_no_es_subcomando", []string{"-e", "return 1"}, false, exitOK},

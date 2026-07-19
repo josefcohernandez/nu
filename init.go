@@ -44,7 +44,9 @@ func dispatchSubcommand(args []string) (handled bool, code int) {
 	switch sub {
 	case "init":
 		return true, runInitMain(rest)
-	case "doctor", "update", "uninstall":
+	case "doctor":
+		return true, runDoctorMain(rest)
+	case "update", "uninstall":
 		fmt.Fprintf(os.Stderr, "el subcomando '%s' está reservado (ADR-026) pero aún no está implementado; llega en una sesión posterior\n", sub)
 		return true, exitError
 	default:

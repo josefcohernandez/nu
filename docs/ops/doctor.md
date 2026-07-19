@@ -94,8 +94,9 @@ de `skip` a `ok`/`fail`), no un cambio de esquema.
 | `tools.external` | herramientas externas declaradas por las extensiones activas están en `PATH` | sí | **skip (G62)** |
 | `provider.reach` | alcanzabilidad del endpoint del provider — **solo con `--net`**; sin el flag, `skip` | no | **skip (G62)** |
 
-Un check `skip` por G62 lleva `remedy` que apunta al hallazgo («check de
-producto no implementado en v1; ver G62/P45»): `doctor.v1` nunca finge un `ok`.
+Un check `skip` por G62 lleva su pista en `detail` («check de producto no
+implementado en v1; ver G62/P45») y `remedy: null` (la regla del esquema:
+`remedy` solo en `fail`): `doctor.v1` nunca finge un `ok`.
 
 Regla de implementación (ADR-026, pieza 3): los checks de producto consultan a
 las extensiones o a su fuente única por la API pública; el binario no
