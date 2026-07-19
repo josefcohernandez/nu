@@ -145,6 +145,12 @@ recompilación. El contrato del adaptador y el formato del registro están en
   ([ADR-027](../decisions/adr/adr-027-sin-binario-de-mac-intel.md): legacy;
   quien lo necesite compila desde fuente o usa Linux). Windows nativo:
   [P18](../postponed/pospuesto.md).
+- Además del binario, el release publica una **imagen de contenedor multi-arch**
+  (`linux/amd64`+`arm64`) en GHCR
+  ([ADR-028](../decisions/adr/adr-028-imagen-de-contenedor-publicada.md)): el
+  canal de **ejecución** soportado para hosts sin binario nativo — señaladamente
+  Mac Intel, que corre la imagen `linux/amd64` en la VM de Docker, sin
+  reintroducir `darwin/amd64`. El alcance de binarios *publicados* no cambia.
 - Extensiones oficiales embebidas con `go:embed` pero **inactivas por
   defecto** (ADR-010): activación explícita (pantalla de runtime desnudo
   con TTY — api.md §14 —, el flag `enu --default-config` sin TTY, o `enu.toml`

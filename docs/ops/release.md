@@ -95,8 +95,13 @@ git push origin vX.Y.Z
 ```
 
 Un tag con sufijo (`-rc1`, `-beta`…) se publica como **pre-release** (no "Latest");
-uno limpio `X.Y.Z` es release normal. `release.yml` cross-compila las 4 plataformas
+uno limpio `X.Y.Z` es release normal. `release.yml` cross-compila los 3 binarios
 objetivo, genera `checksums.txt` y crea la GitHub Release con notas autogeneradas.
+Además, el job `imagen` publica una **imagen de contenedor multi-arch**
+(`linux/amd64`+`arm64`) en GHCR ([ADR-028](../decisions/adr/adr-028-imagen-de-contenedor-publicada.md));
+es independiente de los assets (va al registro, no a la Release), y `latest` solo
+se mueve en releases no pre-release. **La PRIMERA publicación crea el paquete GHCR
+como privado**: hazlo público una vez en *Settings → Packages* (y enlázalo al repo).
 
 ### 6. Reintegrar `main → develop` — cierra el grafo
 
@@ -122,6 +127,9 @@ GitHub: sería `main → develop` (al revés) y arrastraría solo esos merge com
   `vX.Y.Z` (0 enlaces `/nu/` residuales).
 - **Instalador**: `install.sh` resuelve la última estable dinámicamente y baja
   `enu-vX.Y.Z-<os>-<arch>.tar.gz` — mismo nombre que produce `release.yml`.
+- **Imagen**: `docker pull ghcr.io/dbareagimeno/enu:vX.Y.Z` trae el manifiesto
+  multi-arch (`linux/amd64`+`arm64`); `docker run --rm ghcr.io/dbareagimeno/enu:vX.Y.Z -e 'return enu.version.api'`
+  responde con el APILevel. La publica el job `imagen` (ADR-028).
 
 ## Instalador (espec operativa — ADR-026, pieza 5)
 

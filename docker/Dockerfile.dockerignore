@@ -1,0 +1,17 @@
+# Se aplica al contexto de build (la raíz del repo: `context: ..` en
+# docker-compose.yml, `context: .` en release.yml) para ESTE Dockerfile en
+# concreto: <dockerfile>.dockerignore junto al Dockerfile, que BuildKit resuelve
+# relativo a la raíz del contexto (aquí `docker/Dockerfile.dockerignore`).
+#
+# Patrones relativos a la raíz del contexto. Se excluye lo que `go build` no
+# necesita, para no engordar el contexto ni filtrar artefactos locales.
+
+.git
+dist
+enu
+docker
+web/node_modules
+internal/vmwasm/wasi-sdk-*
+internal/vmwasm/lua-5.4.7
+.claude
+.DS_Store

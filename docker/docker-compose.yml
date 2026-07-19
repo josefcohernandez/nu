@@ -1,0 +1,112 @@
+# docker-compose.yml de docker/. El contexto de build es `..` (la raíz del
+# repo: necesita go.mod, main.go, internal/, etc.) y el Dockerfile vive aquí
+# mismo — por eso todo servicio de build fija `dockerfile: docker/Dockerfile`
+# sobre ese contexto. Pensado para invocarse vía el Makefile de este
+# directorio, que ya corre `docker compose` desde aquí.
+#
+# Variables de entorno que aceptan override (con un .env en este directorio o
+# en el shell):
+#   ENU_WORKSPACE — directorio que el servicio `enu` monta en /workspace al
+#                   ejecutar el binario (por defecto, el propio repo: `..`).
+
+services:
+  # --- compilar --------------------------------------------------------
+  # `make build`: compila el binario tal cual README.md, pero por bind mount en
+  # vez de COPY — el resultado aterriza directamente en ../dist/enu del host,
+  # sin `docker cp`.
+  build:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: base-go
+    working_dir: /src
+    environment:
+      CGO_ENABLED: "0"
+      GOCACHE: /go-cache
+    volumes:
+      - ..:/src
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/go-cache
+      - ../dist:/src/dist
+    # `git config safe.directory` porque el repo llega por bind mount y el
+    # contenedor corre como root: sin esto, el stamping de VCS de `go build`
+    # (commit embebido en el binario, Go >=1.18) falla con "dubious ownership"
+    # al ver un dueño de fichero distinto del usuario del proceso.
+    command: >
+      sh -c "git config --global --add safe.directory /src &&
+             go build -trimpath -ldflags '-s -w' -o dist/enu ."
+
+  # `make test`: mismo filtro que el job "test" de ci.yml (excluye
+  # internal/vmwasm, ver Dockerfile). -race necesita cgo (a diferencia del build
+  # de producción, CGO_ENABLED=0 a propósito): se pisa aquí, la imagen golang
+  # trae gcc.
+  test:
+    extends: build
+    environment:
+      CGO_ENABLED: "1"
+      GOCACHE: /go-cache
+    command: >
+      sh -c "git config --global --add safe.directory /src &&
+             go test -race -shuffle=on $$(go list ./... | grep -v /internal/vmwasm)"
+
+  # `make blob`: regenera internal/vmwasm/enu.wasm ejecutando el build.sh real
+  # sobre el repo montado — el blob resultante aterriza sobre el árbol del host
+  # (build.sh hace `cd` a su propio dir), exactamente como se comitea en el
+  # flujo real (ver internal/vmwasm/build.sh y ci.yml job "vmblob").
+  blob:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: blob-builder
+    working_dir: /src
+    volumes:
+      - ..:/src
+    command: ["internal/vmwasm/build.sh"]
+
+  # `make shell`: contenedor de desarrollo interactivo con el toolchain de Go y
+  # el repo montado — para depurar sin repetir `docker build` por cada cambio.
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: base-go
+    working_dir: /src
+    environment:
+      CGO_ENABLED: "0"
+      GOCACHE: /go-cache
+    volumes:
+      - ..:/src
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/go-cache
+    stdin_open: true
+    tty: true
+    # Configura safe.directory antes de soltar el shell interactivo (mismo
+    # motivo que en `build`/`test`). Sin -l (login): un bash de login resetea
+    # PATH desde /etc/profile y se pierde /usr/local/go/bin que la imagen de
+    # golang exporta por ENV.
+    entrypoint: ["bash", "-c", "git config --global --add safe.directory /src; exec bash"]
+
+  # --- ejecutar ----------------------------------------------------------
+  # `make run`: imagen final autocontenida (target "runtime" del Dockerfile, sin
+  # bind mount de código) para probar el binario ya compilado. Monta
+  # ENU_WORKSPACE en /workspace (por defecto, el propio repo) y persiste la
+  # config/datos XDG (~/.config/enu, ~/.local/share/enu) en volúmenes nombrados
+  # para que sobrevivan entre `docker compose run`.
+  enu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runtime
+    working_dir: /workspace
+    volumes:
+      - ${ENU_WORKSPACE:-..}:/workspace
+      - enu-config:/root/.config/enu
+      - enu-data:/root/.local/share/enu
+    stdin_open: true
+    tty: true
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  enu-config:
+  enu-data:

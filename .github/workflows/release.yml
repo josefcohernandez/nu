@@ -126,6 +126,70 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # Imagen de contenedor. Publica una imagen OCI multi-arch (linux/amd64+arm64)
+  # en GHCR envolviendo el MISMO binario estático (target `runtime` del
+  # Dockerfile). Es el canal de EJECUCIÓN soportado para hosts sin binario
+  # nativo — señaladamente Mac Intel, que corre linux/amd64 en la VM de Docker
+  # (ADR-028, complementa ADR-027: NO reintroduce darwin/amd64). Corre en
+  # paralelo a `build`; ambos dependen del gate de versión. Independiente de la
+  # Release: la imagen va al registro, no a los assets.
+  imagen:
+    name: Publicar imagen (ghcr.io, multi-arch)
+    needs: verificar-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # push a GHCR con el GITHUB_TOKEN, sin secretos extra
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+      VERSION: ${{ needs.verificar-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # QEMU para poder construir la variante linux/arm64 en un runner amd64. El
+      # `go build` igual CROSS-COMPILA (Dockerfile: builder ancla a BUILDPLATFORM
+      # y usa GOOS/GOARCH), así que QEMU solo emula el apt-get de la etapa
+      # runtime, no el compilado — rápido y estable.
+      - name: Preparar QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Preparar Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login en GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Etiquetas: siempre la versión exacta; `latest` SOLO si no es pre-release
+      # (mismo criterio que la GitHub Release: un tag con sufijo -rcN/-beta no es
+      # "latest").
+      - name: Calcular etiquetas
+        id: tags
+        run: |
+          tags="${IMAGE}:${VERSION}"
+          case "${{ github.ref_name }}" in
+            *-*) : ;;                              # pre-release: sin latest
+            *)   tags="${tags},${IMAGE}:latest" ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "Etiquetas: $tags"
+
+      - name: Build y push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # provenance off: el binario ya es reproducible y el runbook verifica
+          # por pull+smoke; evitamos el manifiesto extra de attestations.
+          provenance: false
+
   # Publicación. Junta los cuatro tar.gz, genera checksums.txt y crea la GitHub
   # Release. Único job con permiso de escritura.
   release:

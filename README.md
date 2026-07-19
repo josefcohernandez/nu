@@ -50,6 +50,19 @@ Download one binary and run it on your laptop, in a container, or in CI. No
 host-language runtime, no package manager, no plugin toolchain to provision
 first. The same binary runs on a clean Debian box or an air-gapped machine.
 
+Prefer a container? Pull the published multi-arch image — also the supported way
+to run enu on hosts without a native binary, such as **Intel Macs** (they run the
+`linux/amd64` image in Docker Desktop's VM; there is no native `darwin/amd64`
+build):
+
+```sh
+# Runs the bare runtime — no config or API key needed:
+docker run --rm ghcr.io/dbareagimeno/enu -e 'return enu.version.api'
+```
+
+The [`docker/`](docker/) directory has a Compose + Makefile workflow to build,
+test, and run enu without installing Go locally.
+
 ### Rewrite everything
 
 The official agent has **no private API**. Remap the chat, add tools and slash

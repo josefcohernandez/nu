@@ -52,6 +52,19 @@ runtime del lenguaje anfitrión, sin gestor de paquetes, sin toolchain de plugin
 que aprovisionar antes. El mismo binario corre en una Debian limpia o en una
 máquina air-gapped.
 
+¿Prefieres un contenedor? Tira de la imagen multi-arch publicada — también la vía
+soportada para ejecutar enu en hosts sin binario nativo, como los **Mac Intel**
+(corren la imagen `linux/amd64` en la VM de Docker Desktop; no hay build nativo
+`darwin/amd64`):
+
+```sh
+# Ejecuta el runtime desnudo — sin config ni API key:
+docker run --rm ghcr.io/dbareagimeno/enu -e 'return enu.version.api'
+```
+
+El directorio [`docker/`](docker/) trae un flujo Compose + Makefile para
+compilar, testear y ejecutar enu sin instalar Go en local.
+
 ### Reescríbelo todo
 
 El agente oficial **no tiene API privada**. Remapea el chat, añade tools y

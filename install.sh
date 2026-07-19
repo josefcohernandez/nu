@@ -143,8 +143,10 @@ main() {
 
 	# Mac Intel no se publica (ADR-027): el macOS soportado es Apple Silicon. Se
 	# rechaza aquí con remedio en vez de intentar bajar un asset inexistente (404).
+	# Remedio principal desde ADR-028: la imagen de contenedor (linux/amd64 en la
+	# VM de Docker), que NO reintroduce el binario darwin/amd64.
 	if [ "$OS" = darwin ] && [ "$ARCH" = amd64 ]; then
-		err "enu no publica binario para Mac Intel (darwin/amd64), retirado en ADR-027. Usa Linux o WSL2, o compila desde fuente (GOOS=darwin GOARCH=amd64 go build)."
+		err "enu no publica binario para Mac Intel (darwin/amd64), retirado en ADR-027. Opciones: ejecútalo en contenedor con 'docker run ghcr.io/dbareagimeno/enu' (ADR-028); usa Linux/WSL2; o compila desde fuente (GOOS=darwin GOARCH=amd64 go build)."
 	fi
 
 	VERSION="${ENU_VERSION:-}"
