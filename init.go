@@ -27,8 +27,8 @@ func emitf(w io.Writer, format string, a ...any) { _, _ = fmt.Fprintf(w, format,
 func emitln(w io.Writer, a ...any)               { _, _ = fmt.Fprintln(w, a...) }
 
 // El conjunto CERRADO de verbos de gestión (ADR-026 pieza 1) es el `switch` de abajo:
-// `init` implementado (S49); `doctor`/`update`/`uninstall` reservados (S50/S51). Nada
-// de producto entra ahí.
+// `init` (S49), `doctor` (S50), `update`/`uninstall` (S51) implementados. Nada de
+// producto entra ahí.
 
 // dispatchSubcommand decide si os.Args (sin el argv[0]) expresa un SUBCOMANDO y, si es
 // así, lo ejecuta. GRAMÁTICA (decisión de S49, superficie CLI, no espec sagrada): el
@@ -46,9 +46,10 @@ func dispatchSubcommand(args []string) (handled bool, code int) {
 		return true, runInitMain(rest)
 	case "doctor":
 		return true, runDoctorMain(rest)
-	case "update", "uninstall":
-		fmt.Fprintf(os.Stderr, "el subcomando '%s' está reservado (ADR-026) pero aún no está implementado; llega en una sesión posterior\n", sub)
-		return true, exitError
+	case "update":
+		return true, runUpdateMain(rest)
+	case "uninstall":
+		return true, runUninstallMain(rest)
 	default:
 		// Regla de frontera (ADR-026 pieza 1): no existen subcomandos de PRODUCTO.
 		fmt.Fprintf(os.Stderr, "subcomando desconocido: %q\n", sub)

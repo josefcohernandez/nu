@@ -184,15 +184,19 @@ main() {
 	DIR="$(choose_install_dir)"
 	mkdir -p "$DIR" || err "no pude crear el directorio de instalación ${DIR}"
 
-	# Instala con mv; si el destino no es escribible y hay sudo, reintenta con sudo.
-	if mv "${tmp}/enu" "${DIR}/enu" 2>/dev/null; then
-		:
-	elif have sudo; then
-		info "necesito permisos para escribir en ${DIR}; usando sudo…"
-		sudo mv "${tmp}/enu" "${DIR}/enu" || err "no pude instalar en ${DIR} ni con sudo"
-	else
-		err "no puedo escribir en ${DIR} y no hay sudo; fija ENU_INSTALL_DIR a un directorio escribible"
+	# Instalación ATÓMICA y SIN PRIVILEGIOS (release.md §Instalador): se escribe un
+	# sidecar en el MISMO directorio de destino (así el `mv` es un rename dentro del
+	# mismo sistema de ficheros, atómico, y sustituye limpio un binario en uso) y se
+	# renombra sobre el destino. El instalador NUNCA eleva privilegios: si el destino no
+	# es escribible, aborta con remedio (fija ENU_INSTALL_DIR a un directorio tuyo) en
+	# vez de reintentar con sudo — coherente con `enu update`.
+	sidecar="${DIR}/.enu.tmp.$$"
+	if ! cp "${tmp}/enu" "$sidecar" 2>/dev/null; then
+		rm -f "$sidecar" 2>/dev/null || true
+		err "no puedo escribir en ${DIR} (¿lo gestiona el sistema o falta permiso?); enu no eleva privilegios: fija ENU_INSTALL_DIR a un directorio tuyo (p. ej. ~/.local/bin) y reintenta"
 	fi
+	chmod +x "$sidecar"
+	mv -f "$sidecar" "${DIR}/enu" || { rm -f "$sidecar" 2>/dev/null || true; err "no pude colocar el binario en ${DIR}/enu"; }
 
 	info "instalado: ${DIR}/enu"
 
@@ -209,4 +213,8 @@ main() {
 	printf 'activa el agente y demás extensiones oficiales:  enu --default-config\n'
 }
 
-main "$@"
+# Guarda de testeabilidad: con ENU_INSTALL_NO_MAIN=1 el script solo DEFINE las funciones
+# (verify_checksum, latest_stable_tag…) sin ejecutar `main`, para que el smoke de S48
+# pueda cargarlas con `. ./install.sh` y probar la verificación de checksum en aislamiento
+# (caso corrupto rechazado, caso íntegro aceptado) sin necesidad de una release real.
+[ "${ENU_INSTALL_NO_MAIN:-}" = 1 ] || main "$@"

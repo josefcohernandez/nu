@@ -137,12 +137,45 @@ jobs:
         run: |
           echo "- \`${{ matrix.runner }}\`: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
 
+  # Humo del CAMINO SHELL del instalador (S51): la verificación de checksum de
+  # `install.sh` rechaza un artefacto corrupto y acepta uno íntegro, en aislamiento (con
+  # ENU_INSTALL_NO_MAIN=1 se cargan sus funciones sin bajar nada). Es la contraparte
+  # shell de la verificación en Go (verifyChecksum, tests table-driven): instalar un
+  # binario corrupto es el fallo silencioso por antonomasia, así que se prueba en ambos
+  # caminos. No necesita una release real.
+  checksum:
+    name: Instalador · verificación de checksum
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Corrupto rechazado, íntegro aceptado
+        run: |
+          set -e
+          work="$(mktemp -d)"; cd "$work"
+          art="enu-v1.0.0-linux-amd64.tar.gz"
+          echo "contenido de prueba" > "$art"
+          # 1. checksum FALSO → verify_checksum debe abortar (no instalar corrupto).
+          echo "$(printf '0%.0s' $(seq 1 64))  $art" > checksums.txt
+          if ( ENU_INSTALL_NO_MAIN=1 . "$GITHUB_WORKSPACE/install.sh"; verify_checksum "$art" checksums.txt ) 2>/dev/null; then
+            echo "FALLO: aceptó un artefacto con checksum corrupto" >&2; exit 1
+          fi
+          echo "corrupto rechazado ✓"
+          # 2. checksum REAL → verify_checksum debe aceptar.
+          real="$(sha256sum "$art" | awk '{print $1}')"
+          echo "$real  $art" > checksums.txt
+          ( ENU_INSTALL_NO_MAIN=1 . "$GITHUB_WORKSPACE/install.sh"; verify_checksum "$art" checksums.txt )
+          echo "íntegro aceptado ✓"
+      - name: Anotar resultado
+        if: always()
+        run: |
+          echo "- \`install.sh verify_checksum\`: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
   # Consolida la matriz como DATO: `needs` de todos los legs, así que este job solo
   # corre —y publica el JSON en verde— si TODAS las plataformas pasaron. Un fallo en
   # cualquier leg deja este job sin ejecutar (rojo visible por leg) y sin JSON verde.
   matriz:
     name: Matriz de instalación (resultado)
-    needs: [linux, macos]
+    needs: [linux, macos, checksum]
     runs-on: ubuntu-latest
     steps:
       - name: Publicar matriz verde
@@ -153,7 +186,8 @@ jobs:
             "estado": "verde",
             "linux": ["debian:stable-slim", "ubuntu:latest", "fedora:latest", "alpine:latest"],
             "macos": ["macos-14 (arm)"],
-            "humo": ["enu -e 'return enu.version.api'", "enu --default-config", "enu -e (con oficial activo)"]
+            "humo": ["enu -e 'return enu.version.api'", "enu --default-config", "enu -e (con oficial activo)"],
+            "instalador": ["verify_checksum: corrupto rechazado + íntegro aceptado"]
           }
           JSON
           cat matriz-instalacion.json

@@ -232,10 +232,10 @@ func TestDispatchSubcommandRouting(t *testing.T) {
 		{"producto_chat_vetado", []string{"chat"}, true, exitUsage},
 		{"producto_run_vetado", []string{"run"}, true, exitUsage},
 		{"desconocido", []string{"frobnicate"}, true, exitUsage},
-		// `init`/`doctor` construyen un Runtime real: su enrutado se prueba aparte
-		// con XDG aislado (TestDispatchInitYesWritesConfig, TestDoctorUsageExit2).
-		{"reservado_update", []string{"update"}, true, exitError},
-		{"reservado_uninstall", []string{"uninstall"}, true, exitError},
+		// `init`/`doctor`/`update`/`uninstall` construyen un Runtime real o tienen
+		// efectos (uninstall borraría os.Executable()): su enrutado se prueba aparte
+		// con costuras inyectables (TestDispatchInitYesWritesConfig, TestDoctorUsageExit2,
+		// TestUpdate*, TestUninstall*). Aquí solo el veto de frontera y los no-subcomandos.
 		{"flag_e_no_es_subcomando", []string{"-e", "return 1"}, false, exitOK},
 		{"sin_args", []string{}, false, exitOK},
 	}
