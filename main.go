@@ -98,7 +98,7 @@ func main() {
 // del binario (`versionString()`) al writer y devuelve `exitOK`. No arranca el runtime ni
 // lee config —es introspección pura de constantes de compilación (arquitectura.md §5)—.
 func runVersion(out io.Writer) int {
-	fmt.Fprintln(out, versionString())
+	emitln(out, versionString()) // emitln descarta el error de escritura (como el resto del CLI)
 	return exitOK
 }
 
