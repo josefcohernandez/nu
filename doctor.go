@@ -146,11 +146,18 @@ func collectDoctorChecks(rt *runtime.Runtime, opts doctorOpts) []doctorCheck {
 	}
 }
 
-func checkBinaryVersion() doctorCheck {
-	d := fmt.Sprintf("enu %d.%d.%d · API %d (%s/%s)",
+// versionString es la identidad del binario en una línea —`enu X.Y.Z · API N
+// (os/arch)`— a partir de las constantes de compilación (`enu.version` de api.md) y de
+// `runtime.GOOS/GOARCH` de Go. Fuente ÚNICA compartida por el check `binary.version` de
+// `enu doctor` y por el flag `--version`/`-V` (S53): un solo formato, sin duplicar.
+func versionString() string {
+	return fmt.Sprintf("enu %d.%d.%d · API %d (%s/%s)",
 		runtime.VersionMajor, runtime.VersionMinor, runtime.VersionPatch, runtime.APILevel,
 		goruntime.GOOS, goruntime.GOARCH)
-	return doctorCheck{ID: "binary.version", Status: statusOKd, Summary: "versión y arquitectura del binario", Detail: strptr(d)}
+}
+
+func checkBinaryVersion() doctorCheck {
+	return doctorCheck{ID: "binary.version", Status: statusOKd, Summary: "versión y arquitectura del binario", Detail: strptr(versionString())}
 }
 
 func checkConfigDir(rt *runtime.Runtime) doctorCheck {

@@ -59,6 +59,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -86,10 +87,19 @@ type cliOptions struct {
 	autoPerm  bool   // --auto-permissions: modo "auto" de permisos (agente.md §5)
 	model     string // --model: provider/modelo del turno (anula agent.toml)
 	defConfig bool   // --default-config: activa el conjunto oficial de producto (ADR-015, G33)
+	version   bool   // --version/-V: imprime la identidad del binario y sale (S53, meta-flag)
 }
 
 func main() {
 	os.Exit(run())
+}
+
+// runVersion es el núcleo testeable del flag `--version`/`-V` (S53): escribe la identidad
+// del binario (`versionString()`) al writer y devuelve `exitOK`. No arranca el runtime ni
+// lee config —es introspección pura de constantes de compilación (arquitectura.md §5)—.
+func runVersion(out io.Writer) int {
+	fmt.Fprintln(out, versionString())
+	return exitOK
 }
 
 func run() int {
@@ -109,7 +119,17 @@ func run() int {
 	flag.BoolVar(&opts.autoPerm, "auto-permissions", false, "permisos del agente en modo \"auto\" (agente.md §5); sin él, en headless las tools sensibles se deniegan")
 	flag.StringVar(&opts.model, "model", "", "selecciona el provider/modelo del turno de agente (anula agent.toml)")
 	flag.BoolVar(&opts.defConfig, "default-config", false, "activa el conjunto oficial de producto: solo, escribe plugins.enabled en enu.toml y sale; con -p/-e, lo activa solo para ese proceso (ADR-015)")
+	flag.BoolVar(&opts.version, "version", false, "imprime la versión del binario (enu X.Y.Z · API N (os/arch)) y sale")
+	flag.BoolVar(&opts.version, "V", false, "alias de --version")
 	flag.Parse()
+
+	// `--version`/`-V` (S53): meta-flag de introspección, la categoría de `--help` —no un
+	// verbo de gestión (arquitectura.md §5)—. Imprime la identidad del binario a stdout y
+	// sale 0 SIN arrancar el runtime ni leer config: reutiliza `versionString()`, la misma
+	// fuente que el check `binary.version` de `enu doctor` (sin duplicar el formato).
+	if opts.version {
+		return runVersion(os.Stdout)
+	}
 	// El modo agente exige un prompt NO vacío (un turno necesita algo que enviar),
 	// así que tratamos `-p ""` igual que la ausencia: ambos son "sin prompt". No hay
 	// que distinguirlos —ninguno dispara un turno—; `promptSet` resume "hay un prompt
