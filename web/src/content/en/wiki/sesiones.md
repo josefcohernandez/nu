@@ -38,7 +38,7 @@ enu.config.data_dir()/
   reading by external tools (§1), the cwd→directory encoding can't be a
   private detail. Algorithm: every character outside `[A-Za-z0-9.-]` is
   replaced with `_`; `_` characters are trimmed from both edges; if the
-  result is empty, `"root"`. Example: `/home/diego/nu` → `home_diego_nu`. It
+  result is empty, `"root"`. Example: `/home/diego/enu` → `home_diego_enu`. It
   is deliberately **readable and lossy**: it's not reversible, and two
   pathologically similar `cwd` values (`/a/b` and `/a_b`) can collide in the
   same directory. It's not an identity but a **grouping key**: each

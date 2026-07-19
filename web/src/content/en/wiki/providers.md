@@ -59,7 +59,7 @@ API key from the environment and hands the adapter an already-cooked
 isn't in the environment: it hands over the config with `api_key` absent
 and the adapter decides (a local Ollama doesn't need it; Anthropic will
 give an actionable error on the first request, not on resolve). The
-`nu --default-config` onramp leaves an **active** template of this file —
+`enu --default-config` onramp leaves an **active** template of this file —
 provider `anthropic` with `api_key_env = "ANTHROPIC_API_KEY"` and the
 `claude-opus-4-8` model (alias `opus`) — written only if it doesn't exist,
 so the harness is usable with a single command

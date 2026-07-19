@@ -1,4 +1,4 @@
-# Architecture of nu
+# Architecture of enu
 
 Status: foundational draft. This describes the shape of the system, not a
 closed specification. Decisions and their reasoning live in
@@ -135,7 +135,7 @@ recompile. The adapter contract and the registry format are in
   Windows: [P18](../postponed/pospuesto.md).
 - Official extensions embedded with `go:embed` but **inactive by
   default** (ADR-010): explicit activation (bare runtime screen with a
-  TTY — api.md §14 —, the `nu --default-config` flag without a TTY, or a
+  TTY — api.md §14 —, the `enu --default-config` flag without a TTY, or a
   hand-written `enu.toml`), no network; overridable by the user from
   their config directory. The **official product set** is the embedded
   extensions minus the `example` scaffolding and the `mesh` (ADR-015;

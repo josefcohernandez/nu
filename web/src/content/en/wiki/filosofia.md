@@ -1,4 +1,4 @@
-# nu Philosophy
+# enu Philosophy
 
 > *A terminal-oriented Lua runtime whose killer app is a coding harness.*
 
@@ -62,7 +62,7 @@ activates on its own**: an installed `enu` is a bare runtime, and the harness
 is a user's choice, not a fait accompli. Plugging them in is trivial but
 **explicit**: with a TTY, the first launch offers to activate the official
 set with one keystroke; without a TTY (CI, Docker, scripts), the
-`nu --default-config` flag does the same in one command (ADR-015). In both
+`enu --default-config` flag does the same in one command (ADR-015). In both
 cases, with no network — everything comes from the binary — and from there
 the agent works. Same mental model as Neovim: the program doesn't ship with
 plugins enabled. And as always: those extensions have no privilege
@@ -83,7 +83,7 @@ addition.
 | **Emacs / Textadept** | Minimal kernel + the entire program written in the extension language |
 | **The browser / Luau** | The concurrency model: deterministic main thread + explicit workers + parallel native primitives |
 
-## What nu is not
+## What enu is not
 
 - It's not an editor. We don't compete with Neovim: there are no giant
   buffers to keep highlighted on every keystroke.

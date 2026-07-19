@@ -308,7 +308,7 @@ otherwise.
 Compatible with the existing ecosystem's format: a directory with
 `SKILL.md` (YAML frontmatter: `name`, `description` — via `enu.yaml`).
 
-- Discovery: `config.dir()/skills/` (user) + `<repo>/.nu/skills/`
+- Discovery: `config.dir()/skills/` (user) + `<repo>/.enu/skills/`
   (project). `agent.skills.list() -> SkillInfo[]`. The repo's content is
   subject to §11's trust model.
 - Two-phase injection (context economy): the system prompt carries only
@@ -400,7 +400,7 @@ Sub:cancel()
 threshold and model, **default reasoning** (`[thinking]` with `mode` and
 `budget`, ADR-016), session retention policy ([P10](../postponed/pospuesto.md)), global
 permissions. Precedence is the standard one: defaults < global <
-project (`<repo>/.nu/agent.toml`) < session (`opts`) — with §11's
+project (`<repo>/.enu/agent.toml`) < session (`opts`) — with §11's
 security exception: project permissions only trim.
 
 The extension coins its own structured error code, **`EAGENT`** (shaped
@@ -412,7 +412,7 @@ errors remain `EINVAL`, and provider ones, `EPROVIDER`.
 
 The `model` field (`"provider/model"`) is **mandatory** to open a session:
 `agent.session` fails with an actionable `EINVAL` if it's not in `opts`
-nor in `agent.toml`. That's why the `nu --default-config` onramp leaves an
+nor in `agent.toml`. That's why the `enu --default-config` onramp leaves an
 **active** `agent.toml` template with a default `model` (`anthropic/opus`)
 and its matching `providers.toml` ([ADR-017](../decisions/adr/README.md), [G35](../findings/README.md)):
 the first startup already comes with a model configured (only the API key
@@ -425,7 +425,7 @@ The repo is not the user: its config was written by a third party. Two
 rules, without sandbox or constant dialogs:
 
 1. **The repo only trims permissions, never expands them.** The `deny`
-   entries from `<repo>/.nu/agent.toml` are always honored; its `allow`
+   entries from `<repo>/.enu/agent.toml` are always honored; its `allow`
    and its `mode` are **ignored** — if the user wants them, they copy
    them to their global config or grant them in-session. Zero friction,
    closes the "cloning and opening executes the repo's will" vector.

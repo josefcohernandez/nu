@@ -62,6 +62,7 @@ debe poder reconstruir.
 | S49 | `enu init`: el primer subcomando del binario y el dispatch de gestión (Fase 9, ADR-026; G61) | [s49-enu-init-primer-subcomando.md](s49-enu-init-primer-subcomando.md) |
 | S50 | `enu doctor`: diagnóstico de solo lectura, 7 checks kernel (4 de producto skip por G62) (Fase 9, ADR-026) | [s50-enu-doctor-diagnostico.md](s50-enu-doctor-diagnostico.md) |
 | S51 | Instalador endurecido (sin sudo, atómico) + `enu update`/`enu uninstall`; verifyChecksum Go compartido 🔒 (Fase 9, ADR-026 piezas 4-5) | [s51-instalador-endurecido-update-uninstall.md](s51-instalador-endurecido-update-uninstall.md) |
+| S52 | Limpieza nu→enu en las traducciones inglesas de la web (residuo de ADR-022; editorial, exenta SDD) (Fase 9) | [s52-limpieza-nu-enu-traducciones-web.md](s52-limpieza-nu-enu-traducciones-web.md) |
 | Cierre | coherencia post-plan — P21 (thinking adaptativo, pospuesto) + fix del log espurio de `EvalTaskString` | [cierre-post-plan.md](cierre-post-plan.md) |
 | G42+G43 | Retry con backoff en el motor + `agent:error` estructurado con reintento manual (agente.md §2/§4/§10, chat.md §2/§4) | [g42-g43-retry-backoff.md](g42-g43-retry-backoff.md) |
 | G53–G56 | Construcción del lote de seguridad G53+G54+G55+G56 (auditoría 2026-07-16) | [g53-g56-seguridad.md](g53-g56-seguridad.md) |

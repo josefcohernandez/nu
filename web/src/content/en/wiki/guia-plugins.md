@@ -1,7 +1,7 @@
 # Plugin development guide
 
 Status: living — grows with every lesson learned. This is not a contract:
-it's the practical wisdom for writing plugins that work well within nu's
+it's the practical wisdom for writing plugins that work well within enu's
 execution model ([modelo-ejecucion.md](modelo-ejecucion.md)). The exact
 signatures are in [api.md](api.md) and the extension contracts are in
 [agente.md](agente.md) / [chat.md](chat.md) / [providers.md](providers.md).
@@ -153,7 +153,7 @@ error({ code = "EINVAL", message = "empty filter", detail = { arg = "filter" } }
   agent appropriate your name.
 - **Be a library**: reusable code goes in your plugin's `lua/` — others
   will be able to `require("your-plugin.module")`. That's how Neovim's
-  ecosystem got built, and that's how we want nu's.
+  ecosystem got built, and that's how we want enu's.
 - **Hooks**: register with the minimal `priority` needed and return `nil`
   when you have no opinion. A hook that modifies payloads it doesn't
   understand breaks the plugins that come after it in the chain.

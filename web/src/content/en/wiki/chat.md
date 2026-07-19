@@ -1,7 +1,7 @@
 # The official chat extension: contract
 
 Status: **draft for discussion**. Contract for the official `chat`
-extension — the visible face of nu, what the user sees on startup. Like the
+extension — the visible face of enu, what the user sees on startup. Like the
 rest of the official extensions, **no privileges**: it consumes the public
 agent API ([agente.md](agente.md)), the widget toolkit (official extension
 on top of [api.md](api.md) §9) and the event bus. An alternative third-party
@@ -196,7 +196,7 @@ chat.statusline.add{ id, side: "left"|"right", priority, render: fn(ctx) -> Span
   actionable, exitable UI** that explains how to configure (`agent.toml`,
   `providers.toml`, the environment API key) and lets you exit (`esc`/`q`/
   `ctrl+c` → `core:shutdown`). An **unexpected** failure (not a config one)
-  propagates as usual. The `nu --default-config` onramp leaves active
+  propagates as usual. The `enu --default-config` onramp leaves active
   templates that avoid this path on first startup (ADR-017); a missing
   **API key** doesn't reach here (`providers.resolve` doesn't fail without
   one): the error surfaces in-transcript as `agent:error` on the first turn.
