@@ -13,8 +13,8 @@ export const GITHUB_URL = 'https://github.com/dbareagimeno/enu';
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
 
 // Versión visible (footer, chrome). La versión sin `v` la usa el REPL
-// (`enu.version` → "0.2.0").
-export const VERSION = 'v0.2.0';
+// (`enu.version` → "0.3.0").
+export const VERSION = 'v0.3.0';
 
 export const LICENSE = 'apache-2.0';
 
