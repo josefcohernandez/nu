@@ -489,6 +489,14 @@ general** y sí alimentan el inventario 🔒 (sus filas, abajo).
 > algún paso del README no se sostiene contra el binario real, la fase no
 > cierra. Es la versión operativa del CP-11: el dogfooding era «enu se
 > construye con enu»; este es «enu se adopta sin ayuda».
+>
+> **Mutación 🔒 batcheada al cierre de fase** (decisión del operador,
+> 2026-07-18): las sesiones de código 🔒 de la Fase 9 (S49, S50, S51) difieren
+> su pasada de `/mutacion` individual y la corren **juntas aquí**, en CP-12,
+> sobre `init.go` + los subcomandos + los helpers de runtime que añadieron
+> (`WriteInitConfig`, doctor, verificación de checksum). Cada sesión lo anota
+> en su worklog como deuda; CP-12 la salda antes de cerrar la fase. Un mutante
+> LIVED: o test nuevo que lo mata, o anotado como equivalente.
 
 **Puerta SDD de los subcomandos: cruzada.** `enu init`, `enu doctor` y el
 instalador endurecido quedaron fuera del alta original de esta fase por falta
